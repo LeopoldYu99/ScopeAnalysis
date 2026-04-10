@@ -29,8 +29,6 @@ namespace InteractiveExamples
         //The chart
         private LightningChart _chart;
 
-        //StopWatch for controlling FPS calculation
-        private System.Diagnostics.Stopwatch _stopWatch;
 
         //Fixed-rate update timer
         private DispatcherTimer _updateTimer;
@@ -91,7 +89,6 @@ namespace InteractiveExamples
         public Example8BillionPoints()
         {
             InitializeComponent();
-            _stopWatch = new System.Diagnostics.Stopwatch();
             _updateTimer = new DispatcherTimer();
             _updateTimer.Interval = TimeSpan.FromMilliseconds(UpdateIntervalMs);
             _updateTimer.Tick += UpdateTimer_Tick;
@@ -283,10 +280,8 @@ namespace InteractiveExamples
             //Start
             _iRound = 0;
             _pointsAppended = 0;
-            _framesRenderedCount = 0;
 
             _updateTimer.Stop();
-            _stopWatch.Reset();
             buttonStartStop.Content = "Restart";
 
             ViewXY v = _chart.ViewXY;
@@ -433,7 +428,6 @@ namespace InteractiveExamples
 
 
             _chart.EndUpdate();
-            _stopWatch.Restart();
             _updateTimer.Start();
         }
 
@@ -464,8 +458,7 @@ namespace InteractiveExamples
 
         private void UpdateTimer_Tick(object sender, EventArgs e)
         {
-            //Fixed-rate update. Refresh stats and append the next data block.
-            _framesRenderedCount++;
+
 
             TotalDataPoints.Content = "Total data points: " + (_pointsAppended * _seriesCount).ToString("N0");
 
@@ -479,12 +472,6 @@ namespace InteractiveExamples
                 return;
             }
 
-            if (_stopWatch.IsRunning == false)
-            {
-                _stopWatch.Restart();
-            }
-
-            FpsCounter.Content = "Fps: " + (_framesRenderedCount / (double)_stopWatch.ElapsedMilliseconds * 1000.0).ToString("0.0");
             DataPointsInVisibleArea.Content = "Visible data points: " + (Math.Min(_chart.ViewXY.XAxes[0].Maximum - _chart.ViewXY.XAxes[0].Minimum, _pointsAppended) * _seriesCount).ToString("N0");
 
             FeedData(/*chartTitleText*/);
@@ -627,11 +614,9 @@ namespace InteractiveExamples
             }
         }
 
-        private long feeddata = 0;
 
         private void FeedData(/*string chartTitleText*/)
         {
-            feeddata = _stopWatch.ElapsedMilliseconds;
             if (_chart != null)
             {
                 _chart.BeginUpdate();
@@ -935,10 +920,6 @@ namespace InteractiveExamples
                 _updateTimer.Stop();
             }
 
-            if (_stopWatch.IsRunning == true)
-            {
-                _stopWatch.Stop();
-            }
         }
 
         /// <summary>
