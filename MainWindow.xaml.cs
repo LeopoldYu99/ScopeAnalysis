@@ -14,30 +14,71 @@ using Arction.Wpf.Charting.Axes;
 using Arction.Wpf.Charting.SeriesXY;
 using Arction.Wpf.Charting.Views.ViewXY;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Threading;
 
 namespace InteractiveExamples
 {
     public partial class Example8BillionPoints : Window, IDisposable
     {
+        private readonly struct TimedValueSample
+        {
+            public TimedValueSample(double time, float value)
+            {
+                Time = time;
+                Value = value;
+            }
+
+            public double Time { get; }
+            public float Value { get; }
+        }
+
+        private sealed class SampleBatch
+        {
+            public SampleBatch(int seriesCount, int sampleCount)
+            {
+                SampleCount = sampleCount;
+                SeriesSamples = new TimedValueSample[seriesCount][];
+                for (int i = 0; i < seriesCount; i++)
+                {
+                    SeriesSamples[i] = new TimedValueSample[sampleCount];
+                }
+            }
+
+            public int SampleCount { get; private set; }
+            public TimedValueSample[][] SeriesSamples { get; private set; }
+            public double LastTime { get; set; }
+        }
+
         //The chart
         private LightningChart _chart;
 
 
-        //Fixed-rate update timer
-        private DispatcherTimer _updateTimer;
+        //Background producer timer
+        private Timer _producerTimer;
+
+        //Producer / consumer queue
+        private readonly ConcurrentQueue<SampleBatch> _pendingBatches = new ConcurrentQueue<SampleBatch>();
+        private readonly object _producerSync = new object();
+        private Random[] _seriesRandoms;
+        private double[] _seriesValueState;
+        private long _producedPointCount;
+        private double _lastConsumedX;
+        private bool _isStreaming;
+        private long _pendingBatchCount;
+        private long _pendingSampleCount;
 
         //Series count 
         private int _seriesCount;
 
         //Append data point per round count
-        private int _appendCountPerRound = 3;
+        private int _appendCountPerRound = DefaultAppendCountPerRound;
 
         //X axis length 
         private double _xLen;
@@ -51,28 +92,18 @@ namespace InteractiveExamples
         //Y axis maximum 
         private const double YMax = 100;
 
-        //Generate this many rounds of data 
-        private const int PreGenerateDataForRoundCount = 200;
-
-        //Data array for each series 
-        private float[][] _data;
-
         //Digital line buffers 32 samples into one uint block before appending.
         private uint _digitalPendingValue;
         private int _digitalPendingBitCount;
 
-        //Data feeding round 
-        private int _iRound = 0;
-
         //Points appended thus far 
         private long _pointsAppended;
 
-        //Frames rendered thus far 
-        private int _framesRenderedCount = 0;
-
         //Line width in pixels 
         private const float LineWidth = 1f;
-        private const int UpdateIntervalMs = 2;
+        private const int ProducerIntervalMs = 20;
+        private const int DefaultAppendCountPerRound = 10;
+        private const int MaxBatchesPerRender = 4;
 
         private const int DigitalSeriesIndex = 0;
 
@@ -89,9 +120,8 @@ namespace InteractiveExamples
         public Example8BillionPoints()
         {
             InitializeComponent();
-            _updateTimer = new DispatcherTimer();
-            _updateTimer.Interval = TimeSpan.FromMilliseconds(UpdateIntervalMs);
-            _updateTimer.Tick += UpdateTimer_Tick;
+            _producerTimer = new Timer(ProducerTimerCallback, null, Timeout.Infinite, Timeout.Infinite);
+            textBoxAppendCountPerRound.Text = DefaultAppendCountPerRound.ToString();
             UpdateXAxisViewModeButtons();
             CreateChart();
         }
@@ -185,6 +215,19 @@ namespace InteractiveExamples
             Start();
         }
 
+        private void CompositionTarget_Rendering(object sender, EventArgs e)
+        {
+            if (_chart == null)
+            {
+                return;
+            }
+
+            ConsumePendingBatches(MaxBatchesPerRender);
+            FpsCounter.Content = string.Format("Queue: {0} batches / {1:N0} points", Interlocked.Read(ref _pendingBatchCount), Interlocked.Read(ref _pendingSampleCount));
+            TotalDataPoints.Content = "Total data points: " + (_pointsAppended * _seriesCount).ToString("N0");
+            DataPointsInVisibleArea.Content = "Visible data points: " + (Math.Min(_chart.ViewXY.XAxes[0].Maximum - _chart.ViewXY.XAxes[0].Minimum, _pointsAppended) * _seriesCount).ToString("N0");
+        }
+
         private void Chart_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
             if (_chart == null)
@@ -221,7 +264,7 @@ namespace InteractiveExamples
             }
 
             _chart.BeginUpdate();
-            UpdateXAxisView(_pointsAppended * XInterval);
+            UpdateXAxisView(_lastConsumedX);
             _chart.EndUpdate();
         }
 
@@ -276,12 +319,11 @@ namespace InteractiveExamples
 
         public void Start()
         {
+            Stop();
 
-            //Start
-            _iRound = 0;
             _pointsAppended = 0;
-
-            _updateTimer.Stop();
+            _producedPointCount = 0;
+            _lastConsumedX = 0;
             buttonStartStop.Content = "Restart";
 
             ViewXY v = _chart.ViewXY;
@@ -298,23 +340,27 @@ namespace InteractiveExamples
             }
 
             //Read append count / round
-            //try
-            //{
-            //    _appendCountPerRound = int.Parse(textBoxAppendCountPerRound.Text);
-            //}
-            //catch
-            //{
-            //    MessageBox.Show("Invalid append count");
-            //    return;
-            //}
-            //if (_appendCountPerRound <= 0)
-            //{
-            //    MessageBox.Show("Append count must be greater than 0");
-            //    return;
-            //}
+            try
+            {
+                _appendCountPerRound = int.Parse(textBoxAppendCountPerRound.Text);
+            }
+            catch
+            {
+                MessageBox.Show("Invalid append count");
+                return;
+            }
+
+            if (_appendCountPerRound <= 0)
+            {
+                MessageBox.Show("Append count must be greater than 0");
+                return;
+            }
 
             _digitalPendingValue = 0;
             _digitalPendingBitCount = 0;
+            ClearPendingBatches();
+
+            InitializeProducerState();
 
             //Read X axis length
             try
@@ -326,11 +372,6 @@ namespace InteractiveExamples
                 MessageBox.Show("Invalid X-Axis length text input");
                 return;
             }
-
-            //Create all data to be inputted before starting the monitoring, 
-            //to prevent data points generating to interrupt
-
-            _data = CreateInputData(_seriesCount, _appendCountPerRound);
 
             _chart.BeginUpdate();
 
@@ -426,9 +467,24 @@ namespace InteractiveExamples
                 PrefillChartWithData();
             }
 
-
             _chart.EndUpdate();
-            _updateTimer.Start();
+            _isStreaming = true;
+            _producerTimer.Change(ProducerIntervalMs, ProducerIntervalMs);
+            CompositionTarget.Rendering -= CompositionTarget_Rendering;
+            CompositionTarget.Rendering += CompositionTarget_Rendering;
+        }
+
+        private void InitializeProducerState()
+        {
+            _seriesRandoms = new Random[_seriesCount];
+            _seriesValueState = new double[_seriesCount];
+
+            int seedBase = Environment.TickCount;
+            for (int seriesIndex = 0; seriesIndex < _seriesCount; seriesIndex++)
+            {
+                _seriesRandoms[seriesIndex] = new Random(seedBase + seriesIndex * 97);
+                _seriesValueState[seriesIndex] = 50;
+            }
         }
 
         /// <summary>
@@ -456,128 +512,168 @@ namespace InteractiveExamples
             }
         }
 
-        private void UpdateTimer_Tick(object sender, EventArgs e)
+        private void ProducerTimerCallback(object state)
         {
+            if (_isStreaming == false)
+            {
+                return;
+            }
 
+            lock (_producerSync)
+            {
+                if (_isStreaming == false)
+                {
+                    return;
+                }
 
-            TotalDataPoints.Content = "Total data points: " + (_pointsAppended * _seriesCount).ToString("N0");
-
-            RenderNextFrame();
+                EnqueuePendingBatch(CreateTestBatch());
+            }
         }
 
-        private void RenderNextFrame()
+        private SampleBatch CreateTestBatch()
+        {
+            SampleBatch batch = new SampleBatch(_seriesCount, _appendCountPerRound);
+
+            for (int pointIndex = 0; pointIndex < _appendCountPerRound; pointIndex++)
+            {
+                double time = (_producedPointCount + pointIndex + 1) * XInterval;
+                for (int seriesIndex = 0; seriesIndex < _seriesCount; seriesIndex++)
+                {
+                    batch.SeriesSamples[seriesIndex][pointIndex] = new TimedValueSample(time, GenerateTestValue(seriesIndex));
+                }
+            }
+
+            _producedPointCount += _appendCountPerRound;
+            batch.LastTime = _producedPointCount * XInterval;
+            return batch;
+        }
+
+        private float GenerateTestValue(int seriesIndex)
+        {
+            if (seriesIndex == 0 || seriesIndex == 1)
+            {
+                return _seriesRandoms[seriesIndex].Next(0, 2);
+            }
+
+            double y = _seriesValueState[seriesIndex];
+            y = y - 0.05 + _seriesRandoms[seriesIndex].NextDouble() / 10.0;
+            y = Math.Max(YMin, Math.Min(YMax, y));
+            _seriesValueState[seriesIndex] = y;
+            return (float)y;
+        }
+
+        private void PrefillChartWithData()
+        {
+            int pointsToPrefill = (int)(0.9 * _xLen);
+            int batchCount = pointsToPrefill / _appendCountPerRound;
+            for (int i = 0; i < batchCount; i++)
+            {
+                ConsumeBatch(CreateTestBatch());
+            }
+
+            if (_pointsAppended > 0)
+            {
+                UpdateXAxisView(_lastConsumedX);
+                UpdateSweepBands(_lastConsumedX);
+            }
+        }
+
+        private void ConsumePendingBatches(int maxBatchCount)
         {
             if (_chart == null)
             {
                 return;
             }
 
-            DataPointsInVisibleArea.Content = "Visible data points: " + (Math.Min(_chart.ViewXY.XAxes[0].Maximum - _chart.ViewXY.XAxes[0].Minimum, _pointsAppended) * _seriesCount).ToString("N0");
+            SampleBatch batch;
+            bool consumedAny = false;
+            int consumedBatchCount = 0;
 
-            FeedData(/*chartTitleText*/);
-        }
-
-        private float[][] CreateInputData(int seriesCount, int appendCountPerRound)
-        {
-            //Create input data for all series. 
-            float[][] data = new float[seriesCount][];
-          //  System.Threading.Tasks.Parallel.For(0, seriesCount, (seriesIndex) =>
-            for(int seriesIndex = 0; seriesIndex < seriesCount; seriesIndex++)
+            _chart.BeginUpdate();
+            try
             {
-                
-                int dataPointCount = PreGenerateDataForRoundCount * appendCountPerRound;
-                float[] seriesData = new float[dataPointCount];
-                float seriesIndexPlus1 = seriesIndex + 1;
-                Random rand = new Random((int)DateTime.Now.Ticks / (seriesIndex + 1));
-                if (seriesIndex == 0)
+                while ((maxBatchCount <= 0 || consumedBatchCount < maxBatchCount) && TryDequeuePendingBatch(out batch))
                 {
-                    for (int i = 0; i < dataPointCount; i++)
-                    {
-                        seriesData[i] = rand.Next(0, 2);
-                    }
-
-                    data[seriesIndex] = seriesData;
-                    continue;
+                    ConsumeBatch(batch);
+                    consumedAny = true;
+                    consumedBatchCount++;
                 }
-                else if (seriesIndex == 1)
-                {
-                    for (int i = 0; i < dataPointCount; i++)
-                    {
-                        seriesData[i] = rand.Next(0, 2);
-                    }
+            }
+            finally
+            {
+                _chart.EndUpdate();
+            }
 
-                    data[seriesIndex] = seriesData;
-                    continue;
-                }
-
-                double y = 50;
-                for (int i = 0; i < dataPointCount; i++)
-                {
-                    y = y - 0.05 + rand.NextDouble() / 10.0;
-                    if (y > YMax)
-                    {
-                        y = YMax;
-                    }
-
-                    if (y < YMin)
-                    {
-                        y = YMin;
-                    }
-
-                    seriesData[i] = (float)y;
-                }
-                data[seriesIndex] = seriesData;
-            }//);
-
-            return data;
+            if (consumedAny)
+            {
+                UpdateXAxisView(_lastConsumedX);
+                UpdateSweepBands(_lastConsumedX);
+            }
         }
 
-        private void PrefillChartWithData()
+        private void ConsumeBatch(SampleBatch batch)
         {
-            //Set data almost till the end, 
-            //so it will reach end and start scrolling quite soon. 
-
-            //How many rounds to prefill in the series 
-            int roundsToPrefill = (int)(0.9 * _xLen) / _appendCountPerRound;
-
-            //How many points to prefill in the series
-            int pointCount = roundsToPrefill * _appendCountPerRound;
-
             for (int seriesIndex = 0; seriesIndex < _seriesCount; seriesIndex++)
             {
                 if (seriesIndex == DigitalSeriesIndex)
                 {
-                    float[] thisSeriesData = _data[seriesIndex];
-                    for (int round = 0; round < roundsToPrefill; round++)
-                    {
-                        float[] dataArray = new float[_appendCountPerRound];
-                        Array.Copy(thisSeriesData, (round % PreGenerateDataForRoundCount) * _appendCountPerRound, dataArray, 0, _appendCountPerRound);
-                        AppendDigitalSamples(dataArray);
-                    }
+                    AppendDigitalSamples(batch.SeriesSamples[seriesIndex]);
                 }
                 else
                 {
-                    float[] thisSeriesData = _data[seriesIndex];
-                    int sampleSeriesIndex = seriesIndex - 1;
-
-                    for (int round = 0; round < roundsToPrefill; round++)
+                    float[] values = new float[batch.SampleCount];
+                    for (int sampleIndex = 0; sampleIndex < batch.SampleCount; sampleIndex++)
                     {
-                        float[] dataArray = new float[_appendCountPerRound];
-                        Array.Copy(thisSeriesData, (round % PreGenerateDataForRoundCount) * _appendCountPerRound, dataArray, 0, _appendCountPerRound);
-                        _chart.ViewXY.SampleDataBlockSeries[sampleSeriesIndex].AddSamples(dataArray, false);
+                        values[sampleIndex] = batch.SeriesSamples[seriesIndex][sampleIndex].Value;
                     }
+
+                    _chart.ViewXY.SampleDataBlockSeries[seriesIndex - 1].AddSamples(values, false);
                 }
             }
 
-            _pointsAppended += pointCount;
-            _iRound += roundsToPrefill;
-
-            //Set X axis real-time scrolling position 
-            double lastX = _pointsAppended * XInterval;
-            UpdateXAxisView(lastX);
+            _pointsAppended += batch.SampleCount;
+            _lastConsumedX = batch.LastTime;
         }
 
-        private void AppendDigitalSamples(float[] samples)
+        private void EnqueuePendingBatch(SampleBatch batch)
+        {
+            if (batch == null)
+            {
+                return;
+            }
+
+            _pendingBatches.Enqueue(batch);
+            Interlocked.Increment(ref _pendingBatchCount);
+            Interlocked.Add(ref _pendingSampleCount, batch.SampleCount);
+        }
+
+        private bool TryDequeuePendingBatch(out SampleBatch batch)
+        {
+            if (_pendingBatches.TryDequeue(out batch) == false)
+            {
+                return false;
+            }
+
+            Interlocked.Decrement(ref _pendingBatchCount);
+            Interlocked.Add(ref _pendingSampleCount, -batch.SampleCount);
+            return true;
+        }
+
+        private void ClearPendingBatches()
+        {
+            lock (_producerSync)
+            {
+                SampleBatch batch;
+                while (_pendingBatches.TryDequeue(out batch))
+                {
+                }
+            }
+
+            Interlocked.Exchange(ref _pendingBatchCount, 0);
+            Interlocked.Exchange(ref _pendingSampleCount, 0);
+        }
+
+        private void AppendDigitalSamples(TimedValueSample[] samples)
         {
             if (_chart == null || samples == null || _chart.ViewXY.DigitalLineSeries.Count == 0)
             {
@@ -588,7 +684,7 @@ namespace InteractiveExamples
 
             for (int i = 0; i < samples.Length; i++)
             {
-                if (samples[i] >= 0.5f)
+                if (samples[i].Value >= 0.5f)
                 {
                     _digitalPendingValue |= 1u << _digitalPendingBitCount;
                 }
@@ -614,75 +710,39 @@ namespace InteractiveExamples
             }
         }
 
-
-        private void FeedData(/*string chartTitleText*/)
+        private void UpdateSweepBands(double lastX)
         {
-            if (_chart != null)
+            if (_chart.ViewXY.XAxes[0].ScrollMode == XAxisScrollMode.Sweeping)
             {
-                _chart.BeginUpdate();
 
-                //Append data to series
-                for (int seriesIndex = 0; seriesIndex < _seriesCount; seriesIndex++)
+                //Dark band of old page fading away 
+                double pageLen = _chart.ViewXY.XAxes[0].Maximum - _chart.ViewXY.XAxes[0].Minimum;
+                double sweepGapWidth = pageLen / 20.0;
+                _chart.ViewXY.Bands[0].SetValues(lastX - pageLen, lastX - pageLen + sweepGapWidth);
+                if (_chart.ViewXY.Bands[0].Visible == false)
                 {
-                    if (seriesIndex == DigitalSeriesIndex)
-                    {
-                        float[] thisSeriesData = _data[seriesIndex];
-                        float[] dataToAppendNow = new float[_appendCountPerRound];
-                        Array.Copy(thisSeriesData, (_iRound % PreGenerateDataForRoundCount) * _appendCountPerRound, dataToAppendNow, 0, _appendCountPerRound);
-                        AppendDigitalSamples(dataToAppendNow);
-                    }
-                    else
-                    {
-                        float[] thisSeriesData = _data[seriesIndex];
-                        float[] dataToAppendNow = new float[_appendCountPerRound];
-                        Array.Copy(thisSeriesData, (_iRound % PreGenerateDataForRoundCount) * _appendCountPerRound, dataToAppendNow, 0, _appendCountPerRound);
-                        _chart.ViewXY.SampleDataBlockSeries[seriesIndex - 1].AddSamples(dataToAppendNow, false);
-                    }
+                    _chart.ViewXY.Bands[0].Visible = true;
                 }
 
-                _pointsAppended += _appendCountPerRound;
 
-                //Set X axis real-time scrolling position 
-                double lastX = _pointsAppended * XInterval;
-                UpdateXAxisView(lastX);
-
-                //Update sweep bands
-                if (_chart.ViewXY.XAxes[0].ScrollMode == XAxisScrollMode.Sweeping)
+                //Bright new page band
+                _chart.ViewXY.Bands[1].SetValues(lastX - sweepGapWidth / 6, lastX);
+                if (_chart.ViewXY.Bands[1].Visible == false)
                 {
-
-                    //Dark band of old page fading away 
-                    double pageLen = _chart.ViewXY.XAxes[0].Maximum - _chart.ViewXY.XAxes[0].Minimum;
-                    double sweepGapWidth = pageLen / 20.0;
-                    _chart.ViewXY.Bands[0].SetValues(lastX - pageLen, lastX - pageLen + sweepGapWidth);
-                    if (_chart.ViewXY.Bands[0].Visible == false)
-                    {
-                        _chart.ViewXY.Bands[0].Visible = true;
-                    }
-
-
-                    //Bright new page band
-                    _chart.ViewXY.Bands[1].SetValues(lastX - sweepGapWidth / 6, lastX);
-                    if (_chart.ViewXY.Bands[1].Visible == false)
-                    {
-                        _chart.ViewXY.Bands[1].Visible = true;
-                    }
+                    _chart.ViewXY.Bands[1].Visible = true;
                 }
-                else
+            }
+            else
+            {
+                if (_chart.ViewXY.Bands[0].Visible == true)
                 {
-                    //Hide sweeping bands if not in sweeping mode
-                    if (_chart.ViewXY.Bands[0].Visible == true)
-                    {
-                        _chart.ViewXY.Bands[0].Visible = false;
-                    }
-
-                    if (_chart.ViewXY.Bands[1].Visible == true)
-                    {
-                        _chart.ViewXY.Bands[1].Visible = false;
-                    }
+                    _chart.ViewXY.Bands[0].Visible = false;
                 }
-                _chart.EndUpdate();
 
-                _iRound++;
+                if (_chart.ViewXY.Bands[1].Visible == true)
+                {
+                    _chart.ViewXY.Bands[1].Visible = false;
+                }
             }
         }
 
@@ -899,10 +959,12 @@ namespace InteractiveExamples
         public void Dispose()
         {
             Stop();
-            if (_updateTimer != null)
+            if (_producerTimer != null)
             {
-                _updateTimer.Tick -= UpdateTimer_Tick;
+                _producerTimer.Dispose();
+                _producerTimer = null;
             }
+            CompositionTarget.Rendering -= CompositionTarget_Rendering;
             if (_chart != null)
             {
                 _chart.Dispose();
@@ -915,10 +977,15 @@ namespace InteractiveExamples
         /// </summary>
         public void Stop()
         {
-            if (_updateTimer != null && _updateTimer.IsEnabled)
+            _isStreaming = false;
+
+            if (_producerTimer != null)
             {
-                _updateTimer.Stop();
+                _producerTimer.Change(Timeout.Infinite, Timeout.Infinite);
             }
+
+            CompositionTarget.Rendering -= CompositionTarget_Rendering;
+            ClearPendingBatches();
 
         }
 
@@ -929,7 +996,7 @@ namespace InteractiveExamples
         {
             get
             {
-                return _updateTimer != null && _updateTimer.IsEnabled;
+                return _isStreaming;
             }
         }
 
