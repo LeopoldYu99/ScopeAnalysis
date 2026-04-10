@@ -74,7 +74,7 @@ namespace InteractiveExamples
             Free
         }
 
-        private XAxisViewMode _xAxisViewMode = XAxisViewMode.FollowScroll;
+        private XAxisViewMode _xAxisViewMode = XAxisViewMode.Paging;
 
 
         public Example8BillionPoints()
