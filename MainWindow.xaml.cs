@@ -55,6 +55,12 @@ namespace InteractiveExamples
         //Data array for each series 
         private float[][] _data;
 
+        //Packed bit data for digital line 1
+        private uint[] _digitalData;
+
+        //Digital line appends data in 32-bit blocks
+        private int _digitalAppendBlockCount;
+
         //Data feeding round 
         private int _iRound = 0;
 
@@ -66,6 +72,8 @@ namespace InteractiveExamples
 
         //Line width in pixels 
         private const float LineWidth = 1f;
+
+        private const int DigitalSeriesIndex = 0;
 
         private enum XAxisViewMode
         {
@@ -301,6 +309,19 @@ namespace InteractiveExamples
                 return;
             }
 
+            // DigitalLineSeries appends 32 samples per uint block, so keep all series aligned to 32-sample rounds.
+            if (_appendCountPerRound < 32)
+            {
+                _appendCountPerRound = 32;
+            }
+            else if (_appendCountPerRound % 32 != 0)
+            {
+                _appendCountPerRound = ((_appendCountPerRound + 31) / 32) * 32;
+            }
+
+            textBoxAppendCountPerRound.Text = _appendCountPerRound.ToString();
+            _digitalAppendBlockCount = _appendCountPerRound / 32;
+
             //Read X axis length
             try
             {
@@ -323,11 +344,12 @@ namespace InteractiveExamples
 
             //Clear Data series
             DisposeAllAndClear(v.SampleDataBlockSeries);
+            DisposeAllAndClear(v.DigitalLineSeries);
 
             //Clear Y axes
             DisposeAllAndClear(v.YAxes);
 
-            //Series count of Y axes and SampleDataBlockSeries  
+            //Series count of Y axes and data series  
             for (int seriesIndex = 0; seriesIndex < _seriesCount; seriesIndex++)
             {
                 Color lineBaseColor = DefaultColors.SeriesForBlackBackgroundWpf[seriesIndex % DefaultColors.SeriesForBlackBackgroundWpf.Length];
@@ -376,14 +398,30 @@ namespace InteractiveExamples
                 }
                 v.YAxes.Add(axisY);
 
-                SampleDataBlockSeries series = new SampleDataBlockSeries(v, v.XAxes[0], axisY);
-                v.SampleDataBlockSeries.Add(series);
-                series.Color = ChartTools.CalcGradient(lineBaseColor, System.Windows.Media.Colors.White, 50);
-
-                series.SamplingFrequency = 1.0 / XInterval; //Set 1 / X interval here 
-                series.FirstSampleTimeStamp = 1.0 / series.SamplingFrequency;//Set first X here 
-                series.ScrollModePointsKeepLevel = 1;
-                series.AllowUserInteraction = false;
+                if (seriesIndex == DigitalSeriesIndex)
+                {
+                    DigitalLineSeries series = new DigitalLineSeries(v, v.XAxes[0], axisY);
+                    v.DigitalLineSeries.Add(series);
+                    series.Color = ChartTools.CalcGradient(lineBaseColor, System.Windows.Media.Colors.White, 50);
+                    series.DigitalLow = 0;
+                    series.DigitalHigh = 1;
+                    series.Width = LineWidth;
+                    series.SamplingFrequency = 1.0 / XInterval;
+                    series.FirstSampleTimeStamp = 1.0 / series.SamplingFrequency;
+                    series.ScrollModePointsKeepLevel = 1;
+                    series.AllowUserInteraction = false;
+                }
+                else
+                {
+                    SampleDataBlockSeries series = new SampleDataBlockSeries(v, v.XAxes[0], axisY);
+                    v.SampleDataBlockSeries.Add(series);
+                    series.Color = ChartTools.CalcGradient(lineBaseColor, System.Windows.Media.Colors.White, 50);
+                    series.Width = LineWidth;
+                    series.SamplingFrequency = 1.0 / XInterval; //Set 1 / X interval here 
+                    series.FirstSampleTimeStamp = 1.0 / series.SamplingFrequency;//Set first X here 
+                    series.ScrollModePointsKeepLevel = 1;
+                    series.AllowUserInteraction = false;
+                }
             }
 
             v.XAxes[0].SetRange(0, _xLen);
@@ -505,7 +543,37 @@ namespace InteractiveExamples
                 data[seriesIndex] = seriesData;
             }//);
 
+            _digitalData = PackDigitalData(data[DigitalSeriesIndex]);
             return data;
+        }
+
+        private uint[] PackDigitalData(float[] sourceSamples)
+        {
+            if (sourceSamples == null)
+            {
+                return new uint[0];
+            }
+
+            int packedLength = sourceSamples.Length / 32;
+            uint[] packedData = new uint[packedLength];
+
+            for (int packedIndex = 0; packedIndex < packedLength; packedIndex++)
+            {
+                uint packedValue = 0;
+                int sourceOffset = packedIndex * 32;
+
+                for (int bitIndex = 0; bitIndex < 32; bitIndex++)
+                {
+                    if (sourceSamples[sourceOffset + bitIndex] >= 0.5f)
+                    {
+                        packedValue |= 1u << bitIndex;
+                    }
+                }
+
+                packedData[packedIndex] = packedValue;
+            }
+
+            return packedData;
         }
 
         private void PrefillChartWithData()
@@ -521,13 +589,26 @@ namespace InteractiveExamples
 
             System.Threading.Tasks.Parallel.For(0, _seriesCount, (seriesIndex) =>
             {
-                float[] thisSeriesData = _data[seriesIndex];
-
-                for (int round = 0; round < roundsToPrefill; round++)
+                if (seriesIndex == DigitalSeriesIndex)
                 {
-                    float[] dataArray = new float[_appendCountPerRound];
-                    Array.Copy(thisSeriesData, (round % PreGenerateDataForRoundCount) * _appendCountPerRound, dataArray, 0, _appendCountPerRound);
-                    _chart.ViewXY.SampleDataBlockSeries[seriesIndex].AddSamples(dataArray, false);
+                    for (int round = 0; round < roundsToPrefill; round++)
+                    {
+                        uint[] dataArray = new uint[_digitalAppendBlockCount];
+                        Array.Copy(_digitalData, (round % PreGenerateDataForRoundCount) * _digitalAppendBlockCount, dataArray, 0, _digitalAppendBlockCount);
+                        _chart.ViewXY.DigitalLineSeries[0].AddBits(dataArray, false);
+                    }
+                }
+                else
+                {
+                    float[] thisSeriesData = _data[seriesIndex];
+                    int sampleSeriesIndex = seriesIndex - 1;
+
+                    for (int round = 0; round < roundsToPrefill; round++)
+                    {
+                        float[] dataArray = new float[_appendCountPerRound];
+                        Array.Copy(thisSeriesData, (round % PreGenerateDataForRoundCount) * _appendCountPerRound, dataArray, 0, _appendCountPerRound);
+                        _chart.ViewXY.SampleDataBlockSeries[sampleSeriesIndex].AddSamples(dataArray, false);
+                    }
                 }
             });
 
@@ -551,10 +632,19 @@ namespace InteractiveExamples
                 //Append data to series
                 System.Threading.Tasks.Parallel.For(0, _seriesCount, (seriesIndex) =>
                 {
-                    float[] thisSeriesData = _data[seriesIndex];
-                    float[] dataToAppendNow = new float[_appendCountPerRound];
-                    Array.Copy(thisSeriesData, (_iRound % PreGenerateDataForRoundCount) * _appendCountPerRound, dataToAppendNow, 0, _appendCountPerRound);
-                    _chart.ViewXY.SampleDataBlockSeries[seriesIndex].AddSamples(dataToAppendNow, false);
+                    if (seriesIndex == DigitalSeriesIndex)
+                    {
+                        uint[] dataToAppendNow = new uint[_digitalAppendBlockCount];
+                        Array.Copy(_digitalData, (_iRound % PreGenerateDataForRoundCount) * _digitalAppendBlockCount, dataToAppendNow, 0, _digitalAppendBlockCount);
+                        _chart.ViewXY.DigitalLineSeries[0].AddBits(dataToAppendNow, false);
+                    }
+                    else
+                    {
+                        float[] thisSeriesData = _data[seriesIndex];
+                        float[] dataToAppendNow = new float[_appendCountPerRound];
+                        Array.Copy(thisSeriesData, (_iRound % PreGenerateDataForRoundCount) * _appendCountPerRound, dataToAppendNow, 0, _appendCountPerRound);
+                        _chart.ViewXY.SampleDataBlockSeries[seriesIndex - 1].AddSamples(dataToAppendNow, false);
+                    }
                 });
 
                 _pointsAppended += _appendCountPerRound;
