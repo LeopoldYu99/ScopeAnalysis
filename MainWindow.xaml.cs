@@ -248,9 +248,30 @@ namespace InteractiveExamples
 
             if (position.Y >= _chart.ActualHeight - margins.Bottom)
             {
-                ZoomX(zoomFactor);
+                double? anchorX = TryGetXAxisValueAt(position.X);
+                ZoomX(zoomFactor, anchorX);
                 e.Handled = true;
             }
+        }
+
+        private double? TryGetXAxisValueAt(double controlX)
+        {
+            if (_chart == null)
+            {
+                return null;
+            }
+
+            AxisX xAxis = _chart.ViewXY.XAxes[0];
+            Thickness margins = _chart.ViewXY.Margins;
+            double plotWidth = _chart.ActualWidth - margins.Left - margins.Right;
+            if (plotWidth <= 0)
+            {
+                return null;
+            }
+
+            double normalizedX = (controlX - margins.Left) / plotWidth;
+            normalizedX = Math.Max(0, Math.Min(1, normalizedX));
+            return xAxis.Minimum + (xAxis.Maximum - xAxis.Minimum) * normalizedX;
         }
 
         private void SetXAxisViewMode(XAxisViewMode mode)
@@ -768,12 +789,26 @@ namespace InteractiveExamples
             ZoomX(2);
         }
 
-        private void ZoomX(double factor)
+        private void ZoomX(double factor, double? anchorX = null)
         {
             _chart.BeginUpdate();
             AxisX xAxis = _chart.ViewXY.XAxes[0];
-            double xLen = xAxis.Maximum - xAxis.Minimum;
-            xAxis.SetRange(xAxis.ScrollPosition - xLen * factor, xAxis.ScrollPosition);
+            double currentMin = xAxis.Minimum;
+            double currentMax = xAxis.Maximum;
+            double zoomAnchor = anchorX ?? ((currentMin + currentMax) / 2.0);
+
+            if (zoomAnchor < currentMin)
+            {
+                zoomAnchor = currentMin;
+            }
+            else if (zoomAnchor > currentMax)
+            {
+                zoomAnchor = currentMax;
+            }
+
+            double newMin = zoomAnchor - (zoomAnchor - currentMin) * factor;
+            double newMax = zoomAnchor + (currentMax - zoomAnchor) * factor;
+            xAxis.SetRange(newMin, newMax);
             _chart.EndUpdate();
         }
 
