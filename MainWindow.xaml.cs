@@ -237,7 +237,7 @@ namespace InteractiveExamples
                 Color lineBaseColor = DefaultColors.SeriesForBlackBackgroundWpf[seriesIndex % DefaultColors.SeriesForBlackBackgroundWpf.Length];
 
                 AxisY axisY = new AxisY(v);
-                axisY.SetRange(YMin, YMax);
+                axisY.SetRange(seriesIndex == 0 ? 0 : YMin, seriesIndex == 0 ? 1 : YMax);
 
                 axisY.Title.Text = string.Format("Ch {0}", seriesIndex + 1);
                 axisY.Title.Angle = 0;
@@ -357,6 +357,16 @@ namespace InteractiveExamples
                 float[] seriesData = new float[dataPointCount];
                 float seriesIndexPlus1 = seriesIndex + 1;
                 Random rand = new Random((int)DateTime.Now.Ticks / (seriesIndex + 1));
+                if (seriesIndex == 0)
+                {
+                    for (int i = 0; i < dataPointCount; i++)
+                    {
+                        seriesData[i] = rand.Next(0, 2);
+                    }
+
+                    data[seriesIndex] = seriesData;
+                    continue;
+                }
 
                 double y = 50;
                 for (int i = 0; i < dataPointCount; i++)
