@@ -14,7 +14,6 @@ using Arction.Wpf.Charting.Axes;
 using Arction.Wpf.Charting.SeriesXY;
 using Arction.Wpf.Charting.Views.ViewXY;
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -27,38 +26,18 @@ namespace InteractiveExamples
 {
     public partial class Example8BillionPoints : Window, IDisposable
     {
-        private sealed class ChartUpdateBatch
-        {
-            public ChartUpdateBatch(int seriesCount, int sampleCount)
-            {
-                SampleCount = sampleCount;
-                SeriesPoints = new SeriesPoint[seriesCount][];
-            }
-
-            public int SampleCount { get; private set; }
-            public SeriesPoint[][] SeriesPoints { get; private set; }
-            public double FirstTime { get; set; }
-            public double LastTime { get; set; }
-        }
-
         //The chart
         private LightningChart _chart;
 
 
         //Background producer timer
         private Timer _producerTimer;
+        private readonly SignalProducer _signalProducer = new SignalProducer();
 
         //Producer / consumer queue
-        private readonly ConcurrentQueue<ChartUpdateBatch> _pendingBatches = new ConcurrentQueue<ChartUpdateBatch>();
-        private readonly object _producerSync = new object();
-        private Random[] _seriesRandoms;
-        private double[] _seriesValueState;
-        private long _producedPointCount;
-        private double _nextSampleTimeSeconds;
+        private readonly List<ChartSignal> _chartSignals = new List<ChartSignal>();
         private double _lastConsumedX;
         private bool _isStreaming;
-        private long _pendingBatchCount;
-        private long _pendingSampleCount;
 
         //Series count 
         private int _seriesCount;
@@ -75,10 +54,6 @@ namespace InteractiveExamples
         //Y axis maximum 
         private const double YMax = 100;
 
-        //Digital series state for real timestamp step rendering.
-        private bool _hasDigitalValue;
-        private float _previousDigitalValue;
-
         //Points appended thus far 
         private long _pointsAppended;
 
@@ -86,9 +61,7 @@ namespace InteractiveExamples
         private const float LineWidth = 1f;
         private const int ProducerIntervalMs = 50;
         private const int DefaultAppendCountPerRound = 10;
-        private const int MaxBatchesPerRender = 4;
-
-        private const int DigitalSeriesIndex = 0;
+        private const int MaxRoundsPerRender = 4;
 
         private enum XAxisViewMode
         {
@@ -221,8 +194,8 @@ namespace InteractiveExamples
                 return;
             }
 
-            ConsumePendingBatches(MaxBatchesPerRender);
-            FpsCounter.Content = string.Format("Queue: {0} batches / {1:N0} points", Interlocked.Read(ref _pendingBatchCount), Interlocked.Read(ref _pendingSampleCount));
+            ConsumePendingSignalRounds(MaxRoundsPerRender);
+            FpsCounter.Content = string.Format("Queue: {0} rounds / {1:N0} points", _signalProducer.PendingRoundCount, _signalProducer.PendingSampleCount);
             TotalDataPoints.Content = "Total data points: " + (_pointsAppended * _seriesCount).ToString("N0");
             long visibleSampleCount = Math.Min((long)Math.Ceiling((_chart.ViewXY.XAxes[0].Maximum - _chart.ViewXY.XAxes[0].Minimum) / CurrentSampleIntervalSeconds), _pointsAppended);
             DataPointsInVisibleArea.Content = "Visible data points: " + (visibleSampleCount * _seriesCount).ToString("N0");
@@ -343,8 +316,6 @@ namespace InteractiveExamples
             Stop();
 
             _pointsAppended = 0;
-            _producedPointCount = 0;
-            _nextSampleTimeSeconds = 0;
             _lastConsumedX = 0;
             buttonStartStop.Content = "Restart";
 
@@ -378,11 +349,7 @@ namespace InteractiveExamples
                 return;
             }
 
-            _hasDigitalValue = false;
-            _previousDigitalValue = 0;
-            ClearPendingBatches();
-
-            InitializeProducerState();
+            _signalProducer.ClearPendingSignalRounds(_chartSignals);
 
             //Read X axis length
             try
@@ -404,63 +371,15 @@ namespace InteractiveExamples
 
             //Clear Y axes
             DisposeAllAndClear(v.YAxes);
+            _chartSignals.Clear();
 
-            //Series count of Y axes and data series  
+            //Series count of Y axes and data series
             for (int seriesIndex = 0; seriesIndex < _seriesCount; seriesIndex++)
             {
-                Color lineBaseColor = DefaultColors.SeriesForBlackBackgroundWpf[seriesIndex % DefaultColors.SeriesForBlackBackgroundWpf.Length];
-
-                AxisY axisY = new AxisY(v);
-                if(seriesIndex == 0)
-                {
-                    axisY.SetRange(0, 1);
-                }
-                else if(seriesIndex == 1)
-                {
-                    axisY.SetRange(0, 1);
-                }
-                else
-                {
-                    axisY.SetRange(YMin, YMax);
-                }
-
-
-                axisY.Title.Text = string.Format("Ch {0}", seriesIndex + 1);
-                axisY.Title.Angle = 0;
-                axisY.Title.Color = ChartTools.CalcGradient(lineBaseColor, System.Windows.Media.Colors.White, 50);
-                axisY.Units.Visible = false;
-                axisY.AllowScaling = false;
-                axisY.MajorGrid.Visible = false;
-                axisY.MinorGrid.Visible = false;
-                axisY.MajorGrid.Pattern = LinePattern.Solid;
-                axisY.AutoDivSeparationPercent = 0;
-                axisY.Units.Text = "mV";
-                axisY.Visible = true;
-                axisY.MajorDivTickStyle.Alignment = Alignment.Near;
-                axisY.Title.HorizontalAlign = YAxisTitleAlignmentHorizontal.Left;
-
-                if (seriesIndex == _seriesCount - 1)
-                {
-                    //Create a mini-scale for last axis, it's used when Y axes are hidden.
-                    axisY.MiniScale.ShowX = true;
-                    axisY.MiniScale.ShowY = true;
-                    axisY.MiniScale.Color = Color.FromArgb(255, 255, 204, 0);
-                    axisY.MiniScale.HorizontalAlign = AlignmentHorizontal.Right;
-                    axisY.MiniScale.VerticalAlign = AlignmentVertical.Bottom;
-                    axisY.MiniScale.Offset = new PointIntXY(-30, -30);
-                    axisY.MiniScale.LabelX.Color = Colors.White;
-                    axisY.MiniScale.LabelY.Color = Colors.White;
-                    axisY.MiniScale.PreferredSize = new Arction.Wpf.Charting.SizeDoubleXY(50, 50);
-                }
-                v.YAxes.Add(axisY);
-
-                PointLineSeries series = new PointLineSeries(v, v.XAxes[0], axisY);
-                v.PointLineSeries.Add(series);
-                series.LineStyle.Color = ChartTools.CalcGradient(lineBaseColor, System.Windows.Media.Colors.White, 50);
-                series.LineStyle.Width = LineWidth;
-                series.AllowUserInteraction = false;
-                series.PointsVisible = false;
+                _chartSignals.Add(CreateChartSignal(v, seriesIndex));
             }
+
+            _signalProducer.Reset(_chartSignals, _appendCountPerRound, CurrentSampleIntervalSeconds);
 
             v.XAxes[0].SetRange(0, VisibleRangeSeconds);
 
@@ -477,17 +396,77 @@ namespace InteractiveExamples
             CompositionTarget.Rendering += CompositionTarget_Rendering;
         }
 
-        private void InitializeProducerState()
+        private ChartSignal CreateChartSignal(ViewXY view, int seriesIndex)
         {
-            _seriesRandoms = new Random[_seriesCount];
-            _seriesValueState = new double[_seriesCount];
+            SignalValueKind kind = GetSignalKind(seriesIndex);
+            ChartSignal signal = new ChartSignal(string.Format("Ch {0}", seriesIndex + 1), kind, YMin, YMax);
+            Color lineBaseColor = DefaultColors.SeriesForBlackBackgroundWpf[seriesIndex % DefaultColors.SeriesForBlackBackgroundWpf.Length];
 
-            int seedBase = Environment.TickCount;
-            for (int seriesIndex = 0; seriesIndex < _seriesCount; seriesIndex++)
+            AxisY axisY = new AxisY(view);
+            if (kind == SignalValueKind.Analog)
             {
-                _seriesRandoms[seriesIndex] = new Random(seedBase + seriesIndex * 97);
-                _seriesValueState[seriesIndex] = 50;
+                axisY.SetRange(YMin, YMax);
             }
+            else
+            {
+                axisY.SetRange(0, 1);
+            }
+
+            axisY.Title.Text = signal.Name;
+            axisY.Title.Angle = 0;
+            axisY.Title.Color = ChartTools.CalcGradient(lineBaseColor, System.Windows.Media.Colors.White, 50);
+            axisY.Units.Visible = false;
+            axisY.AllowScaling = false;
+            axisY.MajorGrid.Visible = false;
+            axisY.MinorGrid.Visible = false;
+            axisY.MajorGrid.Pattern = LinePattern.Solid;
+            axisY.AutoDivSeparationPercent = 0;
+            axisY.Units.Text = "mV";
+            axisY.Visible = true;
+            axisY.MajorDivTickStyle.Alignment = Alignment.Near;
+            axisY.Title.HorizontalAlign = YAxisTitleAlignmentHorizontal.Left;
+
+            if (seriesIndex == _seriesCount - 1)
+            {
+                //Create a mini-scale for last axis, it's used when Y axes are hidden.
+                axisY.MiniScale.ShowX = true;
+                axisY.MiniScale.ShowY = true;
+                axisY.MiniScale.Color = Color.FromArgb(255, 255, 204, 0);
+                axisY.MiniScale.HorizontalAlign = AlignmentHorizontal.Right;
+                axisY.MiniScale.VerticalAlign = AlignmentVertical.Bottom;
+                axisY.MiniScale.Offset = new PointIntXY(-30, -30);
+                axisY.MiniScale.LabelX.Color = Colors.White;
+                axisY.MiniScale.LabelY.Color = Colors.White;
+                axisY.MiniScale.PreferredSize = new Arction.Wpf.Charting.SizeDoubleXY(50, 50);
+            }
+
+            view.YAxes.Add(axisY);
+
+            PointLineSeries series = new PointLineSeries(view, view.XAxes[0], axisY);
+            view.PointLineSeries.Add(series);
+            series.LineStyle.Color = ChartTools.CalcGradient(lineBaseColor, System.Windows.Media.Colors.White, 50);
+            series.LineStyle.Width = LineWidth;
+            series.AllowUserInteraction = false;
+            series.PointsVisible = false;
+
+            signal.AxisY = axisY;
+            signal.Series = series;
+            return signal;
+        }
+
+        private static SignalValueKind GetSignalKind(int seriesIndex)
+        {
+            if (seriesIndex == 0)
+            {
+                return SignalValueKind.StepDigital;
+            }
+
+            if (seriesIndex == 1)
+            {
+                return SignalValueKind.Digital;
+            }
+
+            return SignalValueKind.Analog;
         }
 
         /// <summary>
@@ -522,76 +501,15 @@ namespace InteractiveExamples
                 return;
             }
 
-            lock (_producerSync)
+            lock (_signalProducer.SyncRoot)
             {
                 if (_isStreaming == false)
                 {
                     return;
                 }
 
-                EnqueuePendingBatch(CreateChartUpdateBatch());
+                _signalProducer.EnqueueSignalRound(_chartSignals);
             }
-        }
-
-        private ChartUpdateBatch CreateChartUpdateBatch()
-        {
-            ChartUpdateBatch batch = new ChartUpdateBatch(_seriesCount, _appendCountPerRound);
-            List<SeriesPoint> digitalPoints = new List<SeriesPoint>(_appendCountPerRound * 2);
-            double sampleIntervalSeconds = CurrentSampleIntervalSeconds;
-            batch.FirstTime = _nextSampleTimeSeconds;
-
-            for (int seriesIndex = 1; seriesIndex < _seriesCount; seriesIndex++)
-            {
-                batch.SeriesPoints[seriesIndex] = new SeriesPoint[_appendCountPerRound];
-            }
-
-            for (int pointIndex = 0; pointIndex < _appendCountPerRound; pointIndex++)
-            {
-                double time = _nextSampleTimeSeconds;
-                float digitalValue = GenerateTestValue(DigitalSeriesIndex);
-
-                if (_hasDigitalValue == false)
-                {
-                    digitalPoints.Add(new SeriesPoint(time, digitalValue));
-                    _hasDigitalValue = true;
-                }
-                else
-                {
-                    digitalPoints.Add(new SeriesPoint(time, _previousDigitalValue));
-                    if (Math.Abs(digitalValue - _previousDigitalValue) > float.Epsilon)
-                    {
-                        digitalPoints.Add(new SeriesPoint(time, digitalValue));
-                    }
-                }
-
-                _previousDigitalValue = digitalValue;
-                batch.LastTime = time;
-
-                for (int seriesIndex = 1; seriesIndex < _seriesCount; seriesIndex++)
-                {
-                    batch.SeriesPoints[seriesIndex][pointIndex] = new SeriesPoint(time, GenerateTestValue(seriesIndex));
-                }
-
-                _producedPointCount++;
-                _nextSampleTimeSeconds += sampleIntervalSeconds;
-            }
-
-            batch.SeriesPoints[DigitalSeriesIndex] = digitalPoints.ToArray();
-            return batch;
-        }
-
-        private float GenerateTestValue(int seriesIndex)
-        {
-            if (seriesIndex == 0 || seriesIndex == 1)
-            {
-                return _seriesRandoms[seriesIndex].Next(0, 2);
-            }
-
-            double y = _seriesValueState[seriesIndex];
-            y = y - 0.05 + _seriesRandoms[seriesIndex].NextDouble() / 10.0;
-            y = Math.Max(YMin, Math.Min(YMax, y));
-            _seriesValueState[seriesIndex] = y;
-            return (float)y;
         }
 
         private void PrefillChartWithData()
@@ -600,7 +518,7 @@ namespace InteractiveExamples
             int batchCount = pointsToPrefill / _appendCountPerRound;
             for (int i = 0; i < batchCount; i++)
             {
-                ConsumeBatch(CreateChartUpdateBatch());
+                ConsumeGeneratedSignalRound();
             }
 
             if (_pointsAppended > 0)
@@ -610,25 +528,25 @@ namespace InteractiveExamples
             }
         }
 
-        private void ConsumePendingBatches(int maxBatchCount)
+        private void ConsumePendingSignalRounds(int maxRoundCount)
         {
             if (_chart == null)
             {
                 return;
             }
 
-            ChartUpdateBatch batch;
             bool consumedAny = false;
-            int consumedBatchCount = 0;
+            int consumedRoundCount = 0;
 
             _chart.BeginUpdate();
             try
             {
-                while ((maxBatchCount <= 0 || consumedBatchCount < maxBatchCount) && TryDequeuePendingBatch(out batch))
+                double lastRoundX;
+                while ((maxRoundCount <= 0 || consumedRoundCount < maxRoundCount) && TryDequeuePendingRound(out lastRoundX))
                 {
-                    ConsumeBatch(batch);
+                    ConsumePendingSignalRound(lastRoundX);
                     consumedAny = true;
-                    consumedBatchCount++;
+                    consumedRoundCount++;
                 }
             }
             finally
@@ -643,57 +561,35 @@ namespace InteractiveExamples
             }
         }
 
-        private void ConsumeBatch(ChartUpdateBatch batch)
+        private void ConsumeGeneratedSignalRound()
         {
-            for (int seriesIndex = 0; seriesIndex < _seriesCount; seriesIndex++)
+            _lastConsumedX = _signalProducer.GenerateSignalRoundDirect(_chartSignals);
+            _pointsAppended += _appendCountPerRound;
+        }
+
+        private void ConsumePendingSignalRound(double lastRoundX)
+        {
+            foreach (ChartSignal signal in _chartSignals)
             {
-                SeriesPoint[] points = batch.SeriesPoints[seriesIndex];
+                SeriesPoint[] points;
+                if (signal.TryDequeuePoints(out points) == false)
+                {
+                    continue;
+                }
+
                 if (points != null && points.Length > 0)
                 {
-                    _chart.ViewXY.PointLineSeries[seriesIndex].AddPoints(points, false);
+                    signal.Series.AddPoints(points, false);
                 }
             }
 
-            _pointsAppended += batch.SampleCount;
-            _lastConsumedX = batch.LastTime;
+            _pointsAppended += _appendCountPerRound;
+            _lastConsumedX = lastRoundX;
         }
 
-        private void EnqueuePendingBatch(ChartUpdateBatch batch)
+        private bool TryDequeuePendingRound(out double lastRoundX)
         {
-            if (batch == null)
-            {
-                return;
-            }
-
-            _pendingBatches.Enqueue(batch);
-            Interlocked.Increment(ref _pendingBatchCount);
-            Interlocked.Add(ref _pendingSampleCount, batch.SampleCount);
-        }
-
-        private bool TryDequeuePendingBatch(out ChartUpdateBatch batch)
-        {
-            if (_pendingBatches.TryDequeue(out batch) == false)
-            {
-                return false;
-            }
-
-            Interlocked.Decrement(ref _pendingBatchCount);
-            Interlocked.Add(ref _pendingSampleCount, -batch.SampleCount);
-            return true;
-        }
-
-        private void ClearPendingBatches()
-        {
-            lock (_producerSync)
-            {
-                ChartUpdateBatch batch;
-                while (_pendingBatches.TryDequeue(out batch))
-                {
-                }
-            }
-
-            Interlocked.Exchange(ref _pendingBatchCount, 0);
-            Interlocked.Exchange(ref _pendingSampleCount, 0);
+            return _signalProducer.TryDequeuePendingRound(out lastRoundX);
         }
 
         private void UpdateSweepBands(double lastX)
@@ -921,18 +817,19 @@ namespace InteractiveExamples
 
         private void checkBoxAxesVisible_CheckedChanged(object sender, RoutedEventArgs e)
         {
-            if (_chart != null)
+            if (_chart != null && _chartSignals.Count > 0)
             {
                 bool yAxesVisible = checkBoxAxesVisible.IsChecked == true;
                 _chart.BeginUpdate();
 
                 //Show miniscale only on last Y axis 
-                AxisY lastYAxis = _chart.ViewXY.YAxes.Last();
+                AxisY lastYAxis = _chartSignals.Last().AxisY;
 
                 _chart.ViewXY.AxisLayout.AutoAdjustMargins = false;
 
-                foreach (AxisY yAxis in _chart.ViewXY.YAxes)
+                foreach (ChartSignal signal in _chartSignals)
                 {
+                    AxisY yAxis = signal.AxisY;
                     if (yAxis != lastYAxis)
                     {
                         yAxis.Visible = yAxesVisible;
@@ -985,7 +882,7 @@ namespace InteractiveExamples
             }
 
             CompositionTarget.Rendering -= CompositionTarget_Rendering;
-            ClearPendingBatches();
+            _signalProducer.ClearPendingSignalRounds(_chartSignals);
 
         }
 
