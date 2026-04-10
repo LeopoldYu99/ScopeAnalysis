@@ -66,11 +66,21 @@ namespace InteractiveExamples
         //Line width in pixels 
         private const float LineWidth = 1f;
 
+        private enum XAxisViewMode
+        {
+            FollowScroll,
+            Paging,
+            Free
+        }
+
+        private XAxisViewMode _xAxisViewMode = XAxisViewMode.FollowScroll;
+
 
         public Example8BillionPoints()
         {
             InitializeComponent();
             _stopWatch = new System.Diagnostics.Stopwatch();
+            UpdateXAxisViewModeButtons();
             CreateChart();
         }
 
@@ -158,9 +168,68 @@ namespace InteractiveExamples
 
             gridMain.Children.Add(_chart);
             Grid.SetRow(_chart, 0);
-            Grid.SetColumn(_chart, 1);
+            Grid.SetColumn(_chart, 0);
             Start();
         }
+
+        private void SetXAxisViewMode(XAxisViewMode mode)
+        {
+            _xAxisViewMode = mode;
+            UpdateXAxisViewModeButtons();
+
+            if (_chart == null || _pointsAppended <= 0 || mode != XAxisViewMode.FollowScroll)
+            {
+                return;
+            }
+
+            _chart.BeginUpdate();
+            UpdateXAxisView(_pointsAppended * XInterval);
+            _chart.EndUpdate();
+        }
+
+        private void UpdateXAxisViewModeButtons()
+        {
+            UpdateXAxisViewModeButton(buttonFollowScrollMode, _xAxisViewMode == XAxisViewMode.FollowScroll);
+            UpdateXAxisViewModeButton(buttonPageMode, _xAxisViewMode == XAxisViewMode.Paging);
+            UpdateXAxisViewModeButton(buttonFreeMode, _xAxisViewMode == XAxisViewMode.Free);
+        }
+
+        private static void UpdateXAxisViewModeButton(Button button, bool isActive)
+        {
+            if (button == null)
+            {
+                return;
+            }
+
+            button.Background = isActive ? new SolidColorBrush(Color.FromRgb(255, 204, 0)) : new SolidColorBrush(Color.FromRgb(70, 70, 70));
+            button.BorderBrush = isActive ? new SolidColorBrush(Color.FromRgb(255, 230, 140)) : new SolidColorBrush(Color.FromRgb(120, 120, 120));
+            button.Foreground = isActive ? Brushes.Black : Brushes.White;
+        }
+
+        private void UpdateXAxisView(double lastX)
+        {
+            AxisX xAxis = _chart.ViewXY.XAxes[0];
+
+            if (_xAxisViewMode == XAxisViewMode.FollowScroll)
+            {
+                xAxis.ScrollPosition = lastX;
+                return;
+            }
+
+            if (_xAxisViewMode != XAxisViewMode.Paging || lastX < xAxis.Maximum)
+            {
+                return;
+            }
+
+            double pageWidth = xAxis.Maximum - xAxis.Minimum;
+            if (pageWidth <= 0)
+            {
+                pageWidth = _xLen;
+            }
+
+            xAxis.SetRange(lastX, lastX + pageWidth);
+        }
+
         private void buttonStartStop_Click(object sender, RoutedEventArgs e)
         {
             Start();
@@ -418,7 +487,7 @@ namespace InteractiveExamples
 
             //Set X axis real-time scrolling position 
             double lastX = _pointsAppended * XInterval;
-            _chart.ViewXY.XAxes[0].ScrollPosition = lastX;
+            UpdateXAxisView(lastX);
         }
 
         private long feeddata = 0;
@@ -443,7 +512,7 @@ namespace InteractiveExamples
 
                 //Set X axis real-time scrolling position 
                 double lastX = _pointsAppended * XInterval;
-                _chart.ViewXY.XAxes[0].ScrollPosition = lastX;
+                UpdateXAxisView(lastX);
 
                 //Update sweep bands
                 if (_chart.ViewXY.XAxes[0].ScrollMode == XAxisScrollMode.Sweeping)
@@ -514,6 +583,21 @@ namespace InteractiveExamples
                     _chart.ViewXY.XAxes[0].ScrollMode = XAxisScrollMode.Sweeping;
                 }
             }
+        }
+
+        private void buttonFollowScrollMode_Click(object sender, RoutedEventArgs e)
+        {
+            SetXAxisViewMode(XAxisViewMode.FollowScroll);
+        }
+
+        private void buttonPageMode_Click(object sender, RoutedEventArgs e)
+        {
+            SetXAxisViewMode(XAxisViewMode.Paging);
+        }
+
+        private void buttonFreeMode_Click(object sender, RoutedEventArgs e)
+        {
+            SetXAxisViewMode(XAxisViewMode.Free);
         }
 
         private void buttonZoomXPlus_Click(object sender, RoutedEventArgs e)

@@ -73,16 +73,31 @@
         </Setter>
     </Style>
     </Window.Resources>
-    <Grid Name="gridMain" >
-        <Grid.Background>
-            <SolidColorBrush>Black</SolidColorBrush>
-        </Grid.Background>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="200"/>
-            <ColumnDefinition Width="*"/>
-        </Grid.ColumnDefinitions>
+    <Grid Background="Black">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
 
-        <StackPanel Grid.Column="0" x:Name="stackPanel1">
+        <Border Grid.Row="0" Background="#FF1C1C1C" BorderBrush="#FF3C3C3C" BorderThickness="0,0,0,1" Padding="10,8">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Label Content="X视图模式" Foreground="White" FontSize="14" FontWeight="Bold" VerticalAlignment="Center" Padding="0" Margin="0,0,12,0"/>
+                <Button x:Name="buttonFollowScrollMode" Width="100" Height="32" Click="buttonFollowScrollMode_Click" Content="跟随滚动" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
+                <Button x:Name="buttonPageMode" Width="90" Height="32" Click="buttonPageMode_Click" Content="翻页" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
+                <Button x:Name="buttonFreeMode" Width="90" Height="32" Click="buttonFreeMode_Click" Content="自由" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="1" Name="gridMain" >
+            <Grid.Background>
+                <SolidColorBrush>Black</SolidColorBrush>
+            </Grid.Background>
+            <!--<Grid.ColumnDefinitions>
+                <ColumnDefinition Width="200"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>-->
+
+            <StackPanel Grid.Column="0" x:Name="stackPanel1" Visibility="Collapsed">
 
             <Label x:Name="labeli" Content="Select preset" Foreground="White" FontSize="16" FontWeight="Bold"/>
             <StackPanel>
@@ -107,9 +122,9 @@
                 <RadioButton Name="button8000M" Checked="buttonPointCount_Checked">8 Billion [128GB RAM]</RadioButton>
             </StackPanel>
             <Label x:Name="label2" Content="Append points / round" Foreground="White" FontSize="13" FontWeight="Bold"/>
-            <TextBox x:Name="textBoxAppendCountPerRound" VerticalAlignment="Bottom" HorizontalContentAlignment="Right" IsEnabled="True" Text="10000" FontSize="13" FontWeight="Bold" Margin="5,0,5,0"/>
+            <TextBox x:Name="textBoxAppendCountPerRound" VerticalAlignment="Bottom" HorizontalContentAlignment="Right" IsEnabled="True" Text="1" FontSize="13" FontWeight="Bold" Margin="5,0,5,0"/>
             <Label x:Name="label3" Content="X axis length (points)" Foreground="White" FontSize="13" FontWeight="Bold"/>
-            <TextBox HorizontalContentAlignment="Right" IsEnabled="True" x:Name="textBoxXLen" Text="1000000" FontSize="13" FontWeight="Bold" Margin="5,0,5,0"/>
+            <TextBox HorizontalContentAlignment="Right" IsEnabled="True" x:Name="textBoxXLen" Text="200" FontSize="13" FontWeight="Bold" Margin="5,0,5,0"/>
             <Label x:Name="label5" Content="Series count" Foreground="White" FontSize="13" FontWeight="Bold"/>
             <TextBox HorizontalContentAlignment="Right" IsEnabled="True" x:Name="textBoxSeriesCount" Text="5" FontSize="13" FontWeight="Bold" Margin="5,0,5,0"/>
 
@@ -147,7 +162,7 @@
             
             <Label x:Name="DataPointsInVisibleArea" Content="Visible data points: 0" Foreground="White"/>
             <Label x:Name="TotalDataPoints" Content="Total data points: 0" Foreground="White"/>
-        </StackPanel>
-
+            </StackPanel>
+        </Grid>
     </Grid>
 </Window>
