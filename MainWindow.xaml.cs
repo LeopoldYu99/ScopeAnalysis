@@ -20,6 +20,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace InteractiveExamples
 {
@@ -31,11 +32,14 @@ namespace InteractiveExamples
         //StopWatch for controlling FPS calculation
         private System.Diagnostics.Stopwatch _stopWatch;
 
+        //Fixed-rate update timer
+        private DispatcherTimer _updateTimer;
+
         //Series count 
         private int _seriesCount;
 
         //Append data point per round count
-        private int _appendCountPerRound;
+        private int _appendCountPerRound = 3;
 
         //X axis length 
         private double _xLen;
@@ -55,11 +59,9 @@ namespace InteractiveExamples
         //Data array for each series 
         private float[][] _data;
 
-        //Packed bit data for digital line 1
-        private uint[] _digitalData;
-
-        //Digital line appends data in 32-bit blocks
-        private int _digitalAppendBlockCount;
+        //Digital line buffers 32 samples into one uint block before appending.
+        private uint _digitalPendingValue;
+        private int _digitalPendingBitCount;
 
         //Data feeding round 
         private int _iRound = 0;
@@ -72,6 +74,7 @@ namespace InteractiveExamples
 
         //Line width in pixels 
         private const float LineWidth = 1f;
+        private const int UpdateIntervalMs = 2;
 
         private const int DigitalSeriesIndex = 0;
 
@@ -89,6 +92,9 @@ namespace InteractiveExamples
         {
             InitializeComponent();
             _stopWatch = new System.Diagnostics.Stopwatch();
+            _updateTimer = new DispatcherTimer();
+            _updateTimer.Interval = TimeSpan.FromMilliseconds(UpdateIntervalMs);
+            _updateTimer.Tick += UpdateTimer_Tick;
             UpdateXAxisViewModeButtons();
             CreateChart();
         }
@@ -279,10 +285,8 @@ namespace InteractiveExamples
             _pointsAppended = 0;
             _framesRenderedCount = 0;
 
-            _stopWatch.Stop(); //this is started in the CompositionTarget_Rendering in first round 
-
-            CompositionTarget.Rendering -= CompositionTarget_Rendering;
-            CompositionTarget.Rendering += CompositionTarget_Rendering;
+            _updateTimer.Stop();
+            _stopWatch.Reset();
             buttonStartStop.Content = "Restart";
 
             ViewXY v = _chart.ViewXY;
@@ -299,28 +303,23 @@ namespace InteractiveExamples
             }
 
             //Read append count / round
-            try
-            {
-                _appendCountPerRound = int.Parse(textBoxAppendCountPerRound.Text);
-            }
-            catch
-            {
-                MessageBox.Show("Invalid append count");
-                return;
-            }
+            //try
+            //{
+            //    _appendCountPerRound = int.Parse(textBoxAppendCountPerRound.Text);
+            //}
+            //catch
+            //{
+            //    MessageBox.Show("Invalid append count");
+            //    return;
+            //}
+            //if (_appendCountPerRound <= 0)
+            //{
+            //    MessageBox.Show("Append count must be greater than 0");
+            //    return;
+            //}
 
-            // DigitalLineSeries appends 32 samples per uint block, so keep all series aligned to 32-sample rounds.
-            if (_appendCountPerRound < 32)
-            {
-                _appendCountPerRound = 32;
-            }
-            else if (_appendCountPerRound % 32 != 0)
-            {
-                _appendCountPerRound = ((_appendCountPerRound + 31) / 32) * 32;
-            }
-
-            textBoxAppendCountPerRound.Text = _appendCountPerRound.ToString();
-            _digitalAppendBlockCount = _appendCountPerRound / 32;
+            _digitalPendingValue = 0;
+            _digitalPendingBitCount = 0;
 
             //Read X axis length
             try
@@ -434,6 +433,8 @@ namespace InteractiveExamples
 
 
             _chart.EndUpdate();
+            _stopWatch.Restart();
+            _updateTimer.Start();
         }
 
         /// <summary>
@@ -461,9 +462,9 @@ namespace InteractiveExamples
             }
         }
 
-        private void CompositionTarget_Rendering(object sender, EventArgs e)
+        private void UpdateTimer_Tick(object sender, EventArgs e)
         {
-            //Frame rendered. Update stats and start next update round. 
+            //Fixed-rate update. Refresh stats and append the next data block.
             _framesRenderedCount++;
 
             TotalDataPoints.Content = "Total data points: " + (_pointsAppended * _seriesCount).ToString("N0");
@@ -482,13 +483,11 @@ namespace InteractiveExamples
             {
                 _stopWatch.Restart();
             }
-            Dispatcher.Invoke(() =>
-            {
-                FpsCounter.Content = "Fps: " + (_framesRenderedCount / (double)_stopWatch.ElapsedMilliseconds * 1000.0).ToString("0.0");
-                DataPointsInVisibleArea.Content = "Visible data points: " + (Math.Min(_chart.ViewXY.XAxes[0].Maximum - _chart.ViewXY.XAxes[0].Minimum, _pointsAppended) * _seriesCount).ToString("N0");
 
-                FeedData(/*chartTitleText*/);
-            });
+            FpsCounter.Content = "Fps: " + (_framesRenderedCount / (double)_stopWatch.ElapsedMilliseconds * 1000.0).ToString("0.0");
+            DataPointsInVisibleArea.Content = "Visible data points: " + (Math.Min(_chart.ViewXY.XAxes[0].Maximum - _chart.ViewXY.XAxes[0].Minimum, _pointsAppended) * _seriesCount).ToString("N0");
+
+            FeedData(/*chartTitleText*/);
         }
 
         private float[][] CreateInputData(int seriesCount, int appendCountPerRound)
@@ -543,37 +542,7 @@ namespace InteractiveExamples
                 data[seriesIndex] = seriesData;
             }//);
 
-            _digitalData = PackDigitalData(data[DigitalSeriesIndex]);
             return data;
-        }
-
-        private uint[] PackDigitalData(float[] sourceSamples)
-        {
-            if (sourceSamples == null)
-            {
-                return new uint[0];
-            }
-
-            int packedLength = sourceSamples.Length / 32;
-            uint[] packedData = new uint[packedLength];
-
-            for (int packedIndex = 0; packedIndex < packedLength; packedIndex++)
-            {
-                uint packedValue = 0;
-                int sourceOffset = packedIndex * 32;
-
-                for (int bitIndex = 0; bitIndex < 32; bitIndex++)
-                {
-                    if (sourceSamples[sourceOffset + bitIndex] >= 0.5f)
-                    {
-                        packedValue |= 1u << bitIndex;
-                    }
-                }
-
-                packedData[packedIndex] = packedValue;
-            }
-
-            return packedData;
         }
 
         private void PrefillChartWithData()
@@ -587,15 +556,16 @@ namespace InteractiveExamples
             //How many points to prefill in the series
             int pointCount = roundsToPrefill * _appendCountPerRound;
 
-            System.Threading.Tasks.Parallel.For(0, _seriesCount, (seriesIndex) =>
+            for (int seriesIndex = 0; seriesIndex < _seriesCount; seriesIndex++)
             {
                 if (seriesIndex == DigitalSeriesIndex)
                 {
+                    float[] thisSeriesData = _data[seriesIndex];
                     for (int round = 0; round < roundsToPrefill; round++)
                     {
-                        uint[] dataArray = new uint[_digitalAppendBlockCount];
-                        Array.Copy(_digitalData, (round % PreGenerateDataForRoundCount) * _digitalAppendBlockCount, dataArray, 0, _digitalAppendBlockCount);
-                        _chart.ViewXY.DigitalLineSeries[0].AddBits(dataArray, false);
+                        float[] dataArray = new float[_appendCountPerRound];
+                        Array.Copy(thisSeriesData, (round % PreGenerateDataForRoundCount) * _appendCountPerRound, dataArray, 0, _appendCountPerRound);
+                        AppendDigitalSamples(dataArray);
                     }
                 }
                 else
@@ -610,7 +580,7 @@ namespace InteractiveExamples
                         _chart.ViewXY.SampleDataBlockSeries[sampleSeriesIndex].AddSamples(dataArray, false);
                     }
                 }
-            });
+            }
 
             _pointsAppended += pointCount;
             _iRound += roundsToPrefill;
@@ -618,6 +588,43 @@ namespace InteractiveExamples
             //Set X axis real-time scrolling position 
             double lastX = _pointsAppended * XInterval;
             UpdateXAxisView(lastX);
+        }
+
+        private void AppendDigitalSamples(float[] samples)
+        {
+            if (_chart == null || samples == null || _chart.ViewXY.DigitalLineSeries.Count == 0)
+            {
+                return;
+            }
+
+            List<uint> packedBlocks = null;
+
+            for (int i = 0; i < samples.Length; i++)
+            {
+                if (samples[i] >= 0.5f)
+                {
+                    _digitalPendingValue |= 1u << _digitalPendingBitCount;
+                }
+
+                _digitalPendingBitCount++;
+
+                if (_digitalPendingBitCount == 32)
+                {
+                    if (packedBlocks == null)
+                    {
+                        packedBlocks = new List<uint>();
+                    }
+
+                    packedBlocks.Add(_digitalPendingValue);
+                    _digitalPendingValue = 0;
+                    _digitalPendingBitCount = 0;
+                }
+            }
+
+            if (packedBlocks != null && packedBlocks.Count > 0)
+            {
+                _chart.ViewXY.DigitalLineSeries[0].AddBits(packedBlocks.ToArray(), false);
+            }
         }
 
         private long feeddata = 0;
@@ -630,13 +637,14 @@ namespace InteractiveExamples
                 _chart.BeginUpdate();
 
                 //Append data to series
-                System.Threading.Tasks.Parallel.For(0, _seriesCount, (seriesIndex) =>
+                for (int seriesIndex = 0; seriesIndex < _seriesCount; seriesIndex++)
                 {
                     if (seriesIndex == DigitalSeriesIndex)
                     {
-                        uint[] dataToAppendNow = new uint[_digitalAppendBlockCount];
-                        Array.Copy(_digitalData, (_iRound % PreGenerateDataForRoundCount) * _digitalAppendBlockCount, dataToAppendNow, 0, _digitalAppendBlockCount);
-                        _chart.ViewXY.DigitalLineSeries[0].AddBits(dataToAppendNow, false);
+                        float[] thisSeriesData = _data[seriesIndex];
+                        float[] dataToAppendNow = new float[_appendCountPerRound];
+                        Array.Copy(thisSeriesData, (_iRound % PreGenerateDataForRoundCount) * _appendCountPerRound, dataToAppendNow, 0, _appendCountPerRound);
+                        AppendDigitalSamples(dataToAppendNow);
                     }
                     else
                     {
@@ -645,7 +653,7 @@ namespace InteractiveExamples
                         Array.Copy(thisSeriesData, (_iRound % PreGenerateDataForRoundCount) * _appendCountPerRound, dataToAppendNow, 0, _appendCountPerRound);
                         _chart.ViewXY.SampleDataBlockSeries[seriesIndex - 1].AddSamples(dataToAppendNow, false);
                     }
-                });
+                }
 
                 _pointsAppended += _appendCountPerRound;
 
@@ -848,7 +856,7 @@ namespace InteractiveExamples
             }
 
             xAxisPointCount = pointCount / seriesCount;
-            appendPointsPerRound = xAxisPointCount / 5000;
+            appendPointsPerRound = 10;
 
             if (textBoxSeriesCount != null)
             {
@@ -906,7 +914,10 @@ namespace InteractiveExamples
         public void Dispose()
         {
             Stop();
-            CompositionTarget.Rendering -= CompositionTarget_Rendering;
+            if (_updateTimer != null)
+            {
+                _updateTimer.Tick -= UpdateTimer_Tick;
+            }
             if (_chart != null)
             {
                 _chart.Dispose();
@@ -919,7 +930,12 @@ namespace InteractiveExamples
         /// </summary>
         public void Stop()
         {
-            if (IsRunning == true)
+            if (_updateTimer != null && _updateTimer.IsEnabled)
+            {
+                _updateTimer.Stop();
+            }
+
+            if (_stopWatch.IsRunning == true)
             {
                 _stopWatch.Stop();
             }
@@ -932,7 +948,7 @@ namespace InteractiveExamples
         {
             get
             {
-                return _stopWatch.IsRunning;
+                return _updateTimer != null && _updateTimer.IsEnabled;
             }
         }
 

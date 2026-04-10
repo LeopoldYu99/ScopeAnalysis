@@ -122,7 +122,7 @@
                 <RadioButton Name="button8000M" Checked="buttonPointCount_Checked">8 Billion [128GB RAM]</RadioButton>
             </StackPanel>
             <Label x:Name="label2" Content="Append points / round" Foreground="White" FontSize="13" FontWeight="Bold"/>
-            <TextBox x:Name="textBoxAppendCountPerRound" VerticalAlignment="Bottom" HorizontalContentAlignment="Right" IsEnabled="True" Text="1" FontSize="13" FontWeight="Bold" Margin="5,0,5,0"/>
+            <TextBox x:Name="textBoxAppendCountPerRound" VerticalAlignment="Bottom" HorizontalContentAlignment="Right" IsEnabled="True" Text="10" FontSize="13" FontWeight="Bold" Margin="5,0,5,0"/>
             <Label x:Name="label3" Content="X axis length (points)" Foreground="White" FontSize="13" FontWeight="Bold"/>
             <TextBox HorizontalContentAlignment="Right" IsEnabled="True" x:Name="textBoxXLen" Text="200" FontSize="13" FontWeight="Bold" Margin="5,0,5,0"/>
             <Label x:Name="label5" Content="Series count" Foreground="White" FontSize="13" FontWeight="Bold"/>
