@@ -35,12 +35,7 @@ namespace InteractiveExamples
 
         public void EnqueueSignalData(IReadOnlyList<ChartSignal> chartSignals)
         {
-            GenerateSignalData(chartSignals, true);
-        }
-
-        public double GenerateSignalDataDirect(IReadOnlyList<ChartSignal> chartSignals)
-        {
-            return GenerateSignalData(chartSignals, false);
+            GenerateSignalData(chartSignals);
         }
 
         public void ClearPendingData(IReadOnlyList<ChartSignal> chartSignals)
@@ -54,7 +49,7 @@ namespace InteractiveExamples
             }
         }
 
-        private double GenerateSignalData(IReadOnlyList<ChartSignal> chartSignals, bool enqueueToBuffers)
+        private void GenerateSignalData(IReadOnlyList<ChartSignal> chartSignals)
         {
             double[] sampleTimes = new double[_appendCountPerRound];
 
@@ -68,17 +63,11 @@ namespace InteractiveExamples
             {
                 ChartSignal signal = chartSignals[i];
                 var points = signal.CreatePoints(sampleTimes);
-                if (enqueueToBuffers)
+                if (points != null)
                 {
                     signal.EnqueuePoints(points);
                 }
-                else if (points.Length > 0)
-                {
-                    signal.Series.AddPoints(points, false);
-                }
             }
-
-            return sampleTimes.Length > 0 ? sampleTimes[sampleTimes.Length - 1] : _nextSampleTimeSeconds;
         }
     }
 }

@@ -17,7 +17,6 @@ namespace InteractiveExamples
 
             _hasConsumedData = false;
             _lastConsumedX = 0;
-            buttonStartStop.Content = "Restart";
 
             ViewXY view = _chart.ViewXY;
 
@@ -75,10 +74,7 @@ namespace InteractiveExamples
 
             view.XAxes[0].SetRange(0, VisibleRangeSeconds);
 
-            if (checkBoxPrefill.IsChecked == true)
-            {
-                PrefillChartWithData();
-            }
+
 
             _chart.EndUpdate();
             _isStreaming = true;
@@ -130,7 +126,8 @@ namespace InteractiveExamples
             int batchCount = pointsToPrefill / _appendCountPerRound;
             for (int i = 0; i < batchCount; i++)
             {
-                ConsumeGeneratedSignalData();
+                _signalProducer.EnqueueSignalData(_chartSignals);
+                ConsumePendingSignalBatch();
             }
 
             if (_hasConsumedData)
@@ -162,12 +159,6 @@ namespace InteractiveExamples
                 UpdateXAxisView(_lastConsumedX);
                 UpdateSweepBands(_lastConsumedX);
             }
-        }
-
-        private void ConsumeGeneratedSignalData()
-        {
-            _lastConsumedX = _signalProducer.GenerateSignalDataDirect(_chartSignals);
-            _hasConsumedData = true;
         }
 
         private void ConsumePendingSignalBatch()
