@@ -117,12 +117,12 @@ namespace InteractiveExamples
             //Set Axis layout to Segmented
             view.AxisLayout.YAxesLayout = YAxesLayout.Stacked;
             view.AxisLayout.SegmentsGap = 2;
-            view.AxisLayout.YAxisAutoPlacement = YAxisAutoPlacement.LeftThenRight;
+            view.AxisLayout.YAxisAutoPlacement = YAxisAutoPlacement.AllLeft;
             view.AxisLayout.YAxisTitleAutoPlacement = true;
 
             // fix margins to prevent Graph resize, which may take long time for Billion points
             view.AxisLayout.AutoAdjustMargins = false;
-            view.Margins = new Thickness(70, 17, 70, 34);
+            view.Margins = new Thickness(70, 17, 20, 34);
 
 
             //Create a dark sweeping gradient band for old page
@@ -250,8 +250,8 @@ namespace InteractiveExamples
                 axisY.AutoDivSeparationPercent = 0;
                 axisY.Units.Text = "mV";
                 axisY.Visible = true;
-                axisY.MajorDivTickStyle.Alignment = seriesIndex % 2 == 0 ? Alignment.Near : Alignment.Far;
-                axisY.Title.HorizontalAlign = seriesIndex % 2 == 0 ? YAxisTitleAlignmentHorizontal.Left : YAxisTitleAlignmentHorizontal.Right;
+                axisY.MajorDivTickStyle.Alignment = Alignment.Near;
+                axisY.Title.HorizontalAlign = YAxisTitleAlignmentHorizontal.Left;
 
                 if (seriesIndex == _seriesCount - 1)
                 {
