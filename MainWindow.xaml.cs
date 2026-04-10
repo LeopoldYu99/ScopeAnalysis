@@ -18,6 +18,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 
 namespace InteractiveExamples
@@ -165,11 +166,37 @@ namespace InteractiveExamples
             view.LegendBoxes[0].Visible = false;
 
             _chart.EndUpdate();
+            _chart.PreviewMouseWheel += Chart_PreviewMouseWheel;
 
             gridMain.Children.Add(_chart);
             Grid.SetRow(_chart, 0);
             Grid.SetColumn(_chart, 0);
             Start();
+        }
+
+        private void Chart_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (_chart == null)
+            {
+                return;
+            }
+
+            Point position = e.GetPosition(_chart);
+            Thickness margins = _chart.ViewXY.Margins;
+            double zoomFactor = e.Delta > 0 ? 0.8 : 1.25;
+
+            if (position.X <= margins.Left)
+            {
+                ZoomY(zoomFactor);
+                e.Handled = true;
+                return;
+            }
+
+            if (position.Y >= _chart.ActualHeight - margins.Bottom)
+            {
+                ZoomX(zoomFactor);
+                e.Handled = true;
+            }
         }
 
         private void SetXAxisViewMode(XAxisViewMode mode)
@@ -306,7 +333,19 @@ namespace InteractiveExamples
                 Color lineBaseColor = DefaultColors.SeriesForBlackBackgroundWpf[seriesIndex % DefaultColors.SeriesForBlackBackgroundWpf.Length];
 
                 AxisY axisY = new AxisY(v);
-                axisY.SetRange(seriesIndex == 0 ? 0 : YMin, seriesIndex == 0 ? 1 : YMax);
+                if(seriesIndex == 0)
+                {
+                    axisY.SetRange(0, 1);
+                }
+                else if(seriesIndex == 1)
+                {
+                    axisY.SetRange(0, 1);
+                }
+                else
+                {
+                    axisY.SetRange(YMin, YMax);
+                }
+
 
                 axisY.Title.Text = string.Format("Ch {0}", seriesIndex + 1);
                 axisY.Title.Angle = 0;
@@ -427,6 +466,16 @@ namespace InteractiveExamples
                 float seriesIndexPlus1 = seriesIndex + 1;
                 Random rand = new Random((int)DateTime.Now.Ticks / (seriesIndex + 1));
                 if (seriesIndex == 0)
+                {
+                    for (int i = 0; i < dataPointCount; i++)
+                    {
+                        seriesData[i] = rand.Next(0, 2);
+                    }
+
+                    data[seriesIndex] = seriesData;
+                    continue;
+                }
+                else if (seriesIndex == 1)
                 {
                     for (int i = 0; i < dataPointCount; i++)
                     {
