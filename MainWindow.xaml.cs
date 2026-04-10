@@ -529,10 +529,9 @@ namespace InteractiveExamples
             _chart.BeginUpdate();
             try
             {
-                double lastRoundX;
-                while ((maxRoundCount <= 0 || consumedRoundCount < maxRoundCount) && TryDequeuePendingRound(out lastRoundX))
+                while ((maxRoundCount <= 0 || consumedRoundCount < maxRoundCount) && TryDequeuePendingRound())
                 {
-                    ConsumePendingSignalRound(lastRoundX);
+                    ConsumePendingSignalRound();
                     consumedAny = true;
                     consumedRoundCount++;
                 }
@@ -555,8 +554,11 @@ namespace InteractiveExamples
             _pointsAppended += _appendCountPerRound;
         }
 
-        private void ConsumePendingSignalRound(double lastRoundX)
+        private void ConsumePendingSignalRound()
         {
+            double maxX = double.MinValue;
+            bool hasConsumedPoint = false;
+
             foreach (ChartSignal signal in _chartSignals)
             {
                 SeriesPoint[] points;
@@ -568,16 +570,28 @@ namespace InteractiveExamples
                 if (points != null && points.Length > 0)
                 {
                     signal.Series.AddPoints(points, false);
+
+                    for (int i = 0; i < points.Length; i++)
+                    {
+                        if (hasConsumedPoint == false || points[i].X > maxX)
+                        {
+                            maxX = points[i].X;
+                            hasConsumedPoint = true;
+                        }
+                    }
                 }
             }
 
             _pointsAppended += _appendCountPerRound;
-            _lastConsumedX = lastRoundX;
+            if (hasConsumedPoint)
+            {
+                _lastConsumedX = maxX;
+            }
         }
 
-        private bool TryDequeuePendingRound(out double lastRoundX)
+        private bool TryDequeuePendingRound()
         {
-            return _signalProducer.TryDequeuePendingRound(out lastRoundX);
+            return _signalProducer.TryDequeuePendingRound();
         }
 
         private void UpdateSweepBands(double lastX)
