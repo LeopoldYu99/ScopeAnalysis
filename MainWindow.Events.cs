@@ -17,7 +17,7 @@ namespace InteractiveExamples
                 return;
             }
 
-            ConsumePendingSignalRounds(MaxRoundsPerRender);
+            ConsumePendingSignalData();
         }
 
         private void Chart_PreviewMouseWheel(object sender, MouseWheelEventArgs e)

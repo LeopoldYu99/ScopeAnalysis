@@ -10,8 +10,6 @@ namespace InteractiveExamples
         private double _nextSampleTimeSeconds;
         private int _appendCountPerRound;
         private double _sampleIntervalSeconds;
-        private long _pendingRoundCount;
-        private long _pendingSampleCount;
 
         public object SyncRoot
         {
@@ -21,28 +19,12 @@ namespace InteractiveExamples
             }
         }
 
-        public long PendingRoundCount
-        {
-            get
-            {
-                return Interlocked.Read(ref _pendingRoundCount);
-            }
-        }
-
-        public long PendingSampleCount
-        {
-            get
-            {
-                return Interlocked.Read(ref _pendingSampleCount);
-            }
-        }
-
         public void Reset(IReadOnlyList<ChartSignal> chartSignals, int appendCountPerRound, double sampleIntervalSeconds)
         {
             _appendCountPerRound = appendCountPerRound;
             _sampleIntervalSeconds = sampleIntervalSeconds;
             _nextSampleTimeSeconds = 0;
-            ClearPendingSignalRounds(chartSignals);
+            ClearPendingData(chartSignals);
 
             int seedBase = Environment.TickCount;
             for (int seriesIndex = 0; seriesIndex < chartSignals.Count; seriesIndex++)
@@ -51,37 +33,17 @@ namespace InteractiveExamples
             }
         }
 
-        public void EnqueueSignalRound(IReadOnlyList<ChartSignal> chartSignals)
+        public void EnqueueSignalData(IReadOnlyList<ChartSignal> chartSignals)
         {
-            GenerateSignalRound(chartSignals, true);
-            Interlocked.Increment(ref _pendingRoundCount);
-            Interlocked.Add(ref _pendingSampleCount, _appendCountPerRound);
+            GenerateSignalData(chartSignals, true);
         }
 
-        public double GenerateSignalRoundDirect(IReadOnlyList<ChartSignal> chartSignals)
+        public double GenerateSignalDataDirect(IReadOnlyList<ChartSignal> chartSignals)
         {
-            return GenerateSignalRound(chartSignals, false);
+            return GenerateSignalData(chartSignals, false);
         }
 
-        public bool TryDequeuePendingRound()
-        {
-            while (true)
-            {
-                long pendingRounds = Interlocked.Read(ref _pendingRoundCount);
-                if (pendingRounds <= 0)
-                {
-                    return false;
-                }
-
-                if (Interlocked.CompareExchange(ref _pendingRoundCount, pendingRounds - 1, pendingRounds) == pendingRounds)
-                {
-                    Interlocked.Add(ref _pendingSampleCount, -_appendCountPerRound);
-                    return true;
-                }
-            }
-        }
-
-        public void ClearPendingSignalRounds(IReadOnlyList<ChartSignal> chartSignals)
+        public void ClearPendingData(IReadOnlyList<ChartSignal> chartSignals)
         {
             lock (_syncRoot)
             {
@@ -90,12 +52,9 @@ namespace InteractiveExamples
                     chartSignals[i].ClearPendingChunks();
                 }
             }
-
-            Interlocked.Exchange(ref _pendingRoundCount, 0);
-            Interlocked.Exchange(ref _pendingSampleCount, 0);
         }
 
-        private double GenerateSignalRound(IReadOnlyList<ChartSignal> chartSignals, bool enqueueToBuffers)
+        private double GenerateSignalData(IReadOnlyList<ChartSignal> chartSignals, bool enqueueToBuffers)
         {
             double[] sampleTimes = new double[_appendCountPerRound];
 

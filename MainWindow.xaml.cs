@@ -45,7 +45,6 @@ namespace InteractiveExamples
         private const float LineWidth = 1f;
         private const int ProducerIntervalMs = 50;
         private const int DefaultAppendCountPerRound = 10;
-        private const int MaxRoundsPerRender = 4;
 
         private enum XAxisViewMode
         {

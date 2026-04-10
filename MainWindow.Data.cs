@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Windows;
 using System.Windows.Media;
+using Arction.Wpf.Charting;
 
 namespace InteractiveExamples
 {
@@ -46,7 +47,7 @@ namespace InteractiveExamples
                 return;
             }
 
-            _signalProducer.ClearPendingSignalRounds(_chartSignals);
+            _signalProducer.ClearPendingData(_chartSignals);
 
             try
             {
@@ -119,7 +120,7 @@ namespace InteractiveExamples
                     return;
                 }
 
-                _signalProducer.EnqueueSignalRound(_chartSignals);
+                _signalProducer.EnqueueSignalData(_chartSignals);
             }
         }
 
@@ -129,7 +130,7 @@ namespace InteractiveExamples
             int batchCount = pointsToPrefill / _appendCountPerRound;
             for (int i = 0; i < batchCount; i++)
             {
-                ConsumeGeneratedSignalRound();
+                ConsumeGeneratedSignalData();
             }
 
             if (_hasConsumedData)
@@ -139,45 +140,37 @@ namespace InteractiveExamples
             }
         }
 
-        private void ConsumePendingSignalRounds(int maxRoundCount)
+        private void ConsumePendingSignalData()
         {
             if (_chart == null)
             {
                 return;
             }
 
-            bool consumedAny = false;
-            int consumedRoundCount = 0;
-
             _chart.BeginUpdate();
             try
             {
-                while ((maxRoundCount <= 0 || consumedRoundCount < maxRoundCount) && _signalProducer.TryDequeuePendingRound())
-                {
-                    ConsumePendingSignalRound();
-                    consumedAny = true;
-                    consumedRoundCount++;
-                }
+                ConsumePendingSignalBatch();
             }
             finally
             {
                 _chart.EndUpdate();
             }
 
-            if (consumedAny)
+            if (_hasConsumedData)
             {
                 UpdateXAxisView(_lastConsumedX);
                 UpdateSweepBands(_lastConsumedX);
             }
         }
 
-        private void ConsumeGeneratedSignalRound()
+        private void ConsumeGeneratedSignalData()
         {
-            _lastConsumedX = _signalProducer.GenerateSignalRoundDirect(_chartSignals);
+            _lastConsumedX = _signalProducer.GenerateSignalDataDirect(_chartSignals);
             _hasConsumedData = true;
         }
 
-        private void ConsumePendingSignalRound()
+        private void ConsumePendingSignalBatch()
         {
             double maxX = double.MinValue;
             bool hasConsumedPoint = false;
@@ -239,7 +232,7 @@ namespace InteractiveExamples
             }
 
             CompositionTarget.Rendering -= CompositionTarget_Rendering;
-            _signalProducer.ClearPendingSignalRounds(_chartSignals);
+            _signalProducer.ClearPendingData(_chartSignals);
         }
 
         internal bool IsRunning

@@ -2,7 +2,6 @@ using Arction.Wpf.Charting;
 using Arction.Wpf.Charting.Axes;
 using Arction.Wpf.Charting.SeriesXY;
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 
 namespace InteractiveExamples
@@ -16,7 +15,8 @@ namespace InteractiveExamples
 
     internal sealed class ChartSignal
     {
-        private readonly ConcurrentQueue<SeriesPoint[]> _pendingChunks = new ConcurrentQueue<SeriesPoint[]>();
+        private readonly LinkedList<SeriesPoint[]> _pendingChunks = new LinkedList<SeriesPoint[]>();
+        private readonly object _pendingSync = new object();
         private readonly double _analogMin;
         private readonly double _analogMax;
 
@@ -87,19 +87,33 @@ namespace InteractiveExamples
 
         public void EnqueuePoints(SeriesPoint[] points)
         {
-            _pendingChunks.Enqueue(points);
+            lock (_pendingSync)
+            {
+                _pendingChunks.AddLast(points);
+            }
         }
 
         public bool TryDequeuePoints(out SeriesPoint[] points)
         {
-            return _pendingChunks.TryDequeue(out points);
+            points = null;
+            lock (_pendingSync)
+            {
+                if (_pendingChunks.First == null)
+                {
+                    return false;
+                }
+
+                points = _pendingChunks.First.Value;
+                _pendingChunks.RemoveFirst();
+                return true;
+            }
         }
 
         public void ClearPendingChunks()
         {
-            SeriesPoint[] points;
-            while (_pendingChunks.TryDequeue(out points))
+            lock (_pendingSync)
             {
+                _pendingChunks.Clear();
             }
         }
 
