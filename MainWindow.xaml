@@ -1,0 +1,153 @@
+<Window x:Class="InteractiveExamples.Example8BillionPoints"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:local="clr-namespace:InteractiveExamples"
+             mc:Ignorable="d"
+             x:Name="BillionPoints"
+             d:DesignHeight="1000" d:DesignWidth="1500">
+    <Window.Resources>
+        <Style x:Key="FocusVisual">
+        <Setter Property="Control.Template">
+            <Setter.Value>
+                <ControlTemplate>
+                    <Rectangle Margin="2" SnapsToDevicePixels="true" Stroke="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}" StrokeThickness="1" StrokeDashArray="1 2"/>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style TargetType="RadioButton">
+        <Setter Property="Foreground" Value="Black"/>
+    </Style>
+    <SolidColorBrush x:Key="Button.Static.Background" Color="#FFDDDDDD"/>
+    <SolidColorBrush x:Key="Button.Static.Border" Color="#FF707070"/>
+    <SolidColorBrush x:Key="Button.MouseOver.Background" Color="#FFBEE6FD"/>
+    <SolidColorBrush x:Key="Button.MouseOver.Border" Color="#FF3C7FB1"/>
+    <SolidColorBrush x:Key="Button.Pressed.Background" Color="#FFC4E5F6"/>
+    <SolidColorBrush x:Key="Button.Pressed.Border" Color="#FF2C628B"/>
+    <SolidColorBrush x:Key="Button.Disabled.Background" Color="#FFF4F4F4"/>
+    <SolidColorBrush x:Key="Button.Disabled.Border" Color="#FFADB2B5"/>
+    <SolidColorBrush x:Key="Button.Disabled.Foreground" Color="#FF838383"/>
+    <Style x:Key="ButtonStyle1" TargetType="{x:Type Button}">
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual}"/>
+        <Setter Property="Background" Value="{StaticResource Button.Static.Background}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource Button.Static.Border}"/>
+        <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Margin" Value="3"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Button.Effect">
+            <Setter.Value>
+                <DropShadowEffect Color="Orange" Direction="310" ShadowDepth="5" BlurRadius="5" Opacity="0.7" />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type Button}">
+                    <Border x:Name="border" CornerRadius="10" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Background="{TemplateBinding Background}" SnapsToDevicePixels="true">
+                        <ContentPresenter x:Name="contentPresenter" Focusable="False" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" Margin="{TemplateBinding Padding}" RecognizesAccessKey="True" SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsDefaulted" Value="true">
+                            <Setter Property="BorderBrush" TargetName="border" Value="{DynamicResource {x:Static SystemColors.HighlightBrushKey}}"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="true">
+                            <Setter Property="Background" TargetName="border" Value="{StaticResource Button.MouseOver.Background}"/>
+                            <Setter Property="BorderBrush" TargetName="border" Value="{StaticResource Button.MouseOver.Border}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="true">
+                            <Setter Property="Background" TargetName="border" Value="{StaticResource Button.Pressed.Background}"/>
+                            <Setter Property="BorderBrush" TargetName="border" Value="{StaticResource Button.Pressed.Border}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="false">
+                            <Setter Property="Background" TargetName="border" Value="{StaticResource Button.Disabled.Background}"/>
+                            <Setter Property="BorderBrush" TargetName="border" Value="{StaticResource Button.Disabled.Border}"/>
+                            <Setter Property="TextElement.Foreground" TargetName="contentPresenter" Value="{StaticResource Button.Disabled.Foreground}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    </Window.Resources>
+    <Grid Name="gridMain" >
+        <Grid.Background>
+            <SolidColorBrush>Black</SolidColorBrush>
+        </Grid.Background>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="200"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Grid.Column="0" x:Name="stackPanel1">
+
+            <Label x:Name="labeli" Content="Select preset" Foreground="White" FontSize="16" FontWeight="Bold"/>
+            <StackPanel>
+                <StackPanel.Background>
+                    <LinearGradientBrush EndPoint="0.5,1" StartPoint="0.5,0">
+                        <GradientStop Color="#FF4E9C00" Offset="0"/>
+                        <GradientStop Color="#FFFFCC00" Offset="0.766"/>
+                        <GradientStop Color="White" Offset="0.306"/>
+                        <GradientStop Color="Red" Offset="0.996"/>
+                    </LinearGradientBrush>
+                </StackPanel.Background>
+                <RadioButton Name="button1M" Checked="buttonPointCount_Checked">1 Million [2GB RAM]</RadioButton>
+                <RadioButton Name="button10M" Checked="buttonPointCount_Checked">10 Million [2GB RAM]</RadioButton>
+                <RadioButton Name="button100M" Checked="buttonPointCount_Checked">100 Million [8GB RAM]</RadioButton>
+                <RadioButton Name="button1000M" IsChecked="True" Checked="buttonPointCount_Checked">1 Billion [16GB RAM]</RadioButton>
+                <RadioButton Name="button2000M" Checked="buttonPointCount_Checked">2 Billion [32GB RAM]</RadioButton>
+                <RadioButton Name="button3000M" Checked="buttonPointCount_Checked">3 Billion [32GB RAM]</RadioButton>
+                <RadioButton Name="button4000M" Checked="buttonPointCount_Checked">4 Billion [64GB RAM]</RadioButton>
+                <RadioButton Name="button5000M" Checked="buttonPointCount_Checked">5 Billion [64GB RAM]</RadioButton>
+                <RadioButton Name="button6000M" Checked="buttonPointCount_Checked">6 Billion [64GB RAM]</RadioButton>
+                <RadioButton Name="button7000M" Checked="buttonPointCount_Checked">7 Billion [64GB RAM]</RadioButton>
+                <RadioButton Name="button8000M" Checked="buttonPointCount_Checked">8 Billion [128GB RAM]</RadioButton>
+            </StackPanel>
+            <Label x:Name="label2" Content="Append points / round" Foreground="White" FontSize="13" FontWeight="Bold"/>
+            <TextBox x:Name="textBoxAppendCountPerRound" VerticalAlignment="Bottom" HorizontalContentAlignment="Right" IsEnabled="True" Text="10000" FontSize="13" FontWeight="Bold" Margin="5,0,5,0"/>
+            <Label x:Name="label3" Content="X axis length (points)" Foreground="White" FontSize="13" FontWeight="Bold"/>
+            <TextBox HorizontalContentAlignment="Right" IsEnabled="True" x:Name="textBoxXLen" Text="100000000" FontSize="13" FontWeight="Bold" Margin="5,0,5,0"/>
+            <Label x:Name="label5" Content="Series count" Foreground="White" FontSize="13" FontWeight="Bold"/>
+            <TextBox HorizontalContentAlignment="Right" IsEnabled="True" x:Name="textBoxSeriesCount" Text="10" FontSize="13" FontWeight="Bold" Margin="5,0,5,0"/>
+
+
+            <Grid Height="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="25*"/>
+                    <ColumnDefinition Width="131*"/>
+                    <ColumnDefinition Width="33*"/>
+                </Grid.ColumnDefinitions>
+            </Grid>
+            <Grid Height="8"/>
+            <CheckBox Name="checkBoxPrefill" VerticalContentAlignment="Center" Foreground="White" IsChecked="False" FontSize="16" Margin="5,0,5,0">Prefill with data</CheckBox>
+            <Grid Height="8"/>
+            <Button x:Name="buttonStartStop" Width="180" Height="40" Click="buttonStartStop_Click" Content="Start" FontSize="20" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
+            <Grid Height="16"/>
+            <Label x:Name="label4" Grid.ColumnSpan="2" Content="Scroll mode" Foreground="White" FontSize="13" FontWeight="Bold"/>
+            <ComboBox x:Name="comboBoxScrollMode" SelectedIndex="0" Grid.ColumnSpan="2" SelectionChanged="comboBoxScrollMode_SelectionChanged" FontSize="13" FontWeight="Bold" Margin="5,0,5,0">
+                <ComboBoxItem Content="Scrolling"/>
+                <ComboBoxItem Content="Sweeping"/>
+            </ComboBox>
+            <Grid Height="16"/>
+            <CheckBox x:Name="checkBoxAxesVisible" Content="Y axes visible" VerticalContentAlignment="Center" IsChecked="True" FontSize="16" Foreground="White" Margin="5,0,5,0" FontWeight="Bold" Checked="checkBoxAxesVisible_CheckedChanged" Unchecked="checkBoxAxesVisible_CheckedChanged"/>
+
+            <Grid Height="20"/>
+            <Button x:Name="buttonZoomXPlus" Width="100" Height="30" Click="buttonZoomXPlus_Click" Content="Zoom X In" FontSize="15" FontWeight="Normal" Style="{DynamicResource ButtonStyle1}"/>
+
+            <Button x:Name="buttonZoomXMinus" Width="100" Height="30" Click="buttonZoomXMinus_Click" Content="Zoom X Out" FontSize="15" FontWeight="Normal" Style="{DynamicResource ButtonStyle1}"/>
+
+            <Button x:Name="buttonZoomYPlus" Width="100" Height="30" Click="buttonZoomYPlus_Click" Content="Zoom Y In" FontSize="15" FontWeight="Normal" Style="{DynamicResource ButtonStyle1}"/>
+
+            <Button x:Name="buttonZoomYMinus" Width="100" Height="30" Click="buttonZoomYMinus_Click" Content="Zoom Y Out" FontSize="15" FontWeight="Normal" Style="{DynamicResource ButtonStyle1}"/>
+
+            <Label x:Name="FpsCounter" Content="Fps: 0" Foreground="White"/>
+            
+            <Label x:Name="DataPointsInVisibleArea" Content="Visible data points: 0" Foreground="White"/>
+            <Label x:Name="TotalDataPoints" Content="Total data points: 0" Foreground="White"/>
+        </StackPanel>
+
+    </Grid>
+</Window>

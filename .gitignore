@@ -1,0 +1,11 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Local/personal tool state
+.cr/personal/
