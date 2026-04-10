@@ -98,15 +98,7 @@ namespace InteractiveExamples
             }
         }
 
-        private void updatefps(object sender, EventArgs e)
-        {
-            if (_chart == null)
-            {
-                return;
-            }
 
-            TotalDataPoints.Content = "Total data points: " + (_pointsAppended * _seriesCount).ToString("N0");
-        }
 
         private void CreateChart()
         {
@@ -195,10 +187,6 @@ namespace InteractiveExamples
             }
 
             ConsumePendingSignalRounds(MaxRoundsPerRender);
-            FpsCounter.Content = string.Format("Queue: {0} rounds / {1:N0} points", _signalProducer.PendingRoundCount, _signalProducer.PendingSampleCount);
-            TotalDataPoints.Content = "Total data points: " + (_pointsAppended * _seriesCount).ToString("N0");
-            long visibleSampleCount = Math.Min((long)Math.Ceiling((_chart.ViewXY.XAxes[0].Maximum - _chart.ViewXY.XAxes[0].Minimum) / CurrentSampleIntervalSeconds), _pointsAppended);
-            DataPointsInVisibleArea.Content = "Visible data points: " + (visibleSampleCount * _seriesCount).ToString("N0");
         }
 
         private void Chart_PreviewMouseWheel(object sender, MouseWheelEventArgs e)

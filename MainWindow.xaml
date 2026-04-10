@@ -149,19 +149,7 @@
             <Grid Height="16"/>
             <CheckBox x:Name="checkBoxAxesVisible" Content="Y axes visible" VerticalContentAlignment="Center" IsChecked="True" FontSize="16" Foreground="White" Margin="5,0,5,0" FontWeight="Bold" Checked="checkBoxAxesVisible_CheckedChanged" Unchecked="checkBoxAxesVisible_CheckedChanged"/>
 
-            <Grid Height="20"/>
-            <Button x:Name="buttonZoomXPlus" Width="100" Height="30" Click="buttonZoomXPlus_Click" Content="Zoom X In" FontSize="15" FontWeight="Normal" Style="{DynamicResource ButtonStyle1}"/>
 
-            <Button x:Name="buttonZoomXMinus" Width="100" Height="30" Click="buttonZoomXMinus_Click" Content="Zoom X Out" FontSize="15" FontWeight="Normal" Style="{DynamicResource ButtonStyle1}"/>
-
-            <Button x:Name="buttonZoomYPlus" Width="100" Height="30" Click="buttonZoomYPlus_Click" Content="Zoom Y In" FontSize="15" FontWeight="Normal" Style="{DynamicResource ButtonStyle1}"/>
-
-            <Button x:Name="buttonZoomYMinus" Width="100" Height="30" Click="buttonZoomYMinus_Click" Content="Zoom Y Out" FontSize="15" FontWeight="Normal" Style="{DynamicResource ButtonStyle1}"/>
-
-            <Label x:Name="FpsCounter" Content="Fps: 0" Foreground="White"/>
-            
-            <Label x:Name="DataPointsInVisibleArea" Content="Visible data points: 0" Foreground="White"/>
-            <Label x:Name="TotalDataPoints" Content="Total data points: 0" Foreground="White"/>
             </StackPanel>
         </Grid>
     </Grid>
