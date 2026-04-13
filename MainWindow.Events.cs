@@ -51,20 +51,7 @@ namespace InteractiveExamples
             Start();
         }
 
-        private void comboBoxScrollMode_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (_chart != null)
-            {
-                if (comboBoxScrollMode.SelectedIndex == 0)
-                {
-                    _chart.ViewXY.XAxes[0].ScrollMode = XAxisScrollMode.Scrolling;
-                }
-                else if (comboBoxScrollMode.SelectedIndex == 1)
-                {
-                    _chart.ViewXY.XAxes[0].ScrollMode = XAxisScrollMode.Sweeping;
-                }
-            }
-        }
+
 
         private void buttonFollowScrollMode_Click(object sender, RoutedEventArgs e)
         {
@@ -183,33 +170,6 @@ namespace InteractiveExamples
             }
         }
 
-        private void checkBoxAxesVisible_CheckedChanged(object sender, RoutedEventArgs e)
-        {
-            if (_chart != null && _chartSignals.Count > 0)
-            {
-                bool yAxesVisible = checkBoxAxesVisible.IsChecked == true;
-                _chart.BeginUpdate();
 
-                var lastYAxis = _chartSignals.Last().AxisY;
-                _chart.ViewXY.AxisLayout.AutoAdjustMargins = false;
-
-                foreach (ChartSignal signal in _chartSignals)
-                {
-                    var yAxis = signal.AxisY;
-                    if (yAxis != lastYAxis)
-                    {
-                        yAxis.Visible = yAxesVisible;
-                    }
-                    else
-                    {
-                        yAxis.Visible = true;
-                        SetYAxisVisible(yAxis, yAxesVisible);
-                        lastYAxis.MiniScale.Visible = !yAxesVisible;
-                    }
-                }
-
-                _chart.EndUpdate();
-            }
-        }
     }
 }

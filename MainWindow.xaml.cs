@@ -1,14 +1,3 @@
-// ------------------------------------------------------------------------------------------------------
-// LightningChart庐 example code: Demo shows a record volume of data, over 1 Billion points in real-time. 
-//
-// If you need any assistance, or notice error in this example code, please contact support@lightningchart.com. 
-//
-// Permission to use this code in your application comes with LightningChart庐 license. 
-//
-// https://www.arction.com | support@arction.com | sales@arction.com
-//
-// 漏 Arction Ltd 2009-2021. All rights reserved.  
-// ------------------------------------------------------------------------------------------------------
 using Arction.Wpf.Charting;
 using Arction.Wpf.Charting.Axes;
 using Arction.Wpf.Charting.SeriesXY;

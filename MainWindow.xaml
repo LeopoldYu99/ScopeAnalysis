@@ -136,18 +136,7 @@
                     <ColumnDefinition Width="33*"/>
                 </Grid.ColumnDefinitions>
             </Grid>
-            <Grid Height="8"/>
-            <CheckBox Name="checkBoxPrefill" VerticalContentAlignment="Center" Foreground="White" IsChecked="False" FontSize="16" Margin="5,0,5,0">Prefill with data</CheckBox>
-            <Grid Height="8"/>
-            <Button x:Name="buttonStartStop" Width="180" Height="40" Click="buttonStartStop_Click" Content="Start" FontSize="20" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
-            <Grid Height="16"/>
-            <Label x:Name="label4" Grid.ColumnSpan="2" Content="Scroll mode" Foreground="White" FontSize="13" FontWeight="Bold"/>
-            <ComboBox x:Name="comboBoxScrollMode" SelectedIndex="0" Grid.ColumnSpan="2" SelectionChanged="comboBoxScrollMode_SelectionChanged" FontSize="13" FontWeight="Bold" Margin="5,0,5,0">
-                <ComboBoxItem Content="Scrolling"/>
-                <ComboBoxItem Content="Sweeping"/>
-            </ComboBox>
-            <Grid Height="16"/>
-            <CheckBox x:Name="checkBoxAxesVisible" Content="Y axes visible" VerticalContentAlignment="Center" IsChecked="True" FontSize="16" Foreground="White" Margin="5,0,5,0" FontWeight="Bold" Checked="checkBoxAxesVisible_CheckedChanged" Unchecked="checkBoxAxesVisible_CheckedChanged"/>
+
 
 
             </StackPanel>
