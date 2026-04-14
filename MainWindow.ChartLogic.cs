@@ -285,8 +285,9 @@ namespace InteractiveExamples
 
                 axisValueText.Text = string.Format("{0}: {1:0.###}", signal.Name, yValue);
                 Color signalColor = signal.Series.LineStyle.Color;
-                axisValueBorder.Background = new SolidColorBrush(Color.FromArgb(220, signalColor.R, signalColor.G, signalColor.B));
-                axisValueBorder.BorderBrush = new SolidColorBrush(Colors.White);
+                axisValueText.Foreground = new SolidColorBrush(signalColor);
+                axisValueBorder.Background = new SolidColorBrush(Color.FromArgb(205, 20, 22, 26));
+                axisValueBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(230, signalColor.R, signalColor.G, signalColor.B));
                 axisValueBorder.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
 
                 double axisLabelWidth = axisValueBorder.DesiredSize.Width;

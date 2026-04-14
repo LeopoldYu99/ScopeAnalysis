@@ -156,7 +156,7 @@ namespace InteractiveExamples
 
             _cursorLine = new Line
             {
-                Stroke = new SolidColorBrush(Color.FromArgb(220, 255, 204, 0)),
+                Stroke = new SolidColorBrush(Color.FromArgb(190, 255, 196, 64)),
                 StrokeThickness = 1.5,
                 StrokeDashArray = new DoubleCollection(new[] { 4.0, 3.0 }),
                 SnapsToDevicePixels = true,
@@ -165,15 +165,15 @@ namespace InteractiveExamples
 
             _cursorValueText = new TextBlock
             {
-                Foreground = Brushes.Black,
+                Foreground = new SolidColorBrush(Color.FromRgb(255, 214, 96)),
                 FontSize = 12,
                 FontWeight = FontWeights.Bold
             };
 
             _cursorValueBorder = new System.Windows.Controls.Border
             {
-                Background = new SolidColorBrush(Color.FromArgb(230, 255, 204, 0)),
-                BorderBrush = new SolidColorBrush(Color.FromArgb(255, 255, 230, 140)),
+                Background = new SolidColorBrush(Color.FromArgb(215, 24, 26, 30)),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(235, 255, 196, 64)),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(4),
                 Padding = new Thickness(6, 2, 6, 2),

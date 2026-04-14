@@ -81,7 +81,7 @@
 
         <Border Grid.Row="0" Background="#FF1C1C1C" BorderBrush="#FF3C3C3C" BorderThickness="0,0,0,1" Padding="10,8">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <Label Content="X视图模式" Foreground="White" FontSize="14" FontWeight="Bold" VerticalAlignment="Center" Padding="0" Margin="0,0,12,0"/>
+                <Label Content="视图模式" Foreground="White" FontSize="14" FontWeight="Bold" VerticalAlignment="Center" Padding="0" Margin="0,0,12,0"/>
                 <Button x:Name="buttonFollowScrollMode" Width="100" Height="32" Click="buttonFollowScrollMode_Click" Content="跟随滚动" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
                 <Button x:Name="buttonPageMode" Width="90" Height="32" Click="buttonPageMode_Click" Content="翻页" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
                 <Button x:Name="buttonFreeMode" Width="90" Height="32" Click="buttonFreeMode_Click" Content="自由" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
