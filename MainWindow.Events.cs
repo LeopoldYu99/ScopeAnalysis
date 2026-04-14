@@ -18,6 +18,7 @@ namespace InteractiveExamples
             }
 
             ConsumePendingSignalData();
+            UpdateCursorVisual();
         }
 
         private void Chart_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
@@ -72,6 +73,63 @@ namespace InteractiveExamples
         private void buttonFreeMode_Click(object sender, RoutedEventArgs e)
         {
             SetXAxisViewMode(XAxisViewMode.Free);
+        }
+
+        private void buttonCursor_Click(object sender, RoutedEventArgs e)
+        {
+            SetCursorEnabled(_isCursorEnabled == false);
+        }
+
+        private void Chart_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (_chart == null || _isCursorEnabled == false)
+            {
+                return;
+            }
+
+            Point position = e.GetPosition(_chart);
+            if (IsPointInsidePlotArea(position) == false)
+            {
+                return;
+            }
+
+            _isCursorDragging = true;
+            _chart.CaptureMouse();
+            SetCursorXFromControlX(position.X);
+            e.Handled = true;
+        }
+
+        private void Chart_PreviewMouseMove(object sender, MouseEventArgs e)
+        {
+            if (_chart == null || _isCursorEnabled == false || _isCursorDragging == false)
+            {
+                return;
+            }
+
+            Point position = e.GetPosition(_chart);
+            SetCursorXFromControlX(position.X);
+            e.Handled = true;
+        }
+
+        private void Chart_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (_chart == null || _isCursorDragging == false)
+            {
+                return;
+            }
+
+            _isCursorDragging = false;
+            if (_chart.IsMouseCaptured)
+            {
+                _chart.ReleaseMouseCapture();
+            }
+
+            e.Handled = true;
+        }
+
+        private void Chart_LostMouseCapture(object sender, MouseEventArgs e)
+        {
+            _isCursorDragging = false;
         }
 
 

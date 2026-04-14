@@ -31,6 +31,275 @@ namespace InteractiveExamples
             return xAxis.Minimum + (xAxis.Maximum - xAxis.Minimum) * normalizedX;
         }
 
+        private bool TryGetPlotAreaBounds(out double plotLeft, out double plotTop, out double plotRight, out double plotBottom)
+        {
+            plotLeft = 0;
+            plotTop = 0;
+            plotRight = 0;
+            plotBottom = 0;
+
+            if (_chart == null)
+            {
+                return false;
+            }
+
+            Thickness margins = _chart.ViewXY.Margins;
+            plotLeft = margins.Left;
+            plotTop = margins.Top;
+            plotRight = _chart.ActualWidth - margins.Right;
+            plotBottom = _chart.ActualHeight - margins.Bottom;
+            return plotRight > plotLeft && plotBottom > plotTop;
+        }
+
+        private bool IsPointInsidePlotArea(Point position)
+        {
+            double plotLeft;
+            double plotTop;
+            double plotRight;
+            double plotBottom;
+            if (TryGetPlotAreaBounds(out plotLeft, out plotTop, out plotRight, out plotBottom) == false)
+            {
+                return false;
+            }
+
+            return position.X >= plotLeft
+                && position.X <= plotRight
+                && position.Y >= plotTop
+                && position.Y <= plotBottom;
+        }
+
+        private void UpdateCursorButton()
+        {
+            UpdateXAxisViewModeButton(buttonCursor, _isCursorEnabled);
+        }
+
+        private void SetCursorEnabled(bool enabled)
+        {
+            _isCursorEnabled = enabled;
+            _isCursorDragging = false;
+
+            if (_chart != null && _chart.IsMouseCaptured)
+            {
+                _chart.ReleaseMouseCapture();
+            }
+
+            if (_isCursorEnabled)
+            {
+                ResetCursorToVisibleRangeCenter();
+            }
+
+            UpdateCursorButton();
+            UpdateCursorVisual();
+        }
+
+        private void ResetCursorToVisibleRangeCenter()
+        {
+            if (_chart == null)
+            {
+                return;
+            }
+
+            AxisX xAxis = _chart.ViewXY.XAxes[0];
+            _cursorXValue = (xAxis.Minimum + xAxis.Maximum) / 2.0;
+        }
+
+        private void SetCursorXFromControlX(double controlX)
+        {
+            double? xValue = TryGetXAxisValueAt(controlX);
+            if (xValue.HasValue == false)
+            {
+                return;
+            }
+
+            _cursorXValue = xValue.Value;
+            UpdateCursorVisual();
+        }
+
+        private void EnsureCursorAxisValueLabels()
+        {
+            if (_cursorOverlay == null)
+            {
+                return;
+            }
+
+            while (_cursorAxisValueBorders.Count < _chartSignals.Count)
+            {
+                TextBlock textBlock = new TextBlock
+                {
+                    Foreground = Brushes.White,
+                    FontSize = 12,
+                    FontWeight = FontWeights.Bold
+                };
+
+                System.Windows.Controls.Border border = new System.Windows.Controls.Border
+                {
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(4),
+                    Padding = new Thickness(6, 2, 6, 2),
+                    Child = textBlock,
+                    Visibility = Visibility.Collapsed
+                };
+
+                _cursorAxisValueTexts.Add(textBlock);
+                _cursorAxisValueBorders.Add(border);
+                _cursorOverlay.Children.Add(border);
+            }
+        }
+
+        private void HideCursorAxisValueLabels()
+        {
+            foreach (System.Windows.Controls.Border border in _cursorAxisValueBorders)
+            {
+                border.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private bool TryGetCursorYAxisValue(ChartSignal signal, out double yValue)
+        {
+            yValue = 0;
+            if (signal == null || signal.Series == null || signal.AxisY == null || signal.Series.PointCount <= 0)
+            {
+                return false;
+            }
+
+            LineSeriesValueSolveResult solvedValue = signal.Series.SolveYValueAtXValue(_cursorXValue);
+            if (solvedValue.NearestDataPointIndex < 0)
+            {
+                return false;
+            }
+
+            yValue = solvedValue.YMin;
+            if (double.IsNaN(yValue) || double.IsInfinity(yValue))
+            {
+                return false;
+            }
+
+            if (double.IsNaN(solvedValue.YMax) == false && double.IsInfinity(solvedValue.YMax) == false)
+            {
+                if (Math.Abs(solvedValue.YMax - solvedValue.YMin) > double.Epsilon)
+                {
+                    yValue = (solvedValue.YMin + solvedValue.YMax) / 2.0;
+                }
+            }
+
+            return true;
+        }
+
+        private void UpdateCursorVisual()
+        {
+            if (_cursorOverlay == null || _cursorLine == null || _cursorValueBorder == null || _cursorValueText == null)
+            {
+                return;
+            }
+
+            EnsureCursorAxisValueLabels();
+
+            if (_isCursorEnabled == false || _chart == null)
+            {
+                _cursorOverlay.Visibility = Visibility.Collapsed;
+                _cursorLine.Visibility = Visibility.Collapsed;
+                _cursorValueBorder.Visibility = Visibility.Collapsed;
+                HideCursorAxisValueLabels();
+                return;
+            }
+
+            double plotLeft;
+            double plotTop;
+            double plotRight;
+            double plotBottom;
+            if (TryGetPlotAreaBounds(out plotLeft, out plotTop, out plotRight, out plotBottom) == false)
+            {
+                _cursorOverlay.Visibility = Visibility.Collapsed;
+                _cursorLine.Visibility = Visibility.Collapsed;
+                _cursorValueBorder.Visibility = Visibility.Collapsed;
+                HideCursorAxisValueLabels();
+                return;
+            }
+
+            AxisX xAxis = _chart.ViewXY.XAxes[0];
+            double currentMin = xAxis.Minimum;
+            double currentMax = xAxis.Maximum;
+            if (currentMax <= currentMin)
+            {
+                _cursorOverlay.Visibility = Visibility.Collapsed;
+                _cursorLine.Visibility = Visibility.Collapsed;
+                _cursorValueBorder.Visibility = Visibility.Collapsed;
+                HideCursorAxisValueLabels();
+                return;
+            }
+
+            double normalizedX = (_cursorXValue - currentMin) / (currentMax - currentMin);
+            if (normalizedX < 0 || normalizedX > 1)
+            {
+                _cursorOverlay.Visibility = Visibility.Visible;
+                _cursorLine.Visibility = Visibility.Collapsed;
+                _cursorValueBorder.Visibility = Visibility.Collapsed;
+                HideCursorAxisValueLabels();
+                return;
+            }
+
+            double xCoord = plotLeft + normalizedX * (plotRight - plotLeft);
+
+            _cursorOverlay.Width = _chart.ActualWidth;
+            _cursorOverlay.Height = _chart.ActualHeight;
+            _cursorOverlay.Visibility = Visibility.Visible;
+
+            _cursorLine.X1 = xCoord;
+            _cursorLine.X2 = xCoord;
+            _cursorLine.Y1 = plotTop;
+            _cursorLine.Y2 = plotBottom;
+            _cursorLine.Visibility = Visibility.Visible;
+
+            _cursorValueText.Text = _cursorXValue.ToString("0.000");
+            _cursorValueBorder.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+
+            double labelWidth = _cursorValueBorder.DesiredSize.Width;
+            double labelHeight = _cursorValueBorder.DesiredSize.Height;
+            double labelLeft = Math.Max(plotLeft, Math.Min(plotRight - labelWidth, xCoord - labelWidth / 2.0));
+            double labelTop = Math.Max(0, plotBottom - labelHeight - 4);
+
+            Canvas.SetLeft(_cursorValueBorder, labelLeft);
+            Canvas.SetTop(_cursorValueBorder, labelTop);
+            _cursorValueBorder.Visibility = Visibility.Visible;
+
+            for (int i = 0; i < _chartSignals.Count; i++)
+            {
+                ChartSignal signal = _chartSignals[i];
+                System.Windows.Controls.Border axisValueBorder = _cursorAxisValueBorders[i];
+                TextBlock axisValueText = _cursorAxisValueTexts[i];
+
+                if (signal.AxisY == null || signal.AxisY.Visible == false || TryGetCursorYAxisValue(signal, out double yValue) == false)
+                {
+                    axisValueBorder.Visibility = Visibility.Collapsed;
+                    continue;
+                }
+
+                double yCoord = signal.AxisY.ValueToCoord(yValue, true);
+                if (double.IsNaN(yCoord) || double.IsInfinity(yCoord))
+                {
+                    axisValueBorder.Visibility = Visibility.Collapsed;
+                    continue;
+                }
+
+                yCoord = Math.Max(plotTop, Math.Min(plotBottom, yCoord));
+
+                axisValueText.Text = string.Format("{0}: {1:0.###}", signal.Name, yValue);
+                Color signalColor = signal.Series.LineStyle.Color;
+                axisValueBorder.Background = new SolidColorBrush(Color.FromArgb(220, signalColor.R, signalColor.G, signalColor.B));
+                axisValueBorder.BorderBrush = new SolidColorBrush(Colors.White);
+                axisValueBorder.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+
+                double axisLabelWidth = axisValueBorder.DesiredSize.Width;
+                double axisLabelHeight = axisValueBorder.DesiredSize.Height;
+                double axisLabelLeft = Math.Max(plotLeft, plotRight - axisLabelWidth - 6);
+                double axisLabelTop = Math.Max(plotTop, Math.Min(plotBottom - axisLabelHeight, yCoord - axisLabelHeight / 2.0));
+
+                Canvas.SetLeft(axisValueBorder, axisLabelLeft);
+                Canvas.SetTop(axisValueBorder, axisLabelTop);
+                axisValueBorder.Visibility = Visibility.Visible;
+            }
+        }
+
         private AxisY TryGetYAxisAt(double controlY)
         {
             if (_chart == null)
@@ -130,11 +399,13 @@ namespace InteractiveExamples
             if (_xAxisViewMode == XAxisViewMode.FollowScroll)
             {
                 xAxis.ScrollPosition = lastX;
+                UpdateCursorVisual();
                 return;
             }
 
             if (_xAxisViewMode != XAxisViewMode.Paging || lastX < xAxis.Maximum)
             {
+                UpdateCursorVisual();
                 return;
             }
 
@@ -145,6 +416,7 @@ namespace InteractiveExamples
             }
 
             xAxis.SetRange(lastX, lastX + pageWidth);
+            UpdateCursorVisual();
         }
 
         private ChartSignal CreateChartSignal(ViewXY view, int seriesIndex)
@@ -280,6 +552,7 @@ namespace InteractiveExamples
             double newMax = zoomAnchor + (currentMax - zoomAnchor) * factor;
             xAxis.SetRange(newMin, newMax);
             _chart.EndUpdate();
+            UpdateCursorVisual();
         }
 
         private void ZoomY(AxisY yAxis, double factor, double? anchorY = null)
@@ -307,6 +580,7 @@ namespace InteractiveExamples
             double newMax = zoomAnchor + (currentMax - zoomAnchor) * factor;
             yAxis.SetRange(newMin, newMax);
             _chart.EndUpdate();
+            UpdateCursorVisual();
         }
     }
 }

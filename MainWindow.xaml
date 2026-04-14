@@ -85,6 +85,7 @@
                 <Button x:Name="buttonFollowScrollMode" Width="100" Height="32" Click="buttonFollowScrollMode_Click" Content="跟随滚动" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
                 <Button x:Name="buttonPageMode" Width="90" Height="32" Click="buttonPageMode_Click" Content="翻页" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
                 <Button x:Name="buttonFreeMode" Width="90" Height="32" Click="buttonFreeMode_Click" Content="自由" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
+                <Button x:Name="buttonCursor" Width="90" Height="32" Click="buttonCursor_Click" Content="Cursor" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
             </StackPanel>
         </Border>
 

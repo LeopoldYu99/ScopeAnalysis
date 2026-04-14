@@ -8,12 +8,19 @@ using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Shapes;
 
 namespace InteractiveExamples
 {
     public partial class Example8BillionPoints : Window, IDisposable
     {
         private LightningChart _chart;
+        private Canvas _cursorOverlay;
+        private Line _cursorLine;
+        private System.Windows.Controls.Border _cursorValueBorder;
+        private TextBlock _cursorValueText;
+        private readonly List<System.Windows.Controls.Border> _cursorAxisValueBorders = new List<System.Windows.Controls.Border>();
+        private readonly List<TextBlock> _cursorAxisValueTexts = new List<TextBlock>();
 
         private Timer _producerTimer;
         private readonly SignalProducer _signalProducer = new SignalProducer();
@@ -30,6 +37,9 @@ namespace InteractiveExamples
         private const double YMax = 100;
 
         private bool _hasConsumedData;
+        private bool _isCursorEnabled;
+        private bool _isCursorDragging;
+        private double _cursorXValue;
 
         private const float LineWidth = 1f;
         private const int ProducerIntervalMs = 50;
@@ -49,6 +59,7 @@ namespace InteractiveExamples
             InitializeComponent();
             _producerTimer = new Timer(ProducerTimerCallback, null, Timeout.Infinite, Timeout.Infinite);
             UpdateXAxisViewModeButtons();
+            UpdateCursorButton();
             CreateChart();
         }
 
@@ -131,10 +142,57 @@ namespace InteractiveExamples
 
             _chart.EndUpdate();
             _chart.PreviewMouseWheel += Chart_PreviewMouseWheel;
+            _chart.PreviewMouseLeftButtonDown += Chart_PreviewMouseLeftButtonDown;
+            _chart.PreviewMouseMove += Chart_PreviewMouseMove;
+            _chart.PreviewMouseLeftButtonUp += Chart_PreviewMouseLeftButtonUp;
+            _chart.LostMouseCapture += Chart_LostMouseCapture;
+
+            _cursorOverlay = new Canvas
+            {
+                Background = Brushes.Transparent,
+                IsHitTestVisible = false,
+                Visibility = Visibility.Collapsed
+            };
+
+            _cursorLine = new Line
+            {
+                Stroke = new SolidColorBrush(Color.FromArgb(220, 255, 204, 0)),
+                StrokeThickness = 1.5,
+                StrokeDashArray = new DoubleCollection(new[] { 4.0, 3.0 }),
+                SnapsToDevicePixels = true,
+                Visibility = Visibility.Collapsed
+            };
+
+            _cursorValueText = new TextBlock
+            {
+                Foreground = Brushes.Black,
+                FontSize = 12,
+                FontWeight = FontWeights.Bold
+            };
+
+            _cursorValueBorder = new System.Windows.Controls.Border
+            {
+                Background = new SolidColorBrush(Color.FromArgb(230, 255, 204, 0)),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(255, 255, 230, 140)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(6, 2, 6, 2),
+                Child = _cursorValueText,
+                Visibility = Visibility.Collapsed
+            };
+
+            _cursorOverlay.Children.Add(_cursorLine);
+            _cursorOverlay.Children.Add(_cursorValueBorder);
 
             gridMain.Children.Add(_chart);
             Grid.SetRow(_chart, 0);
             Grid.SetColumn(_chart, 0);
+
+            gridMain.Children.Add(_cursorOverlay);
+            Grid.SetRow(_cursorOverlay, 0);
+            Grid.SetColumn(_cursorOverlay, 0);
+            Panel.SetZIndex(_cursorOverlay, 1);
+
             Start();
         }
     }
