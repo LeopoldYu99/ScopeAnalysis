@@ -106,6 +106,7 @@ namespace InteractiveExamples
             view.XAxes[0].SetRange(0, 100000);
             view.XAxes[0].MajorGrid.Pattern = LinePattern.Solid;
             view.XAxes[0].Units.Text = "s";
+            view.ZoomPanOptions.DevicePrimaryButtonAction = UserInteractiveDeviceButtonAction.Pan;
 
             view.DropOldSeriesData = true;
 
