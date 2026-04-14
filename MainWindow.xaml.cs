@@ -40,6 +40,7 @@ namespace InteractiveExamples
         private bool _isCursorEnabled;
         private bool _isCursorDragging;
         private double _cursorXValue;
+        private bool _arePointsVisible;
 
         private const float LineWidth = 1f;
         private const int ProducerIntervalMs = 50;
@@ -60,6 +61,7 @@ namespace InteractiveExamples
             _producerTimer = new Timer(ProducerTimerCallback, null, Timeout.Infinite, Timeout.Infinite);
             UpdateXAxisViewModeButtons();
             UpdateCursorButton();
+            UpdatePointsButton();
             CreateChart();
         }
 

@@ -80,6 +80,11 @@ namespace InteractiveExamples
             SetCursorEnabled(_isCursorEnabled == false);
         }
 
+        private void buttonPoints_Click(object sender, RoutedEventArgs e)
+        {
+            SetPointsVisible(_arePointsVisible == false);
+        }
+
         private void Chart_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (_chart == null || _isCursorEnabled == false)

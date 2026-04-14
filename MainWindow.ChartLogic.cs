@@ -73,6 +73,38 @@ namespace InteractiveExamples
             UpdateXAxisViewModeButton(buttonCursor, _isCursorEnabled);
         }
 
+        private void UpdatePointsButton()
+        {
+            UpdateXAxisViewModeButton(buttonPoints, _arePointsVisible);
+        }
+
+        private void SetPointsVisible(bool visible)
+        {
+            _arePointsVisible = visible;
+            UpdatePointsButton();
+
+            if (_chart == null)
+            {
+                return;
+            }
+
+            _chart.BeginUpdate();
+            try
+            {
+                foreach (ChartSignal signal in _chartSignals)
+                {
+                    if (signal.Series != null)
+                    {
+                        signal.Series.PointsVisible = _arePointsVisible;
+                    }
+                }
+            }
+            finally
+            {
+                _chart.EndUpdate();
+            }
+        }
+
         private void SetCursorEnabled(bool enabled)
         {
             _isCursorEnabled = enabled;
@@ -478,11 +510,17 @@ namespace InteractiveExamples
 
             PointLineSeries series = new PointLineSeries(view, view.XAxes[0], axisY);
             view.PointLineSeries.Add(series);
-            series.LineStyle.Color = ChartTools.CalcGradient(lineBaseColor, Colors.White, 50);
+            Color seriesColor = ChartTools.CalcGradient(lineBaseColor, Colors.White, 50);
+            series.LineStyle.Color = seriesColor;
             series.LineStyle.Width = LineWidth;
+            series.PointStyle.Color1 = seriesColor;
+            series.PointStyle.Color2 = seriesColor;
+            series.PointStyle.Color3 = seriesColor;
+            series.PointStyle.BorderColor = seriesColor;
+            series.PointStyle.BorderWidth = 0;
             series.LimitYToStackSegment = true;
             series.AllowUserInteraction = false;
-            series.PointsVisible = false;
+            series.PointsVisible = _arePointsVisible;
 
             signal.AxisY = axisY;
             signal.Series = series;
