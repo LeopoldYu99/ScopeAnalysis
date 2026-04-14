@@ -207,6 +207,7 @@ namespace InteractiveExamples
             view.PointLineSeries.Add(series);
             series.LineStyle.Color = ChartTools.CalcGradient(lineBaseColor, Colors.White, 50);
             series.LineStyle.Width = LineWidth;
+            series.LimitYToStackSegment = true;
             series.AllowUserInteraction = false;
             series.PointsVisible = false;
 

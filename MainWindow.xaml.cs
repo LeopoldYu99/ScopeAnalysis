@@ -89,7 +89,7 @@ namespace InteractiveExamples
             view.XAxes[0].ValueType = AxisValueType.Number;
             view.XAxes[0].AutoFormatLabels = false;
             view.XAxes[0].LabelsNumberFormat = "0.000";
-            view.XAxes[0].Title.Text = "Time";
+            view.XAxes[0].Title.Text = "";
             view.XAxes[0].SetRange(0, 100000);
             view.XAxes[0].MajorGrid.Pattern = LinePattern.Solid;
             view.XAxes[0].Units.Text = "s";
