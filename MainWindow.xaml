@@ -100,33 +100,7 @@
             <StackPanel Grid.Column="0" x:Name="stackPanel1" Visibility="Collapsed">
 
             <Label x:Name="labeli" Content="Select preset" Foreground="White" FontSize="16" FontWeight="Bold"/>
-            <StackPanel>
-                <StackPanel.Background>
-                    <LinearGradientBrush EndPoint="0.5,1" StartPoint="0.5,0">
-                        <GradientStop Color="#FF4E9C00" Offset="0"/>
-                        <GradientStop Color="#FFFFCC00" Offset="0.766"/>
-                        <GradientStop Color="White" Offset="0.306"/>
-                        <GradientStop Color="Red" Offset="0.996"/>
-                    </LinearGradientBrush>
-                </StackPanel.Background>
-                <RadioButton Name="button1M" Checked="buttonPointCount_Checked">1 Million [2GB RAM]</RadioButton>
-                <RadioButton Name="button10M" Checked="buttonPointCount_Checked">10 Million [2GB RAM]</RadioButton>
-                <RadioButton Name="button100M" Checked="buttonPointCount_Checked">100 Million [8GB RAM]</RadioButton>
-                <RadioButton Name="button1000M" IsChecked="True" Checked="buttonPointCount_Checked">1 Billion [16GB RAM]</RadioButton>
-                <RadioButton Name="button2000M" Checked="buttonPointCount_Checked">2 Billion [32GB RAM]</RadioButton>
-                <RadioButton Name="button3000M" Checked="buttonPointCount_Checked">3 Billion [32GB RAM]</RadioButton>
-                <RadioButton Name="button4000M" Checked="buttonPointCount_Checked">4 Billion [64GB RAM]</RadioButton>
-                <RadioButton Name="button5000M" Checked="buttonPointCount_Checked">5 Billion [64GB RAM]</RadioButton>
-                <RadioButton Name="button6000M" Checked="buttonPointCount_Checked">6 Billion [64GB RAM]</RadioButton>
-                <RadioButton Name="button7000M" Checked="buttonPointCount_Checked">7 Billion [64GB RAM]</RadioButton>
-                <RadioButton Name="button8000M" Checked="buttonPointCount_Checked">8 Billion [128GB RAM]</RadioButton>
-            </StackPanel>
-            <Label x:Name="label2" Content="Append points / round" Foreground="White" FontSize="13" FontWeight="Bold"/>
-            <TextBox x:Name="textBoxAppendCountPerRound" VerticalAlignment="Bottom" HorizontalContentAlignment="Right" IsEnabled="True" Text="10" FontSize="13" FontWeight="Bold" Margin="5,0,5,0"/>
-            <Label x:Name="label3" Content="X axis length (points)" Foreground="White" FontSize="13" FontWeight="Bold"/>
-            <TextBox HorizontalContentAlignment="Right" IsEnabled="True" x:Name="textBoxXLen" Text="200" FontSize="13" FontWeight="Bold" Margin="5,0,5,0"/>
-            <Label x:Name="label5" Content="Series count" Foreground="White" FontSize="13" FontWeight="Bold"/>
-            <TextBox HorizontalContentAlignment="Right" IsEnabled="True" x:Name="textBoxSeriesCount" Text="5" FontSize="13" FontWeight="Bold" Margin="5,0,5,0"/>
+
 
 
             <Grid Height="8">

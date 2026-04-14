@@ -22,9 +22,9 @@ namespace InteractiveExamples
         private double _lastConsumedX;
         private bool _isStreaming;
 
-        private int _seriesCount;
+        private int _seriesCount = 5;
         private int _appendCountPerRound = DefaultAppendCountPerRound;
-        private double _xLen;
+        private double _xLen = 200;
 
         private const double YMin = 0;
         private const double YMax = 100;
@@ -48,7 +48,6 @@ namespace InteractiveExamples
         {
             InitializeComponent();
             _producerTimer = new Timer(ProducerTimerCallback, null, Timeout.Infinite, Timeout.Infinite);
-            textBoxAppendCountPerRound.Text = DefaultAppendCountPerRound.ToString();
             UpdateXAxisViewModeButtons();
             CreateChart();
         }

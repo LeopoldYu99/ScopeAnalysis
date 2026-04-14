@@ -1,11 +1,11 @@
-using Arction.Wpf.Charting;
-using Arction.Wpf.Charting.Axes;
-using Arction.Wpf.Charting.SeriesXY;
-using Arction.Wpf.Charting.Views.ViewXY;
 using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using Arction.Wpf.Charting;
+using Arction.Wpf.Charting.Axes;
+using Arction.Wpf.Charting.SeriesXY;
+using Arction.Wpf.Charting.Views.ViewXY;
 
 namespace InteractiveExamples
 {
@@ -91,8 +91,19 @@ namespace InteractiveExamples
 
         private ChartSignal CreateChartSignal(ViewXY view, int seriesIndex)
         {
-            SignalValueKind kind = GetSignalKind(seriesIndex);
-            ChartSignal signal = new ChartSignal(string.Format("Ch {0}", seriesIndex + 1), kind, YMin, YMax);
+            SignalValueKind kind = SignalValueKind.Analog;
+            if (seriesIndex == 0)
+            {
+                kind = SignalValueKind.StepDigital;
+            }
+
+            if (seriesIndex == 1)
+            {
+                kind = SignalValueKind.Digital;
+            }
+
+
+            ChartSignal signal = new ChartSignal(string.Format("Signal {0}", seriesIndex + 1), kind, YMin, YMax);
             Color lineBaseColor = DefaultColors.SeriesForBlackBackgroundWpf[seriesIndex % DefaultColors.SeriesForBlackBackgroundWpf.Length];
 
             AxisY axisY = new AxisY(view);
@@ -106,7 +117,7 @@ namespace InteractiveExamples
             }
 
             axisY.Title.Text = signal.Name;
-            axisY.Title.Angle = 0;
+            axisY.Title.Angle = 90;
             axisY.Title.Color = ChartTools.CalcGradient(lineBaseColor, Colors.White, 50);
             axisY.Units.Visible = false;
             axisY.AllowScaling = false;
@@ -119,18 +130,18 @@ namespace InteractiveExamples
             axisY.MajorDivTickStyle.Alignment = Alignment.Near;
             axisY.Title.HorizontalAlign = YAxisTitleAlignmentHorizontal.Left;
 
-            if (seriesIndex == _seriesCount - 1)
-            {
-                axisY.MiniScale.ShowX = true;
-                axisY.MiniScale.ShowY = true;
-                axisY.MiniScale.Color = Color.FromArgb(255, 255, 204, 0);
-                axisY.MiniScale.HorizontalAlign = AlignmentHorizontal.Right;
-                axisY.MiniScale.VerticalAlign = AlignmentVertical.Bottom;
-                axisY.MiniScale.Offset = new PointIntXY(-30, -30);
-                axisY.MiniScale.LabelX.Color = Colors.White;
-                axisY.MiniScale.LabelY.Color = Colors.White;
-                axisY.MiniScale.PreferredSize = new Arction.Wpf.Charting.SizeDoubleXY(50, 50);
-            }
+            //if (seriesIndex == _seriesCount - 1)
+            //{
+            axisY.MiniScale.ShowX = true;
+            axisY.MiniScale.ShowY = true;
+            axisY.MiniScale.Color = Color.FromArgb(255, 255, 204, 0);
+            axisY.MiniScale.HorizontalAlign = AlignmentHorizontal.Right;
+            axisY.MiniScale.VerticalAlign = AlignmentVertical.Bottom;
+            axisY.MiniScale.Offset = new PointIntXY(-30, -30);
+            axisY.MiniScale.LabelX.Color = Colors.White;
+            axisY.MiniScale.LabelY.Color = Colors.White;
+            axisY.MiniScale.PreferredSize = new Arction.Wpf.Charting.SizeDoubleXY(50, 50);
+            //}
 
             view.YAxes.Add(axisY);
 
@@ -146,20 +157,7 @@ namespace InteractiveExamples
             return signal;
         }
 
-        private static SignalValueKind GetSignalKind(int seriesIndex)
-        {
-            if (seriesIndex == 0)
-            {
-                return SignalValueKind.StepDigital;
-            }
 
-            if (seriesIndex == 1)
-            {
-                return SignalValueKind.Digital;
-            }
-
-            return SignalValueKind.Analog;
-        }
 
         private void UpdateSweepBands(double lastX)
         {

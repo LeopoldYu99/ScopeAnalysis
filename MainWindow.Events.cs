@@ -46,10 +46,6 @@ namespace InteractiveExamples
             }
         }
 
-        private void buttonStartStop_Click(object sender, RoutedEventArgs e)
-        {
-            Start();
-        }
 
 
 
@@ -68,107 +64,7 @@ namespace InteractiveExamples
             SetXAxisViewMode(XAxisViewMode.Free);
         }
 
-        private void buttonZoomXPlus_Click(object sender, RoutedEventArgs e)
-        {
-            ZoomX(0.5);
-        }
 
-        private void buttonZoomXMinus_Click(object sender, RoutedEventArgs e)
-        {
-            ZoomX(2);
-        }
-
-        private void buttonZoomYPlus_Click(object sender, RoutedEventArgs e)
-        {
-            ZoomY(0.5);
-        }
-
-        private void buttonZoomYMinus_Click(object sender, RoutedEventArgs e)
-        {
-            ZoomY(2);
-        }
-
-        private void buttonPointCount_Checked(object sender, RoutedEventArgs e)
-        {
-            ulong pointCount = 1000000;
-            ulong seriesCount = 1;
-            ulong xAxisPointCount = 1000;
-            ulong appendPointsPerRound = 1000;
-
-            if (sender == button1M)
-            {
-                pointCount = 1000000;
-                seriesCount = 4;
-            }
-            else if (sender == button10M)
-            {
-                pointCount = 10000000;
-                seriesCount = 4;
-            }
-            else if (sender == button100M)
-            {
-                pointCount = 100000000;
-                seriesCount = 8;
-            }
-            else if (sender == button1000M)
-            {
-                pointCount = 1000000000;
-                seriesCount = 16;
-            }
-            else if (sender == button2000M)
-            {
-                pointCount = 2000000000;
-                seriesCount = 16;
-            }
-            else if (sender == button3000M)
-            {
-                pointCount = 3000000000;
-                seriesCount = 16;
-            }
-            else if (sender == button4000M)
-            {
-                pointCount = 4000000000;
-                seriesCount = 16;
-            }
-            else if (sender == button5000M)
-            {
-                pointCount = 5000000000;
-                seriesCount = 16;
-            }
-            else if (sender == button6000M)
-            {
-                pointCount = 6000000000;
-                seriesCount = 32;
-            }
-            else if (sender == button7000M)
-            {
-                pointCount = 7000000000;
-                seriesCount = 32;
-            }
-            else if (sender == button8000M)
-            {
-                pointCount = 8000000000;
-                seriesCount = 32;
-            }
-
-            xAxisPointCount = pointCount / seriesCount;
-            appendPointsPerRound = 10;
-
-            if (textBoxSeriesCount != null)
-            {
-                textBoxSeriesCount.Text = seriesCount.ToString();
-            }
-
-            if (textBoxAppendCountPerRound != null)
-            {
-                textBoxAppendCountPerRound.Text = appendPointsPerRound.ToString();
-            }
-
-            if (textBoxXLen != null)
-            {
-                textBoxXLen.Text = xAxisPointCount.ToString();
-            }
-        }
 
 
     }

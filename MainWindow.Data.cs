@@ -20,43 +20,11 @@ namespace InteractiveExamples
 
             ViewXY view = _chart.ViewXY;
 
-            try
-            {
-                _seriesCount = int.Parse(textBoxSeriesCount.Text);
-            }
-            catch
-            {
-                MessageBox.Show("Invalid series count text input");
-                return;
-            }
 
-            try
-            {
-                _appendCountPerRound = int.Parse(textBoxAppendCountPerRound.Text);
-            }
-            catch
-            {
-                MessageBox.Show("Invalid append count");
-                return;
-            }
-
-            if (_appendCountPerRound <= 0)
-            {
-                MessageBox.Show("Append count must be greater than 0");
-                return;
-            }
 
             _signalProducer.ClearPendingData(_chartSignals);
 
-            try
-            {
-                _xLen = double.Parse(textBoxXLen.Text);
-            }
-            catch
-            {
-                MessageBox.Show("Invalid X-Axis length text input");
-                return;
-            }
+ 
 
             _chart.BeginUpdate();
             _chart.ViewXY.AxisLayout.AutoShrinkSegmentsGap = false;
