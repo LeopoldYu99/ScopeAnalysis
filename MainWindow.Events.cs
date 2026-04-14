@@ -85,6 +85,21 @@ namespace InteractiveExamples
             SetPointsVisible(_arePointsVisible == false);
         }
 
+        private void buttonFitY_Click(object sender, RoutedEventArgs e)
+        {
+            FitYAxisToAll();
+        }
+
+        private void buttonFitX_Click(object sender, RoutedEventArgs e)
+        {
+            FitXAxisToAll();
+        }
+
+        private void buttonFitXY_Click(object sender, RoutedEventArgs e)
+        {
+            FitXYToAll();
+        }
+
         private void Chart_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (_chart == null || _isCursorEnabled == false)

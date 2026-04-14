@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.Remoting;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -103,6 +104,82 @@ namespace InteractiveExamples
             {
                 _chart.EndUpdate();
             }
+        }
+
+        private void FitYAxisToAll()
+        {
+            if (_chart == null)
+            {
+                return;
+            }
+
+            _chart.BeginUpdate();
+            try
+            {
+                foreach (AxisY yAxis in _chart.ViewXY.YAxes)
+                {
+                    if (yAxis.Visible == false)
+                    {
+                        continue;
+                    }
+
+                    bool scaleChanged = false;
+                    yAxis.Fit(0.0, out scaleChanged, true, false);
+                }
+            }
+            finally
+            {
+                _chart.EndUpdate();
+            }
+
+            UpdateCursorVisual();
+        }
+
+        private void FitXAxisToAll()
+        {
+            if (_chart == null)
+            {
+                return;
+            }
+
+            // Prevent follow/page mode from immediately overriding the fitted range.
+            SetXAxisViewMode(XAxisViewMode.Free);
+
+            _chart.BeginUpdate();
+            try
+            {
+                bool scaleChanged = false;
+                _chart.ViewXY.XAxes[0].Fit(out scaleChanged, true);
+            }
+            finally
+            {
+                _chart.EndUpdate();
+            }
+
+            UpdateCursorVisual();
+        }
+
+        private void FitXYToAll()
+        {
+            if (_chart == null)
+            {
+                return;
+            }
+
+            // Prevent follow/page mode from immediately overriding the fitted X range.
+            SetXAxisViewMode(XAxisViewMode.Free);
+
+            _chart.BeginUpdate();
+            try
+            {
+                _chart.ViewXY.ZoomToFit();
+            }
+            finally
+            {
+                _chart.EndUpdate();
+            }
+
+            UpdateCursorVisual();
         }
 
         private void SetCursorEnabled(bool enabled)
