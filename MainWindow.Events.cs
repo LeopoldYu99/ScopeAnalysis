@@ -33,9 +33,19 @@ namespace InteractiveExamples
 
             if (position.X <= margins.Left)
             {
-                ZoomY(zoomFactor);
-                e.Handled = true;
-                return;
+                AxisY targetYAxis = TryGetYAxisAt(position.Y);
+                if (targetYAxis != null)
+                {
+                    double anchorY;
+                    if (targetYAxis.CoordToValue((float)position.Y, out anchorY, true) == false)
+                    {
+                        anchorY = (targetYAxis.Minimum + targetYAxis.Maximum) / 2.0;
+                    }
+
+                    ZoomY(targetYAxis, zoomFactor, anchorY);
+                    e.Handled = true;
+                    return;
+                }
             }
 
             if (position.Y >= _chart.ActualHeight - margins.Bottom)

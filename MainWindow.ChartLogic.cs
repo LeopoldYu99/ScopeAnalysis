@@ -31,6 +31,64 @@ namespace InteractiveExamples
             return xAxis.Minimum + (xAxis.Maximum - xAxis.Minimum) * normalizedX;
         }
 
+        private AxisY TryGetYAxisAt(double controlY)
+        {
+            if (_chart == null)
+            {
+                return null;
+            }
+
+            Thickness margins = _chart.ViewXY.Margins;
+            double plotTop = margins.Top;
+            double plotBottom = _chart.ActualHeight - margins.Bottom;
+            if (controlY < plotTop || controlY > plotBottom)
+            {
+                return null;
+            }
+
+            int visibleAxisCount = 0;
+            foreach (AxisY axis in _chart.ViewXY.YAxes)
+            {
+                if (axis.Visible)
+                {
+                    visibleAxisCount++;
+                }
+            }
+
+            if (visibleAxisCount == 0)
+            {
+                return null;
+            }
+
+            double plotHeight = plotBottom - plotTop;
+            double segmentsGap = _chart.ViewXY.AxisLayout.SegmentsGap;
+            double totalGapHeight = segmentsGap * (visibleAxisCount - 1);
+            double segmentHeight = (plotHeight - totalGapHeight) / visibleAxisCount;
+            if (segmentHeight <= 0)
+            {
+                return null;
+            }
+
+            double currentTop = plotTop;
+            foreach (AxisY axis in _chart.ViewXY.YAxes)
+            {
+                if (axis.Visible == false)
+                {
+                    continue;
+                }
+
+                double currentBottom = currentTop + segmentHeight;
+                if (controlY >= currentTop && controlY <= currentBottom)
+                {
+                    return axis;
+                }
+
+                currentTop = currentBottom + segmentsGap;
+            }
+
+            return null;
+        }
+
         private void SetXAxisViewMode(XAxisViewMode mode)
         {
             _xAxisViewMode = mode;
@@ -223,16 +281,30 @@ namespace InteractiveExamples
             _chart.EndUpdate();
         }
 
-        private void ZoomY(double factor)
+        private void ZoomY(AxisY yAxis, double factor, double? anchorY = null)
         {
-            _chart.BeginUpdate();
-            foreach (AxisY yAxis in _chart.ViewXY.YAxes)
+            if (yAxis == null)
             {
-                double yLen = yAxis.Maximum - yAxis.Minimum;
-                double yLenNew = factor * yLen;
-                double yCenter = (yAxis.Minimum + yAxis.Maximum) / 2.0;
-                yAxis.SetRange(yCenter - yLenNew / 2.0, yCenter + yLenNew / 2.0);
+                return;
             }
+
+            _chart.BeginUpdate();
+            double currentMin = yAxis.Minimum;
+            double currentMax = yAxis.Maximum;
+            double zoomAnchor = anchorY ?? ((currentMin + currentMax) / 2.0);
+
+            if (zoomAnchor < currentMin)
+            {
+                zoomAnchor = currentMin;
+            }
+            else if (zoomAnchor > currentMax)
+            {
+                zoomAnchor = currentMax;
+            }
+
+            double newMin = zoomAnchor - (zoomAnchor - currentMin) * factor;
+            double newMax = zoomAnchor + (currentMax - zoomAnchor) * factor;
+            yAxis.SetRange(newMin, newMax);
             _chart.EndUpdate();
         }
     }
