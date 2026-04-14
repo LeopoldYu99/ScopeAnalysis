@@ -517,7 +517,9 @@ namespace InteractiveExamples
             series.PointStyle.Color2 = seriesColor;
             series.PointStyle.Color3 = seriesColor;
             series.PointStyle.BorderColor = seriesColor;
-            series.PointStyle.BorderWidth = 0;
+            series.PointStyle.Width = 4;
+            series.PointStyle.Height = 4;
+            series.PointStyle.BorderWidth = 0.5;
             series.LimitYToStackSegment = true;
             series.AllowUserInteraction = false;
             series.PointsVisible = _arePointsVisible;
