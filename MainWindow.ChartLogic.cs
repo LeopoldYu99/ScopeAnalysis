@@ -424,6 +424,13 @@ namespace InteractiveExamples
             }
         }
 
+        private sealed class DecodeRowLayout
+        {
+            public ChartSignal Signal { get; set; }
+            public double Top { get; set; }
+            public double Height { get; set; }
+        }
+
         private void UpdateDecodeOverlay()
         {
             if (_decodeOverlay == null)
@@ -458,8 +465,8 @@ namespace InteractiveExamples
                 return;
             }
 
-            List<ProtocolSegment> segments = BuildProtocolSegments(visibleMin, visibleMax);
-            if (segments.Count == 0)
+            List<DecodeRowLayout> decodeRows = BuildDecodeRows(plotTop, plotBottom);
+            if (decodeRows.Count == 0)
             {
                 _decodeOverlay.Visibility = Visibility.Collapsed;
                 return;
@@ -467,12 +474,90 @@ namespace InteractiveExamples
 
             _decodeOverlay.Width = _chart.ActualWidth;
             _decodeOverlay.Height = _chart.ActualHeight;
-            _decodeOverlay.Visibility = Visibility.Visible;
-
-            double rowHeight = Math.Max(22.0, Math.Min(30.0, (plotBottom - plotTop) * 0.12));
-            double rowTop = plotTop - 30.0;
             double rowWidth = plotRight - plotLeft;
+            bool hasVisibleRow = false;
 
+            for (int i = 0; i < decodeRows.Count; i++)
+            {
+                DecodeRowLayout row = decodeRows[i];
+                List<ProtocolSegment> segments = BuildProtocolSegments(row.Signal, visibleMin, visibleMax);
+                if (segments.Count == 0)
+                {
+                    continue;
+                }
+
+                hasVisibleRow = true;
+                DrawDecodeRowBackground(plotLeft, row.Top, rowWidth, row.Height);
+
+                double innerTop = row.Top + 2.0;
+                double innerHeight = Math.Max(6.0, row.Height - 4.0);
+                for (int segmentIndex = 0; segmentIndex < segments.Count; segmentIndex++)
+                {
+                    DrawProtocolSegment(segments[segmentIndex], plotLeft, innerTop, rowWidth, innerHeight, visibleMin, visibleMax);
+                }
+            }
+
+            _decodeOverlay.Visibility = hasVisibleRow ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private List<DecodeRowLayout> BuildDecodeRows(double plotTop, double plotBottom)
+        {
+            List<DecodeRowLayout> rows = new List<DecodeRowLayout>();
+            int visibleAxisCount = 0;
+
+            for (int i = 0; i < _chartSignals.Count; i++)
+            {
+                if (_chartSignals[i].AxisY != null && _chartSignals[i].AxisY.Visible)
+                {
+                    visibleAxisCount++;
+                }
+            }
+
+            if (visibleAxisCount == 0)
+            {
+                return rows;
+            }
+
+            double plotHeight = plotBottom - plotTop;
+            double segmentsGap = _chart.ViewXY.AxisLayout.SegmentsGap;
+            double totalGapHeight = segmentsGap * (visibleAxisCount - 1);
+            double segmentHeight = (plotHeight - totalGapHeight) / visibleAxisCount;
+            if (segmentHeight <= 0)
+            {
+                return rows;
+            }
+
+            double currentTop = plotTop;
+            for (int i = 0; i < _chartSignals.Count; i++)
+            {
+                ChartSignal signal = _chartSignals[i];
+                AxisY axisY = signal.AxisY;
+                if (axisY == null || axisY.Visible == false)
+                {
+                    continue;
+                }
+
+                if (signal.Kind != SignalValueKind.Analog)
+                {
+                    double rowHeight = Math.Max(18.0, Math.Min(24.0, segmentHeight * 0.24));
+                    rowHeight = Math.Min(rowHeight, Math.Max(4.0, segmentHeight - 2.0));
+                    double rowTop = currentTop + Math.Max(1.0, Math.Min(4.0, (segmentHeight - rowHeight) / 2.0));
+                    rows.Add(new DecodeRowLayout
+                    {
+                        Signal = signal,
+                        Top = rowTop,
+                        Height = rowHeight
+                    });
+                }
+
+                currentTop += segmentHeight + segmentsGap;
+            }
+
+            return rows;
+        }
+
+        private void DrawDecodeRowBackground(double plotLeft, double rowTop, double rowWidth, double rowHeight)
+        {
             System.Windows.Controls.Border background = new System.Windows.Controls.Border
             {
                 Width = rowWidth,
@@ -486,11 +571,6 @@ namespace InteractiveExamples
             Canvas.SetLeft(background, plotLeft);
             Canvas.SetTop(background, rowTop);
             _decodeOverlay.Children.Add(background);
-
-            for (int i = 0; i < segments.Count; i++)
-            {
-                DrawProtocolSegment(segments[i], plotLeft, rowTop + 2.0, rowWidth, rowHeight - 4.0, visibleMin, visibleMax);
-            }
         }
 
         private void DrawProtocolSegment(ProtocolSegment segment, double plotLeft, double rowTop, double plotWidth, double rowHeight, double visibleMin, double visibleMax)
@@ -568,11 +648,10 @@ namespace InteractiveExamples
             _decodeOverlay.Children.Add(label);
         }
 
-        private List<ProtocolSegment> BuildProtocolSegments(double visibleMin, double visibleMax)
+        private List<ProtocolSegment> BuildProtocolSegments(ChartSignal signal, double visibleMin, double visibleMax)
         {
             List<ProtocolSegment> segments = new List<ProtocolSegment>();
-            ChartSignal signal = GetDecodeSourceSignal();
-            if (signal == null)
+            if (signal == null || signal.Kind == SignalValueKind.Analog)
             {
                 return segments;
             }
@@ -667,19 +746,6 @@ namespace InteractiveExamples
             }
 
             return Math.Max(1.0, Math.Round(durationMs)).ToString("0");
-        }
-
-        private ChartSignal GetDecodeSourceSignal()
-        {
-            for (int i = 0; i < _chartSignals.Count; i++)
-            {
-                if (_chartSignals[i].Kind != SignalValueKind.Analog)
-                {
-                    return _chartSignals[i];
-                }
-            }
-
-            return null;
         }
 
         private AxisY TryGetYAxisAt(double controlY)
