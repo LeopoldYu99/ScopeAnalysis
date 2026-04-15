@@ -658,7 +658,8 @@ namespace InteractiveExamples
                 return segments;
             }
 
-            SeriesPoint[] history = signal.GetRecentPointsSnapshot(Math.Max((visibleMax - visibleMin) * 6.0, 2.0));
+            double paddingSeconds = Math.Max((visibleMax - visibleMin) * 2.5, CurrentSampleIntervalSeconds * 4.0);
+            SeriesPoint[] history = signal.GetPointsSnapshot(visibleMin, visibleMax, paddingSeconds);
             if (history == null || history.Length < 2)
             {
                 return segments;

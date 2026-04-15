@@ -149,6 +149,41 @@ namespace InteractiveExamples
             }
         }
 
+        public SeriesPoint[] GetPointsSnapshot(double minX, double maxX, double paddingSeconds)
+        {
+            lock (_historySync)
+            {
+                if (_recentPoints.Count == 0)
+                {
+                    return null;
+                    //return Array.Empty<SeriesPoint>();
+                }
+
+                double paddedMinX = minX - Math.Max(0, paddingSeconds);
+                double paddedMaxX = maxX + Math.Max(0, paddingSeconds);
+
+                LinkedListNode<SeriesPoint> startNode = _recentPoints.First;
+                while (startNode != null
+                    && startNode.Next != null
+                    && startNode.Next.Value.X < paddedMinX)
+                {
+                    startNode = startNode.Next;
+                }
+
+                List<SeriesPoint> snapshot = new List<SeriesPoint>();
+                for (LinkedListNode<SeriesPoint> node = startNode; node != null; node = node.Next)
+                {
+                    snapshot.Add(node.Value);
+                    if (node.Value.X > paddedMaxX && node.Previous != null)
+                    {
+                        break;
+                    }
+                }
+
+                return snapshot.ToArray();
+            }
+        }
+
         public void ClearRecentPoints()
         {
             lock (_historySync)
