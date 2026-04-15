@@ -840,6 +840,7 @@ namespace InteractiveExamples
             axisY.Units.Text = "mV";
             axisY.Visible = true;
             axisY.MajorDivTickStyle.Alignment = Alignment.Near;
+            axisY.MinorDivTickStyle.Visible = false;
             axisY.Title.HorizontalAlign = YAxisTitleAlignmentHorizontal.Left;
 
             //if (seriesIndex == _seriesCount - 1)
@@ -916,7 +917,7 @@ namespace InteractiveExamples
         {
             yAxis.LabelsVisible = visible;
             yAxis.MajorDivTickStyle.Visible = visible;
-            yAxis.MinorDivTickStyle.Visible = visible;
+            yAxis.MinorDivTickStyle.Visible = false;
             yAxis.Title.Visible = visible;
             yAxis.AxisThickness = visible ? 3 : 0;
         }

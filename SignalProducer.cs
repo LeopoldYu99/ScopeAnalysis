@@ -29,7 +29,7 @@ namespace InteractiveExamples
             int seedBase = Environment.TickCount;
             for (int seriesIndex = 0; seriesIndex < chartSignals.Count; seriesIndex++)
             {
-                chartSignals[seriesIndex].ResetRuntimeState(new Random(seedBase + seriesIndex * 97), 50);
+                chartSignals[seriesIndex].ResetRuntimeState(new Random(seedBase + seriesIndex * 97), 0.5);
             }
         }
 

@@ -35,7 +35,7 @@ namespace InteractiveExamples
         private double _xLen = 200;
 
         private const double YMin = 0;
-        private const double YMax = 100;
+        private const double YMax = 1;
 
         private bool _hasConsumedData;
         private bool _isCursorEnabled;
