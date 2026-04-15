@@ -431,6 +431,8 @@ namespace InteractiveExamples
             public double Height { get; set; }
         }
 
+        private const double DecodeVerticalOffset = -30.0;
+
         private void UpdateDecodeOverlay()
         {
             if (_decodeOverlay == null)
@@ -545,7 +547,7 @@ namespace InteractiveExamples
                     rows.Add(new DecodeRowLayout
                     {
                         Signal = signal,
-                        Top = rowTop,
+                        Top = rowTop + DecodeVerticalOffset,
                         Height = rowHeight
                     });
                 }
