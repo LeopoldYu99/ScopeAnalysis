@@ -43,7 +43,16 @@ namespace InteractiveExamples
             bool loadedFromBinaryFile = false;
             if (UseBinaryFileDataSource)
             {
+                ConfigureChartDataSourceBehavior(view, true);
                 loadedFromBinaryFile = LoadSignalsFromBinaryFile(view);
+                if (loadedFromBinaryFile == false)
+                {
+                    ConfigureChartDataSourceBehavior(view, false);
+                }
+            }
+            else
+            {
+                ConfigureChartDataSourceBehavior(view, false);
             }
 
             if (loadedFromBinaryFile == false)
@@ -64,6 +73,17 @@ namespace InteractiveExamples
             CompositionTarget.Rendering += CompositionTarget_Rendering;
         }
 
+        private static void ConfigureChartDataSourceBehavior(ViewXY view, bool useStaticImportedData)
+        {
+            if (view == null)
+            {
+                return;
+            }
+
+            view.DropOldSeriesData = useStaticImportedData == false;
+            view.XAxes[0].ScrollMode = useStaticImportedData ? XAxisScrollMode.None : XAxisScrollMode.Scrolling;
+        }
+
         private bool LoadSignalsFromBinaryFile(ViewXY view)
         {
             if (_chartSignals.Count == 0 || File.Exists(BinaryWaveFilePath) == false)
@@ -72,7 +92,7 @@ namespace InteractiveExamples
             }
 
             byte[] bytes = File.ReadAllBytes(BinaryWaveFilePath);
-            SeriesPoint[] points = ImportBinaryWaveformAsZeroOne(bytes, 1);
+            SeriesPoint[] points = ImportBinaryWaveformAsZeroOne(bytes, 1/52.08); // ²É¼¯ÂÊ
             if (points.Length == 0)
             {
                 return false;
