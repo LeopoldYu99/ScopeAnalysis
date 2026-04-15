@@ -656,9 +656,10 @@ namespace InteractiveExamples
                 signal,
                 visibleMin,
                 visibleMax,
-                CurrentSampleIntervalSeconds,
                 ImportedSampleRate,
-                DecodeHighRatioThreshold);
+                UartBaudRate,
+                UartDataBits,
+                UartStopBits);
         }
 
         private AxisY TryGetYAxisAt(double controlY)

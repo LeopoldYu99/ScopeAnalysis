@@ -11,135 +11,187 @@ namespace InteractiveExamples
             ChartSignal signal,
             double visibleMin,
             double visibleMax,
-            double currentSampleIntervalSeconds,
-            double importedSampleRate,
-            double decodeHighRatioThreshold)
+            double sampleRateHz,
+            int uartBaudRate,
+            int uartDataBits,
+            int uartStopBits)
         {
             List<ProtocolSegment> segments = new List<ProtocolSegment>();
-            if (signal == null || signal.Kind == SignalValueKind.Analog)
+            if (signal == null || signal.Kind == SignalValueKind.Analog || visibleMax <= visibleMin)
             {
                 return segments;
             }
 
-            double paddingSeconds = Math.Max(1.0, currentSampleIntervalSeconds * 4.0);
+            double bitDurationSeconds = 1.0 / uartBaudRate;
+            double frameDurationSeconds = (1 + uartDataBits + uartStopBits) * bitDurationSeconds;
+            double paddingSeconds = Math.Max(frameDurationSeconds * 2.0, 1.0 / sampleRateHz * 4.0);
+
             SeriesPoint[] history = signal.GetPointsSnapshot(visibleMin, visibleMax, paddingSeconds);
             if (history == null || history.Length == 0)
             {
                 return segments;
             }
 
-            const double epsilon = 1e-9;
-            int firstBucket = (int)Math.Floor(visibleMin);
-            int lastBucketExclusive = Math.Max(firstBucket + 1, (int)Math.Ceiling(visibleMax));
-            int historyIndex = 0;
-            bool hasOpenSegment = false;
-            bool currentHigh = false;
-            double segmentStart = 0;
-            double segmentEnd = 0;
-
-            for (int bucket = firstBucket; bucket < lastBucketExclusive; bucket++)
+            bool[] sampleValues;
+            double[] sampleTimes;
+            CollapseToSamples(history, out sampleTimes, out sampleValues);
+            if (sampleTimes.Length < 2)
             {
-                double bucketStart = bucket;
-                double bucketEnd = bucket + 1.0;
-
-                while (historyIndex < history.Length && history[historyIndex].X <= bucketStart)
-                {
-                    historyIndex++;
-                }
-
-                bool bucketHasValue = false;
-                bool bucketHigh = false;
-                int sampleCount = 0;
-                int highSampleCount = 0;
-                double currentSampleX = double.NaN;
-                bool currentSampleHigh = false;
-                int scanIndex = historyIndex;
-                while (scanIndex < history.Length && history[scanIndex].X < bucketEnd)
-                {
-                    double sampleX = history[scanIndex].X;
-                    bool sampleHigh = history[scanIndex].Y >= 0.5f;
-                    if (double.IsNaN(currentSampleX) || Math.Abs(sampleX - currentSampleX) > epsilon)
-                    {
-                        if (double.IsNaN(currentSampleX) == false)
-                        {
-                            sampleCount++;
-                            if (currentSampleHigh)
-                            {
-                                highSampleCount++;
-                            }
-                        }
-
-                        currentSampleX = sampleX;
-                        currentSampleHigh = sampleHigh;
-                    }
-                    else
-                    {
-                        currentSampleHigh = sampleHigh;
-                    }
-
-                    scanIndex++;
-                }
-
-                if (double.IsNaN(currentSampleX) == false)
-                {
-                    sampleCount++;
-                    if (currentSampleHigh)
-                    {
-                        highSampleCount++;
-                    }
-                }
-
-                historyIndex = scanIndex;
-                bucketHasValue = sampleCount > 0;
-                bucketHigh = bucketHasValue
-                    && ((double)highSampleCount / Math.Max(sampleCount, importedSampleRate)) > decodeHighRatioThreshold;
-
-                if (bucketHasValue == false)
-                {
-                    if (hasOpenSegment)
-                    {
-                        AddProtocolSegment(segments, segmentStart, segmentEnd, currentHigh, visibleMin, visibleMax, currentSampleIntervalSeconds);
-                        hasOpenSegment = false;
-                    }
-
-                    continue;
-                }
-
-                if (hasOpenSegment == false)
-                {
-                    hasOpenSegment = true;
-                    currentHigh = bucketHigh;
-                    segmentStart = bucketStart;
-                    segmentEnd = bucketEnd;
-                    continue;
-                }
-
-                if (bucketHigh != currentHigh)
-                {
-                    AddProtocolSegment(segments, segmentStart, segmentEnd, currentHigh, visibleMin, visibleMax, currentSampleIntervalSeconds);
-                    currentHigh = bucketHigh;
-                    segmentStart = bucketStart;
-                }
-
-                segmentEnd = bucketEnd;
+                return segments;
             }
 
-            if (hasOpenSegment)
+            for (int sampleIndex = 1; sampleIndex < sampleTimes.Length; sampleIndex++)
             {
-                AddProtocolSegment(segments, segmentStart, segmentEnd, currentHigh, visibleMin, visibleMax, currentSampleIntervalSeconds);
+                if (sampleValues[sampleIndex - 1] == false || sampleValues[sampleIndex])
+                {
+                    continue;
+                }
+
+                double frameStartX = sampleTimes[sampleIndex];
+                if (TryDecodeFrame(
+                    sampleTimes,
+                    sampleValues,
+                    frameStartX,
+                    bitDurationSeconds,
+                    uartDataBits,
+                    uartStopBits,
+                    out byte decodedValue,
+                    out double frameEndX) == false)
+                {
+                    continue;
+                }
+
+                AddUartSegment(segments, frameStartX, frameEndX, decodedValue, visibleMin, visibleMax);
+                sampleIndex = FindLastSampleBefore(sampleTimes, frameEndX);
             }
 
             return segments;
         }
 
-        private static void AddProtocolSegment(
+        private static void CollapseToSamples(SeriesPoint[] history, out double[] sampleTimes, out bool[] sampleValues)
+        {
+            const double epsilon = 1e-12;
+            List<double> times = new List<double>(history.Length);
+            List<bool> values = new List<bool>(history.Length);
+
+            for (int i = 0; i < history.Length; i++)
+            {
+                double x = history[i].X;
+                bool isHigh = history[i].Y >= 0.5f;
+                if (times.Count == 0 || Math.Abs(times[times.Count - 1] - x) > epsilon)
+                {
+                    times.Add(x);
+                    values.Add(isHigh);
+                }
+                else
+                {
+                    values[values.Count - 1] = isHigh;
+                }
+            }
+
+            sampleTimes = times.ToArray();
+            sampleValues = values.ToArray();
+        }
+
+        private static bool TryDecodeFrame(
+            double[] sampleTimes,
+            bool[] sampleValues,
+            double frameStartX,
+            double bitDurationSeconds,
+            int uartDataBits,
+            int uartStopBits,
+            out byte decodedValue,
+            out double frameEndX)
+        {
+            decodedValue = 0;
+            frameEndX = frameStartX;
+
+            if (SampleAt(sampleTimes, sampleValues, frameStartX + 0.5 * bitDurationSeconds, out bool startBitHigh) == false
+                || startBitHigh)
+            {
+                return false;
+            }
+
+            for (int bitIndex = 0; bitIndex < uartDataBits; bitIndex++)
+            {
+                double sampleX = frameStartX + (1.5 + bitIndex) * bitDurationSeconds;
+                if (SampleAt(sampleTimes, sampleValues, sampleX, out bool bitHigh) == false)
+                {
+                    return false;
+                }
+
+                if (bitHigh)
+                {
+                    decodedValue |= (byte)(1 << bitIndex);
+                }
+            }
+
+            for (int stopIndex = 0; stopIndex < uartStopBits; stopIndex++)
+            {
+                double sampleX = frameStartX + (1.5 + uartDataBits + stopIndex) * bitDurationSeconds;
+                if (SampleAt(sampleTimes, sampleValues, sampleX, out bool stopBitHigh) == false || stopBitHigh == false)
+                {
+                    return false;
+                }
+            }
+
+            frameEndX = frameStartX + (1 + uartDataBits + uartStopBits) * bitDurationSeconds;
+            return true;
+        }
+
+        private static bool SampleAt(double[] sampleTimes, bool[] sampleValues, double targetX, out bool value)
+        {
+            value = false;
+            if (sampleTimes.Length == 0 || targetX < sampleTimes[0] || targetX > sampleTimes[sampleTimes.Length - 1])
+            {
+                return false;
+            }
+
+            int index = Array.BinarySearch(sampleTimes, targetX);
+            if (index >= 0)
+            {
+                value = sampleValues[index];
+                return true;
+            }
+
+            index = ~index;
+            if (index <= 0)
+            {
+                value = sampleValues[0];
+                return true;
+            }
+
+            if (index >= sampleTimes.Length)
+            {
+                value = sampleValues[sampleValues.Length - 1];
+                return true;
+            }
+
+            double previousDistance = Math.Abs(targetX - sampleTimes[index - 1]);
+            double nextDistance = Math.Abs(sampleTimes[index] - targetX);
+            value = previousDistance <= nextDistance ? sampleValues[index - 1] : sampleValues[index];
+            return true;
+        }
+
+        private static int FindLastSampleBefore(double[] sampleTimes, double targetX)
+        {
+            int index = Array.BinarySearch(sampleTimes, targetX);
+            if (index >= 0)
+            {
+                return index;
+            }
+
+            index = ~index;
+            return Math.Max(0, index - 1);
+        }
+
+        private static void AddUartSegment(
             List<ProtocolSegment> segments,
             double startX,
             double endX,
-            bool isHigh,
+            byte decodedValue,
             double visibleMin,
-            double visibleMax,
-            double currentSampleIntervalSeconds)
+            double visibleMax)
         {
             if (endX <= startX || endX < visibleMin || startX > visibleMax)
             {
@@ -153,41 +205,26 @@ namespace InteractiveExamples
                 return;
             }
 
-            double durationMs = (endX - startX) * 1000.0;
-            bool isMarker = durationMs <= currentSampleIntervalSeconds * 1000.0 * 3.5;
-
-            ProtocolSegment segment = new ProtocolSegment
+            segments.Add(new ProtocolSegment
             {
                 StartX = clippedStart,
                 EndX = clippedEnd,
-                IsMarker = isMarker,
-                Label = isMarker ? (isHigh ? "T" : "S") : FormatProtocolDuration(durationMs)
-            };
-
-            if (isMarker)
-            {
-                segment.FillColor = isHigh ? Color.FromRgb(156, 231, 73) : Color.FromRgb(121, 205, 75);
-                segment.BorderColor = isHigh ? Color.FromRgb(209, 255, 145) : Color.FromRgb(180, 240, 145);
-                segment.ForegroundColor = Color.FromRgb(18, 38, 12);
-            }
-            else
-            {
-                segment.FillColor = isHigh ? Color.FromRgb(92, 214, 160) : Color.FromRgb(65, 174, 124);
-                segment.BorderColor = isHigh ? Color.FromRgb(165, 245, 209) : Color.FromRgb(129, 223, 183);
-                segment.ForegroundColor = Color.FromRgb(12, 34, 24);
-            }
-
-            segments.Add(segment);
+                IsMarker = false,
+                Label = FormatLabel(decodedValue),
+                FillColor = Color.FromRgb(82, 142, 255),
+                BorderColor = Color.FromRgb(182, 214, 255),
+                ForegroundColor = Color.FromRgb(250, 252, 255)
+            });
         }
 
-        private static string FormatProtocolDuration(double durationMs)
+        private static string FormatLabel(byte value)
         {
-            if (durationMs >= 1000.0)
+            if (value >= 32 && value <= 126)
             {
-                return (durationMs / 1000.0).ToString("0.0");
+                return ((char)value).ToString();
             }
 
-            return Math.Max(1.0, Math.Round(durationMs)).ToString("0");
+            return value.ToString("X2");
         }
     }
 }
