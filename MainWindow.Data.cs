@@ -2,7 +2,6 @@ using Arction.Wpf.Charting.Views.ViewXY;
 using Arction.Wpf.Charting.SeriesXY;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Threading;
 using System.Windows;
 using System.Windows.Media;
@@ -86,21 +85,22 @@ namespace InteractiveExamples
 
         private bool LoadSignalsFromBinaryFile(ViewXY view)
         {
-            if (_chartSignals.Count == 0 || File.Exists(BinaryWaveFilePath) == false)
+            if (_chartSignals.Count == 0)
             {
                 return false;
             }
 
-            byte[] bytes = File.ReadAllBytes(BinaryWaveFilePath);
-            SeriesPoint[] points = ImportBinaryWaveformAsZeroOne(bytes, 1/52.08); // ²É¼¯ÂÊ
-            if (points.Length == 0)
+            BinaryWaveformImportResult importResult = BinaryWaveformImporter.ImportFile(
+                BinaryWaveFilePath,
+                1.0 / ImportedSampleRate);
+            if (importResult == null || importResult.Points == null || importResult.Points.Length == 0)
             {
                 return false;
             }
 
             ChartSignal signal = _chartSignals[0];
-            string signalName = Path.GetFileNameWithoutExtension(BinaryWaveFilePath);
-            signal.AxisY.Title.Text = signalName;
+            SeriesPoint[] points = importResult.Points;
+            signal.AxisY.Title.Text = importResult.SignalName;
 
             signal.Series.AddPoints(points, false);
 
@@ -114,52 +114,6 @@ namespace InteractiveExamples
             view.XAxes[0].SetRange(0, rangeMax);
             SetXAxisViewMode(XAxisViewMode.Free);
             return true;
-        }
-
-        private static SeriesPoint[] ImportBinaryWaveformAsZeroOne(byte[] bytes, double sampleIntervalSeconds)
-        {
-            if (bytes == null || bytes.Length == 0)
-            {
-                return null;
-                //return Array.Empty<SeriesPoint>();
-            }
-
-            List<SeriesPoint> points = new List<SeriesPoint>(bytes.Length * 16 + 1);
-            double time = 0;
-            bool hasPreviousValue = false;
-            float previousValue = 0;
-
-            for (int byteIndex = 0; byteIndex < bytes.Length; byteIndex++)
-            {
-                byte valueByte = bytes[byteIndex];
-                for (int bitIndex = 7; bitIndex >= 0; bitIndex--)
-                {
-                    float value = ((valueByte >> bitIndex) & 0x1) == 0x1 ? 1f : 0f;
-                    if (hasPreviousValue == false)
-                    {
-                        points.Add(new SeriesPoint(time, value));
-                        hasPreviousValue = true;
-                    }
-                    else
-                    {
-                        points.Add(new SeriesPoint(time, previousValue));
-                        if (Math.Abs(value - previousValue) > float.Epsilon)
-                        {
-                            points.Add(new SeriesPoint(time, value));
-                        }
-                    }
-
-                    previousValue = value;
-                    time += sampleIntervalSeconds;
-                }
-            }
-
-            if (hasPreviousValue)
-            {
-                points.Add(new SeriesPoint(time, previousValue));
-            }
-
-            return points.ToArray();
         }
 
         public static void DisposeAllAndClear<T>(List<T> list) where T : IDisposable
