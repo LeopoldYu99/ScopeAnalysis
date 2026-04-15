@@ -49,6 +49,8 @@ namespace InteractiveExamples
         private const float LineWidth = 1f;
         private const int ProducerIntervalMs = 50;
         private const int DefaultAppendCountPerRound = 10;
+        private const double ImportedSampleRate = 52.08;
+        private const double DecodeHighRatioThreshold = 0.5;
 
         private enum XAxisViewMode
         {

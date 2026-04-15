@@ -658,47 +658,114 @@ namespace InteractiveExamples
                 return segments;
             }
 
-            double paddingSeconds = Math.Max((visibleMax - visibleMin) * 2.5, CurrentSampleIntervalSeconds * 4.0);
+            double paddingSeconds = Math.Max(1.0, CurrentSampleIntervalSeconds * 4.0);
             SeriesPoint[] history = signal.GetPointsSnapshot(visibleMin, visibleMax, paddingSeconds);
-            if (history == null || history.Length < 2)
+            if (history == null || history.Length == 0)
             {
                 return segments;
             }
 
             const double epsilon = 1e-9;
-            double segmentStart = history[0].X;
-            bool currentHigh = history[0].Y >= 0.5f;
-            double lastX = history[0].X;
+            int firstBucket = (int)Math.Floor(visibleMin);
+            int lastBucketExclusive = Math.Max(firstBucket + 1, (int)Math.Ceiling(visibleMax));
+            int historyIndex = 0;
+            bool hasOpenSegment = false;
+            bool currentHigh = false;
+            double segmentStart = 0;
+            double segmentEnd = 0;
 
-            for (int i = 1; i < history.Length; i++)
+            for (int bucket = firstBucket; bucket < lastBucketExclusive; bucket++)
             {
-                double x = history[i].X;
-                bool isHigh = history[i].Y >= 0.5f;
+                double bucketStart = bucket;
+                double bucketEnd = bucket + 1.0;
 
-                if (Math.Abs(x - lastX) < epsilon)
+                while (historyIndex < history.Length && history[historyIndex].X <= bucketStart)
                 {
-                    if (isHigh != currentHigh && x > segmentStart)
+                    historyIndex++;
+                }
+
+                bool bucketHasValue = false;
+                bool bucketHigh = false;
+                int sampleCount = 0;
+                int highSampleCount = 0;
+                double currentSampleX = double.NaN;
+                bool currentSampleHigh = false;
+                int scanIndex = historyIndex;
+                while (scanIndex < history.Length && history[scanIndex].X < bucketEnd)
+                {
+                    double sampleX = history[scanIndex].X;
+                    bool sampleHigh = history[scanIndex].Y >= 0.5f;
+                    if (double.IsNaN(currentSampleX) || Math.Abs(sampleX - currentSampleX) > epsilon)
                     {
-                        AddProtocolSegment(segments, segmentStart, x, currentHigh, visibleMin, visibleMax);
-                        segmentStart = x;
+                        if (double.IsNaN(currentSampleX) == false)
+                        {
+                            sampleCount++;
+                            if (currentSampleHigh)
+                            {
+                                highSampleCount++;
+                            }
+                        }
+
+                        currentSampleX = sampleX;
+                        currentSampleHigh = sampleHigh;
+                    }
+                    else
+                    {
+                        currentSampleHigh = sampleHigh;
                     }
 
-                    currentHigh = isHigh;
-                    lastX = x;
+                    scanIndex++;
+                }
+
+                if (double.IsNaN(currentSampleX) == false)
+                {
+                    sampleCount++;
+                    if (currentSampleHigh)
+                    {
+                        highSampleCount++;
+                    }
+                }
+
+                historyIndex = scanIndex;
+                bucketHasValue = sampleCount > 0;
+                bucketHigh = bucketHasValue
+                    && ((double)highSampleCount / Math.Max(sampleCount, ImportedSampleRate)) > DecodeHighRatioThreshold;
+
+                if (bucketHasValue == false)
+                {
+                    if (hasOpenSegment)
+                    {
+                        AddProtocolSegment(segments, segmentStart, segmentEnd, currentHigh, visibleMin, visibleMax);
+                        hasOpenSegment = false;
+                    }
+
                     continue;
                 }
 
-                if (isHigh != currentHigh)
+                if (hasOpenSegment == false)
                 {
-                    AddProtocolSegment(segments, segmentStart, x, currentHigh, visibleMin, visibleMax);
-                    segmentStart = x;
-                    currentHigh = isHigh;
+                    hasOpenSegment = true;
+                    currentHigh = bucketHigh;
+                    segmentStart = bucketStart;
+                    segmentEnd = bucketEnd;
+                    continue;
                 }
 
-                lastX = x;
+                if (bucketHigh != currentHigh)
+                {
+                    AddProtocolSegment(segments, segmentStart, segmentEnd, currentHigh, visibleMin, visibleMax);
+                    currentHigh = bucketHigh;
+                    segmentStart = bucketStart;
+                }
+
+                segmentEnd = bucketEnd;
             }
 
-            AddProtocolSegment(segments, segmentStart, Math.Max(lastX, visibleMax), currentHigh, visibleMin, visibleMax);
+            if (hasOpenSegment)
+            {
+                AddProtocolSegment(segments, segmentStart, segmentEnd, currentHigh, visibleMin, visibleMax);
+            }
+
             return segments;
         }
 
