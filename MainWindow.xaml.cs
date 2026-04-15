@@ -114,11 +114,11 @@ namespace InteractiveExamples
             view.DropOldSeriesData = true;
 
             view.AxisLayout.YAxesLayout = YAxesLayout.Stacked;
-            view.AxisLayout.SegmentsGap = 10;
+            view.AxisLayout.SegmentsGap = 40;
             view.AxisLayout.YAxisAutoPlacement = YAxisAutoPlacement.AllLeft;
             view.AxisLayout.YAxisTitleAutoPlacement = true;
             view.AxisLayout.AutoAdjustMargins = false;
-            view.Margins = new Thickness(70, 17, 20, 34);
+            view.Margins = new Thickness(70, 47, 20, 34);
 
             var sweepBandDark = new Band(view, view.XAxes[0], view.YAxes[0])
             {

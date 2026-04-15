@@ -470,7 +470,7 @@ namespace InteractiveExamples
             _decodeOverlay.Visibility = Visibility.Visible;
 
             double rowHeight = Math.Max(22.0, Math.Min(30.0, (plotBottom - plotTop) * 0.12));
-            double rowTop = plotTop + 8.0;
+            double rowTop = plotTop - 30.0;
             double rowWidth = plotRight - plotLeft;
 
             System.Windows.Controls.Border background = new System.Windows.Controls.Border
