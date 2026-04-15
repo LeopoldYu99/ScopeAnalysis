@@ -92,6 +92,9 @@
     <Compile Include="ChartSignal.cs">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="ProtocolSegment.cs">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="MainWindow.ChartLogic.cs">
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>

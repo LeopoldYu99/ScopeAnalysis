@@ -145,6 +145,7 @@ namespace InteractiveExamples
                 if (points != null && points.Length > 0)
                 {
                     signal.Series.AddPoints(points, false);
+                    signal.AppendRecentPoints(points, Math.Max(VisibleRangeSeconds * 6.0, 2.0));
 
                     for (int i = 0; i < points.Length; i++)
                     {

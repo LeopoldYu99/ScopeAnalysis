@@ -17,6 +17,8 @@ namespace InteractiveExamples
     {
         private readonly LinkedList<SeriesPoint[]> _pendingChunks = new LinkedList<SeriesPoint[]>();
         private readonly object _pendingSync = new object();
+        private readonly LinkedList<SeriesPoint> _recentPoints = new LinkedList<SeriesPoint>();
+        private readonly object _historySync = new object();
         private readonly double _analogMin;
         private readonly double _analogMax;
 
@@ -44,6 +46,7 @@ namespace InteractiveExamples
             HasPreviousValue = false;
             PreviousValue = 0;
             ClearPendingChunks();
+            ClearRecentPoints();
         }
 
         public SeriesPoint[] CreatePoints(double[] sampleTimes)
@@ -114,6 +117,62 @@ namespace InteractiveExamples
             lock (_pendingSync)
             {
                 _pendingChunks.Clear();
+            }
+        }
+
+        public void AppendRecentPoints(SeriesPoint[] points, double keepSeconds)
+        {
+            if (points == null || points.Length == 0)
+            {
+                return;
+            }
+
+            lock (_historySync)
+            {
+                for (int i = 0; i < points.Length; i++)
+                {
+                    _recentPoints.AddLast(points[i]);
+                }
+
+                TrimRecentPointsUnsafe(keepSeconds);
+            }
+        }
+
+        public SeriesPoint[] GetRecentPointsSnapshot(double keepSeconds)
+        {
+            lock (_historySync)
+            {
+                TrimRecentPointsUnsafe(keepSeconds);
+                SeriesPoint[] snapshot = new SeriesPoint[_recentPoints.Count];
+                _recentPoints.CopyTo(snapshot, 0);
+                return snapshot;
+            }
+        }
+
+        public void ClearRecentPoints()
+        {
+            lock (_historySync)
+            {
+                _recentPoints.Clear();
+            }
+        }
+
+        private void TrimRecentPointsUnsafe(double keepSeconds)
+        {
+            if (_recentPoints.Last == null)
+            {
+                return;
+            }
+
+            double minX = _recentPoints.Last.Value.X - Math.Max(keepSeconds, 1.0);
+            while (_recentPoints.First != null && _recentPoints.First.Value.X < minX)
+            {
+                if (_recentPoints.First.Next == null)
+                {
+                    break;
+                }
+
+                _recentPoints.RemoveFirst();
             }
         }
 

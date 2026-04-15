@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.Remoting;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Shapes;
 using Arction.Wpf.Charting;
 using Arction.Wpf.Charting.Axes;
 using Arction.Wpf.Charting.SeriesXY;
@@ -79,6 +81,11 @@ namespace InteractiveExamples
             UpdateXAxisViewModeButton(buttonPoints, _arePointsVisible);
         }
 
+        private void UpdateDecodeButton()
+        {
+            UpdateXAxisViewModeButton(buttonDecode, _isDecodeVisible);
+        }
+
         private void SetPointsVisible(bool visible)
         {
             _arePointsVisible = visible;
@@ -104,6 +111,13 @@ namespace InteractiveExamples
             {
                 _chart.EndUpdate();
             }
+        }
+
+        private void SetDecodeVisible(bool visible)
+        {
+            _isDecodeVisible = visible;
+            UpdateDecodeButton();
+            UpdateDecodeOverlay();
         }
 
         private void FitYAxisToAll()
@@ -408,6 +422,264 @@ namespace InteractiveExamples
                 Canvas.SetTop(axisValueBorder, axisLabelTop);
                 axisValueBorder.Visibility = Visibility.Visible;
             }
+        }
+
+        private void UpdateDecodeOverlay()
+        {
+            if (_decodeOverlay == null)
+            {
+                return;
+            }
+
+            _decodeOverlay.Children.Clear();
+
+            if (_isDecodeVisible == false || _chart == null)
+            {
+                _decodeOverlay.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            double plotLeft;
+            double plotTop;
+            double plotRight;
+            double plotBottom;
+            if (TryGetPlotAreaBounds(out plotLeft, out plotTop, out plotRight, out plotBottom) == false)
+            {
+                _decodeOverlay.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            AxisX xAxis = _chart.ViewXY.XAxes[0];
+            double visibleMin = xAxis.Minimum;
+            double visibleMax = xAxis.Maximum;
+            if (visibleMax <= visibleMin)
+            {
+                _decodeOverlay.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            List<ProtocolSegment> segments = BuildProtocolSegments(visibleMin, visibleMax);
+            if (segments.Count == 0)
+            {
+                _decodeOverlay.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            _decodeOverlay.Width = _chart.ActualWidth;
+            _decodeOverlay.Height = _chart.ActualHeight;
+            _decodeOverlay.Visibility = Visibility.Visible;
+
+            double rowHeight = Math.Max(22.0, Math.Min(30.0, (plotBottom - plotTop) * 0.12));
+            double rowTop = plotTop + 8.0;
+            double rowWidth = plotRight - plotLeft;
+
+            System.Windows.Controls.Border background = new System.Windows.Controls.Border
+            {
+                Width = rowWidth,
+                Height = rowHeight,
+                Background = new SolidColorBrush(Color.FromArgb(150, 14, 20, 16)),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(210, 54, 83, 64)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(4)
+            };
+
+            Canvas.SetLeft(background, plotLeft);
+            Canvas.SetTop(background, rowTop);
+            _decodeOverlay.Children.Add(background);
+
+            for (int i = 0; i < segments.Count; i++)
+            {
+                DrawProtocolSegment(segments[i], plotLeft, rowTop + 2.0, rowWidth, rowHeight - 4.0, visibleMin, visibleMax);
+            }
+        }
+
+        private void DrawProtocolSegment(ProtocolSegment segment, double plotLeft, double rowTop, double plotWidth, double rowHeight, double visibleMin, double visibleMax)
+        {
+            double left = plotLeft + (segment.StartX - visibleMin) / (visibleMax - visibleMin) * plotWidth;
+            double right = plotLeft + (segment.EndX - visibleMin) / (visibleMax - visibleMin) * plotWidth;
+            double width = right - left;
+            if (width < 4.0)
+            {
+                return;
+            }
+
+            System.Windows.Shapes.Shape shape;
+            if (width < rowHeight * 1.3)
+            {
+                shape = new Rectangle
+                {
+                    Width = width,
+                    Height = rowHeight,
+                    Fill = new SolidColorBrush(segment.FillColor),
+                    Stroke = new SolidColorBrush(segment.BorderColor),
+                    StrokeThickness = 1,
+                    RadiusX = 3,
+                    RadiusY = 3
+                };
+            }
+            else
+            {
+                double arrowSize = Math.Min(rowHeight * 0.32, width / 5.0);
+                Polygon polygon = new Polygon
+                {
+                    Fill = new SolidColorBrush(segment.FillColor),
+                    Stroke = new SolidColorBrush(segment.BorderColor),
+                    StrokeThickness = 1
+                };
+
+                polygon.Points.Add(new Point(left + arrowSize, rowTop));
+                polygon.Points.Add(new Point(right - arrowSize, rowTop));
+                polygon.Points.Add(new Point(right, rowTop + rowHeight / 2.0));
+                polygon.Points.Add(new Point(right - arrowSize, rowTop + rowHeight));
+                polygon.Points.Add(new Point(left + arrowSize, rowTop + rowHeight));
+                polygon.Points.Add(new Point(left, rowTop + rowHeight / 2.0));
+                shape = polygon;
+            }
+
+            if (shape is Rectangle)
+            {
+                Canvas.SetLeft(shape, left);
+                Canvas.SetTop(shape, rowTop);
+            }
+
+            _decodeOverlay.Children.Add(shape);
+
+            if (width < 12.0)
+            {
+                return;
+            }
+
+            TextBlock label = new TextBlock
+            {
+                Text = segment.Label,
+                Foreground = new SolidColorBrush(segment.ForegroundColor),
+                FontSize = segment.IsMarker ? 11 : 12,
+                FontWeight = FontWeights.Bold
+            };
+
+            label.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            if (label.DesiredSize.Width > width - 6.0)
+            {
+                return;
+            }
+
+            Canvas.SetLeft(label, left + (width - label.DesiredSize.Width) / 2.0);
+            Canvas.SetTop(label, rowTop + (rowHeight - label.DesiredSize.Height) / 2.0 - 1.0);
+            _decodeOverlay.Children.Add(label);
+        }
+
+        private List<ProtocolSegment> BuildProtocolSegments(double visibleMin, double visibleMax)
+        {
+            List<ProtocolSegment> segments = new List<ProtocolSegment>();
+            ChartSignal signal = GetDecodeSourceSignal();
+            if (signal == null)
+            {
+                return segments;
+            }
+
+            SeriesPoint[] history = signal.GetRecentPointsSnapshot(Math.Max((visibleMax - visibleMin) * 6.0, 2.0));
+            if (history == null || history.Length < 2)
+            {
+                return segments;
+            }
+
+            const double epsilon = 1e-9;
+            double segmentStart = history[0].X;
+            bool currentHigh = history[0].Y >= 0.5f;
+            double lastX = history[0].X;
+
+            for (int i = 1; i < history.Length; i++)
+            {
+                double x = history[i].X;
+                bool isHigh = history[i].Y >= 0.5f;
+
+                if (Math.Abs(x - lastX) < epsilon)
+                {
+                    if (isHigh != currentHigh && x > segmentStart)
+                    {
+                        AddProtocolSegment(segments, segmentStart, x, currentHigh, visibleMin, visibleMax);
+                        segmentStart = x;
+                    }
+
+                    currentHigh = isHigh;
+                    lastX = x;
+                    continue;
+                }
+
+                if (isHigh != currentHigh)
+                {
+                    AddProtocolSegment(segments, segmentStart, x, currentHigh, visibleMin, visibleMax);
+                    segmentStart = x;
+                    currentHigh = isHigh;
+                }
+
+                lastX = x;
+            }
+
+            AddProtocolSegment(segments, segmentStart, Math.Max(lastX, visibleMax), currentHigh, visibleMin, visibleMax);
+            return segments;
+        }
+
+        private void AddProtocolSegment(List<ProtocolSegment> segments, double startX, double endX, bool isHigh, double visibleMin, double visibleMax)
+        {
+            if (endX <= startX || endX < visibleMin || startX > visibleMax)
+            {
+                return;
+            }
+
+            double clippedStart = Math.Max(startX, visibleMin);
+            double clippedEnd = Math.Min(endX, visibleMax);
+            if (clippedEnd <= clippedStart)
+            {
+                return;
+            }
+
+            double durationMs = (endX - startX) * 1000.0;
+            bool isMarker = durationMs <= CurrentSampleIntervalSeconds * 1000.0 * 3.5;
+
+            ProtocolSegment segment = new ProtocolSegment();
+            segment.StartX = clippedStart;
+            segment.EndX = clippedEnd;
+            segment.IsMarker = isMarker;
+            segment.Label = isMarker ? (isHigh ? "T" : "S") : FormatProtocolDuration(durationMs);
+
+            if (isMarker)
+            {
+                segment.FillColor = isHigh ? Color.FromRgb(156, 231, 73) : Color.FromRgb(121, 205, 75);
+                segment.BorderColor = isHigh ? Color.FromRgb(209, 255, 145) : Color.FromRgb(180, 240, 145);
+                segment.ForegroundColor = Color.FromRgb(18, 38, 12);
+            }
+            else
+            {
+                segment.FillColor = isHigh ? Color.FromRgb(92, 214, 160) : Color.FromRgb(65, 174, 124);
+                segment.BorderColor = isHigh ? Color.FromRgb(165, 245, 209) : Color.FromRgb(129, 223, 183);
+                segment.ForegroundColor = Color.FromRgb(12, 34, 24);
+            }
+
+            segments.Add(segment);
+        }
+
+        private static string FormatProtocolDuration(double durationMs)
+        {
+            if (durationMs >= 1000.0)
+            {
+                return (durationMs / 1000.0).ToString("0.0");
+            }
+
+            return Math.Max(1.0, Math.Round(durationMs)).ToString("0");
+        }
+
+        private ChartSignal GetDecodeSourceSignal()
+        {
+            for (int i = 0; i < _chartSignals.Count; i++)
+            {
+                if (_chartSignals[i].Kind != SignalValueKind.Analog)
+                {
+                    return _chartSignals[i];
+                }
+            }
+
+            return null;
         }
 
         private AxisY TryGetYAxisAt(double controlY)

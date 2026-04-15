@@ -15,6 +15,7 @@ namespace InteractiveExamples
     public partial class Example8BillionPoints : Window, IDisposable
     {
         private LightningChart _chart;
+        private Canvas _decodeOverlay;
         private Canvas _cursorOverlay;
         private Line _cursorLine;
         private System.Windows.Controls.Border _cursorValueBorder;
@@ -41,6 +42,7 @@ namespace InteractiveExamples
         private bool _isCursorDragging;
         private double _cursorXValue;
         private bool _arePointsVisible;
+        private bool _isDecodeVisible = true;
 
         private const float LineWidth = 1f;
         private const int ProducerIntervalMs = 50;
@@ -62,6 +64,7 @@ namespace InteractiveExamples
             UpdateXAxisViewModeButtons();
             UpdateCursorButton();
             UpdatePointsButton();
+            UpdateDecodeButton();
             CreateChart();
         }
 
@@ -157,6 +160,13 @@ namespace InteractiveExamples
                 Visibility = Visibility.Collapsed
             };
 
+            _decodeOverlay = new Canvas
+            {
+                Background = Brushes.Transparent,
+                IsHitTestVisible = false,
+                Visibility = _isDecodeVisible ? Visibility.Visible : Visibility.Collapsed
+            };
+
             _cursorLine = new Line
             {
                 Stroke = new SolidColorBrush(Color.FromArgb(190, 255, 196, 64)),
@@ -191,10 +201,15 @@ namespace InteractiveExamples
             Grid.SetRow(_chart, 0);
             Grid.SetColumn(_chart, 0);
 
+            gridMain.Children.Add(_decodeOverlay);
+            Grid.SetRow(_decodeOverlay, 0);
+            Grid.SetColumn(_decodeOverlay, 0);
+            Panel.SetZIndex(_decodeOverlay, 1);
+
             gridMain.Children.Add(_cursorOverlay);
             Grid.SetRow(_cursorOverlay, 0);
             Grid.SetColumn(_cursorOverlay, 0);
-            Panel.SetZIndex(_cursorOverlay, 1);
+            Panel.SetZIndex(_cursorOverlay, 2);
 
             Start();
         }
