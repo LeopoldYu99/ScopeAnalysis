@@ -25,6 +25,8 @@ namespace InteractiveExamples
 
         private Timer _producerTimer;
         private readonly SignalProducer _signalProducer = new SignalProducer();
+        private const bool UseBinaryFileDataSource = true;
+        private const string BinaryWaveFilePath = @"C:\Users\admin-250327\Desktop\net9.0-windows\serial_wave.bin";
 
         private readonly List<ChartSignal> _chartSignals = new List<ChartSignal>();
         private double _lastConsumedX;

@@ -2,6 +2,7 @@ using Arction.Wpf.Charting.Views.ViewXY;
 using Arction.Wpf.Charting.SeriesXY;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Windows;
 using System.Windows.Media;
@@ -33,22 +34,112 @@ namespace InteractiveExamples
             DisposeAllAndClear(view.YAxes);
             _chartSignals.Clear();
 
-            for (int seriesIndex = 0; seriesIndex < _seriesCount; seriesIndex++)
+            int signalCount = UseBinaryFileDataSource ? 1 : _seriesCount;
+            for (int seriesIndex = 0; seriesIndex < signalCount; seriesIndex++)
             {
                 _chartSignals.Add(CreateChartSignal(view, seriesIndex));
             }
 
-            _signalProducer.Reset(_chartSignals, _appendCountPerRound, CurrentSampleIntervalSeconds);
+            bool loadedFromBinaryFile = false;
+            if (UseBinaryFileDataSource)
+            {
+                loadedFromBinaryFile = LoadSignalsFromBinaryFile(view);
+            }
 
-            view.XAxes[0].SetRange(0, VisibleRangeSeconds);
-
-
+            if (loadedFromBinaryFile == false)
+            {
+                _signalProducer.Reset(_chartSignals, _appendCountPerRound, CurrentSampleIntervalSeconds);
+                view.XAxes[0].SetRange(0, VisibleRangeSeconds);
+            }
 
             _chart.EndUpdate();
-            _isStreaming = true;
-            _producerTimer.Change(ProducerIntervalMs, ProducerIntervalMs);
+            _isStreaming = loadedFromBinaryFile == false;
+
+            if (_isStreaming)
+            {
+                _producerTimer.Change(ProducerIntervalMs, ProducerIntervalMs);
+            }
+
             CompositionTarget.Rendering -= CompositionTarget_Rendering;
             CompositionTarget.Rendering += CompositionTarget_Rendering;
+        }
+
+        private bool LoadSignalsFromBinaryFile(ViewXY view)
+        {
+            if (_chartSignals.Count == 0 || File.Exists(BinaryWaveFilePath) == false)
+            {
+                return false;
+            }
+
+            byte[] bytes = File.ReadAllBytes(BinaryWaveFilePath);
+            SeriesPoint[] points = ImportBinaryWaveformAsZeroOne(bytes, 1);
+            if (points.Length == 0)
+            {
+                return false;
+            }
+
+            ChartSignal signal = _chartSignals[0];
+            string signalName = Path.GetFileNameWithoutExtension(BinaryWaveFilePath);
+            signal.AxisY.Title.Text = signalName;
+
+            signal.Series.AddPoints(points, false);
+
+            double keepSeconds = Math.Max(VisibleRangeSeconds * 6.0, points[points.Length - 1].X + CurrentSampleIntervalSeconds);
+            signal.AppendRecentPoints(points, keepSeconds);
+
+            _lastConsumedX = points[points.Length - 1].X;
+            _hasConsumedData = true;
+
+            double rangeMax = Math.Max(CurrentSampleIntervalSeconds, _lastConsumedX);
+            view.XAxes[0].SetRange(0, rangeMax);
+            SetXAxisViewMode(XAxisViewMode.Free);
+            return true;
+        }
+
+        private static SeriesPoint[] ImportBinaryWaveformAsZeroOne(byte[] bytes, double sampleIntervalSeconds)
+        {
+            if (bytes == null || bytes.Length == 0)
+            {
+                return null;
+                //return Array.Empty<SeriesPoint>();
+            }
+
+            List<SeriesPoint> points = new List<SeriesPoint>(bytes.Length * 16 + 1);
+            double time = 0;
+            bool hasPreviousValue = false;
+            float previousValue = 0;
+
+            for (int byteIndex = 0; byteIndex < bytes.Length; byteIndex++)
+            {
+                byte valueByte = bytes[byteIndex];
+                for (int bitIndex = 7; bitIndex >= 0; bitIndex--)
+                {
+                    float value = ((valueByte >> bitIndex) & 0x1) == 0x1 ? 1f : 0f;
+                    if (hasPreviousValue == false)
+                    {
+                        points.Add(new SeriesPoint(time, value));
+                        hasPreviousValue = true;
+                    }
+                    else
+                    {
+                        points.Add(new SeriesPoint(time, previousValue));
+                        if (Math.Abs(value - previousValue) > float.Epsilon)
+                        {
+                            points.Add(new SeriesPoint(time, value));
+                        }
+                    }
+
+                    previousValue = value;
+                    time += sampleIntervalSeconds;
+                }
+            }
+
+            if (hasPreviousValue)
+            {
+                points.Add(new SeriesPoint(time, previousValue));
+            }
+
+            return points.ToArray();
         }
 
         public static void DisposeAllAndClear<T>(List<T> list) where T : IDisposable
