@@ -30,7 +30,7 @@ namespace InteractiveExamples
         private double _lastConsumedX;
         private bool _isStreaming;
 
-        private int _seriesCount = 5;
+        private int _seriesCount = 4;
         private int _appendCountPerRound = DefaultAppendCountPerRound;
         private double _xLen = 200;
 

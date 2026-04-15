@@ -804,29 +804,29 @@ namespace InteractiveExamples
         private ChartSignal CreateChartSignal(ViewXY view, int seriesIndex)
         {
             SignalValueKind kind = SignalValueKind.Analog;
-            if (seriesIndex == 0)
-            {
+            //if (seriesIndex == 0)
+            //{
                 kind = SignalValueKind.StepDigital;
-            }
+            //}
 
-            if (seriesIndex == 1)
-            {
-                kind = SignalValueKind.Digital;
-            }
+            //if (seriesIndex == 1)
+            //{
+            //    kind = SignalValueKind.Digital;
+            //}
 
 
             ChartSignal signal = new ChartSignal(string.Format("Signal {0}", seriesIndex + 1), kind, YMin, YMax);
             Color lineBaseColor = DefaultColors.SeriesForBlackBackgroundWpf[seriesIndex % DefaultColors.SeriesForBlackBackgroundWpf.Length];
 
             AxisY axisY = new AxisY(view);
-            if (kind == SignalValueKind.Analog)
-            {
-                axisY.SetRange(YMin, YMax);
-            }
-            else
-            {
+            //if (kind == SignalValueKind.Analog)
+            //{
+            //    axisY.SetRange(YMin, YMax);
+            //}
+            //else
+            //{
                 axisY.SetRange(0, 1);
-            }
+            //}
 
             axisY.Title.Text = signal.Name;
             axisY.Title.Angle = 90;
