@@ -7,32 +7,19 @@ namespace InteractiveExamples
 {
     internal static class DecodeLogic
     {
-        private const double MicrosecondsPerSecond = 1000000.0;
-
         public static List<ProtocolSegment> BuildProtocolSegments(
-            ChartSignal signal,
-            double visibleMin,
-            double visibleMax,
-            double sampleRateHz,
+            SeriesPoint[] history,
             int uartBaudRate,
             int uartDataBits,
             int uartStopBits)
         {
             List<ProtocolSegment> segments = new List<ProtocolSegment>();
-            if (signal == null || signal.Kind == SignalValueKind.Analog || visibleMax <= visibleMin)
-            {
-                return segments;
-            }
-
-            double bitDurationUs = MicrosecondsPerSecond / uartBaudRate;
-            double frameDurationUs = (1 + uartDataBits + uartStopBits) * bitDurationUs;
-            double paddingUs = Math.Max(frameDurationUs * 2.0, MicrosecondsPerSecond / sampleRateHz * 4.0);
-
-            SeriesPoint[] history = signal.GetPointsSnapshot(visibleMin, visibleMax, paddingUs);
             if (history == null || history.Length == 0)
             {
                 return segments;
             }
+
+            double bitDurationUs = 1000000.0 / uartBaudRate;
 
             bool[] sampleValues;
             double[] sampleTimes;
@@ -70,9 +57,7 @@ namespace InteractiveExamples
                     bitDurationUs,
                     uartDataBits,
                     uartStopBits,
-                    decodedValue,
-                    visibleMin,
-                    visibleMax);
+                    decodedValue);
                 // Resume scanning from the latter half of the stop bit so a back-to-back
                 // frame transition at the stop/start boundary is still seen on the next pass.
                 sampleIndex = FindLastSampleBefore(sampleTimes, frameEndX - 0.5 * bitDurationUs);
@@ -205,18 +190,16 @@ namespace InteractiveExamples
             double bitDurationUs,
             int uartDataBits,
             int uartStopBits,
-            byte decodedValue,
-            double visibleMin,
-            double visibleMax)
+            byte decodedValue)
         {
             double startBitEndX = startX + bitDurationUs;
             double dataEndX = startBitEndX + uartDataBits * bitDurationUs;
             double stopStartX = dataEndX;
             double stopEndX = stopStartX + uartStopBits * bitDurationUs;
 
-            AddSegment(segments, startX, startBitEndX, "T", true, visibleMin, visibleMax);
-            AddSegment(segments, startBitEndX, dataEndX, FormatLabel(decodedValue), false, visibleMin, visibleMax);
-            AddSegment(segments, stopStartX, Math.Min(stopEndX, endX), "S", true, visibleMin, visibleMax);
+            AddSegment(segments, startX, startBitEndX, "T", true);
+            AddSegment(segments, startBitEndX, dataEndX, FormatLabel(decodedValue), false);
+            AddSegment(segments, stopStartX, Math.Min(stopEndX, endX), "S", true);
         }
 
         private static void AddSegment(
@@ -224,26 +207,17 @@ namespace InteractiveExamples
             double startX,
             double endX,
             string label,
-            bool isMarker,
-            double visibleMin,
-            double visibleMax)
+            bool isMarker)
         {
-            if (endX <= startX || endX < visibleMin || startX > visibleMax)
-            {
-                return;
-            }
-
-            double clippedStart = Math.Max(startX, visibleMin);
-            double clippedEnd = Math.Min(endX, visibleMax);
-            if (clippedEnd <= clippedStart)
+            if (endX <= startX)
             {
                 return;
             }
 
             ProtocolSegment segment = new ProtocolSegment
             {
-                StartX = clippedStart,
-                EndX = clippedEnd,
+                StartX = startX,
+                EndX = endX,
                 IsMarker = isMarker,
                 Label = label
             };

@@ -431,6 +431,12 @@ namespace InteractiveExamples
             public double Height { get; set; }
         }
 
+        private sealed class DecodeCacheEntry
+        {
+            public int HistoryVersion { get; set; }
+            public List<ProtocolSegment> Segments { get; set; }
+        }
+
         private const double DecodeVerticalOffset = -30.0;
 
         private void UpdateDecodeOverlay()
@@ -652,14 +658,69 @@ namespace InteractiveExamples
 
         private List<ProtocolSegment> BuildProtocolSegments(ChartSignal signal, double visibleMin, double visibleMax)
         {
-            return DecodeLogic.BuildProtocolSegments(
-                signal,
-                visibleMin,
-                visibleMax,
-                ImportedSampleRate,
-                UartBaudRate,
-                UartDataBits,
-                UartStopBits);
+            if (signal == null || signal.Kind == SignalValueKind.Analog || visibleMax <= visibleMin)
+            {
+                return new List<ProtocolSegment>();
+            }
+
+            int historyVersion = signal.HistoryVersion;
+
+            DecodeCacheEntry cacheEntry;
+            if (_decodeCache.TryGetValue(signal, out cacheEntry) == false || cacheEntry.HistoryVersion != historyVersion)
+            {
+                SeriesPoint[] history = signal.GetAllRecentPointsSnapshot();
+                cacheEntry = new DecodeCacheEntry
+                {
+                    HistoryVersion = historyVersion,
+                    Segments = DecodeLogic.BuildProtocolSegments(
+                        history,
+                        UartBaudRate,
+                        UartDataBits,
+                        UartStopBits)
+                };
+
+                _decodeCache[signal] = cacheEntry;
+            }
+
+            return ClipProtocolSegments(cacheEntry.Segments, visibleMin, visibleMax);
+        }
+
+        private static List<ProtocolSegment> ClipProtocolSegments(List<ProtocolSegment> segments, double visibleMin, double visibleMax)
+        {
+            List<ProtocolSegment> visibleSegments = new List<ProtocolSegment>();
+            if (segments == null || segments.Count == 0 || visibleMax <= visibleMin)
+            {
+                return visibleSegments;
+            }
+
+            for (int i = 0; i < segments.Count; i++)
+            {
+                ProtocolSegment segment = segments[i];
+                if (segment.EndX < visibleMin || segment.StartX > visibleMax)
+                {
+                    continue;
+                }
+
+                double clippedStart = Math.Max(segment.StartX, visibleMin);
+                double clippedEnd = Math.Min(segment.EndX, visibleMax);
+                if (clippedEnd <= clippedStart)
+                {
+                    continue;
+                }
+
+                visibleSegments.Add(new ProtocolSegment
+                {
+                    StartX = clippedStart,
+                    EndX = clippedEnd,
+                    Label = segment.Label,
+                    FillColor = segment.FillColor,
+                    BorderColor = segment.BorderColor,
+                    ForegroundColor = segment.ForegroundColor,
+                    IsMarker = segment.IsMarker
+                });
+            }
+
+            return visibleSegments;
         }
 
         private AxisY TryGetYAxisAt(double controlY)

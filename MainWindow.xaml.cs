@@ -22,6 +22,7 @@ namespace InteractiveExamples
         private TextBlock _cursorValueText;
         private readonly List<System.Windows.Controls.Border> _cursorAxisValueBorders = new List<System.Windows.Controls.Border>();
         private readonly List<TextBlock> _cursorAxisValueTexts = new List<TextBlock>();
+        private readonly Dictionary<ChartSignal, DecodeCacheEntry> _decodeCache = new Dictionary<ChartSignal, DecodeCacheEntry>();
 
         private Timer _producerTimer;
         private readonly SignalProducer _signalProducer = new SignalProducer();

@@ -19,6 +19,7 @@ namespace InteractiveExamples
         private readonly object _pendingSync = new object();
         private readonly LinkedList<SeriesPoint> _recentPoints = new LinkedList<SeriesPoint>();
         private readonly object _historySync = new object();
+        private int _historyVersion;
         private readonly double _analogMin;
         private readonly double _analogMax;
 
@@ -38,6 +39,16 @@ namespace InteractiveExamples
         public double ValueState { get; private set; }
         public bool HasPreviousValue { get; private set; }
         public float PreviousValue { get; private set; }
+        public int HistoryVersion
+        {
+            get
+            {
+                lock (_historySync)
+                {
+                    return _historyVersion;
+                }
+            }
+        }
 
         public void ResetRuntimeState(Random randomizer, double initialValue)
         {
@@ -135,6 +146,7 @@ namespace InteractiveExamples
                 }
 
                 TrimRecentPointsUnsafe(keepSeconds);
+                _historyVersion++;
             }
         }
 
@@ -143,6 +155,16 @@ namespace InteractiveExamples
             lock (_historySync)
             {
                 TrimRecentPointsUnsafe(keepSeconds);
+                SeriesPoint[] snapshot = new SeriesPoint[_recentPoints.Count];
+                _recentPoints.CopyTo(snapshot, 0);
+                return snapshot;
+            }
+        }
+
+        public SeriesPoint[] GetAllRecentPointsSnapshot()
+        {
+            lock (_historySync)
+            {
                 SeriesPoint[] snapshot = new SeriesPoint[_recentPoints.Count];
                 _recentPoints.CopyTo(snapshot, 0);
                 return snapshot;
@@ -188,6 +210,11 @@ namespace InteractiveExamples
         {
             lock (_historySync)
             {
+                if (_recentPoints.Count > 0)
+                {
+                    _historyVersion++;
+                }
+
                 _recentPoints.Clear();
             }
         }

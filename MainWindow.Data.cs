@@ -28,6 +28,7 @@ namespace InteractiveExamples
 
             _chart.BeginUpdate();
             _chart.ViewXY.AxisLayout.AutoShrinkSegmentsGap = false;
+            _decodeCache.Clear();
 
             DisposeAllAndClear(view.PointLineSeries);
             DisposeAllAndClear(view.YAxes);
