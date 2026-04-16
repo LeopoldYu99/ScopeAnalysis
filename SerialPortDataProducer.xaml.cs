@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Win32;
@@ -47,6 +48,7 @@ namespace LCWpf
                 string inputText = StringInputTextBox.Text ?? string.Empty;
                 double samplesPerBit = (double)sampleRate / baudRate;
                 int samplesPerBitInt = (int)Math.Round(samplesPerBit);
+                HexPreviewTextBox.Text = ConvertAsciiToHex(inputText);
 
                 int bitsPerFrame = 1 + dataBits + (parity != ParityMode.None ? 1 : 0) + (int)Math.Round(stopBits);
                 int totalFrames = inputText.Length;
@@ -69,6 +71,7 @@ namespace LCWpf
             }
             catch
             {
+                HexPreviewTextBox.Text = string.Empty;
                 InfoTextBlock.Text = "Invalid configuration.";
             }
         }
@@ -312,6 +315,28 @@ namespace LCWpf
                 default:
                     return "None";
             }
+        }
+
+        private static string ConvertAsciiToHex(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+            {
+                return string.Empty;
+            }
+
+            byte[] bytes = Encoding.ASCII.GetBytes(text);
+            StringBuilder builder = new StringBuilder(bytes.Length * 3);
+            for (int i = 0; i < bytes.Length; i++)
+            {
+                if (i > 0)
+                {
+                    builder.Append(' ');
+                }
+
+                builder.Append(bytes[i].ToString("X2"));
+            }
+
+            return builder.ToString();
         }
     }
 

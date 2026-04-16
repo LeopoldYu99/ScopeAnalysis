@@ -99,10 +99,15 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
                 <TextBlock Grid.Row="0" Text="输入要发送的字符串:" Margin="0,0,0,5"/>
                 <TextBox Grid.Row="1" x:Name="StringInputTextBox" Height="60" TextWrapping="Wrap" AcceptsReturn="True"
                      VerticalScrollBarVisibility="Auto" Text="Hello"/>
+                <TextBlock Grid.Row="2" Text="ASCII 转 Hex:" Margin="0,10,0,5"/>
+                <TextBox Grid.Row="3" x:Name="HexPreviewTextBox" MinHeight="56" IsReadOnly="True" TextWrapping="Wrap"
+                     VerticalScrollBarVisibility="Auto" FontFamily="Consolas" Background="#FFF5F5F5"/>
             </Grid>
         </GroupBox>
 
