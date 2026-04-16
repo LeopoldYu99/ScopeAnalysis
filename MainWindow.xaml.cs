@@ -49,6 +49,7 @@ namespace InteractiveExamples
         private const float LineWidth = 1f;
         private const int ProducerIntervalMs = 50;
         private const int DefaultAppendCountPerRound = 10;
+        private const double MicrosecondsPerSecond = 1000000.0;
         private const double ImportedSampleRate = 1000000.0;
         private const int UartBaudRate = 19200;
         private const int UartDataBits = 8;
@@ -110,11 +111,11 @@ namespace InteractiveExamples
             view.XAxes[0].SweepingGap = 0;
             view.XAxes[0].ValueType = AxisValueType.Number;
             view.XAxes[0].AutoFormatLabels = false;
-            view.XAxes[0].LabelsNumberFormat = "0.000";
+            view.XAxes[0].LabelsNumberFormat = UseBinaryFileDataSource ? "0" : "0.000";
             view.XAxes[0].Title.Text = "";
             view.XAxes[0].SetRange(0, 100000);
             view.XAxes[0].MajorGrid.Pattern = LinePattern.Solid;
-            view.XAxes[0].Units.Text = "s";
+            view.XAxes[0].Units.Text = UseBinaryFileDataSource ? "us" : "s";
             view.ZoomPanOptions.DevicePrimaryButtonAction = UserInteractiveDeviceButtonAction.Pan;
 
             view.DropOldSeriesData = true;

@@ -90,9 +90,7 @@ namespace InteractiveExamples
                 return false;
             }
 
-            BinaryWaveformImportResult importResult = BinaryWaveformImporter.ImportFile(
-                BinaryWaveFilePath,
-                1.0 / ImportedSampleRate);
+            BinaryWaveformImportResult importResult = BinaryWaveformImporter.ImportFile( BinaryWaveFilePath,  MicrosecondsPerSecond / ImportedSampleRate);
             if (importResult == null || importResult.Points == null || importResult.Points.Length == 0)
             {
                 return false;

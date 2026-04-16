@@ -7,6 +7,8 @@ namespace InteractiveExamples
 {
     internal static class DecodeLogic
     {
+        private const double MicrosecondsPerSecond = 1000000.0;
+
         public static List<ProtocolSegment> BuildProtocolSegments(
             ChartSignal signal,
             double visibleMin,
@@ -22,11 +24,11 @@ namespace InteractiveExamples
                 return segments;
             }
 
-            double bitDurationSeconds = 1.0 / uartBaudRate;
-            double frameDurationSeconds = (1 + uartDataBits + uartStopBits) * bitDurationSeconds;
-            double paddingSeconds = Math.Max(frameDurationSeconds * 2.0, 1.0 / sampleRateHz * 4.0);
+            double bitDurationUs = MicrosecondsPerSecond / uartBaudRate;
+            double frameDurationUs = (1 + uartDataBits + uartStopBits) * bitDurationUs;
+            double paddingUs = Math.Max(frameDurationUs * 2.0, MicrosecondsPerSecond / sampleRateHz * 4.0);
 
-            SeriesPoint[] history = signal.GetPointsSnapshot(visibleMin, visibleMax, paddingSeconds);
+            SeriesPoint[] history = signal.GetPointsSnapshot(visibleMin, visibleMax, paddingUs);
             if (history == null || history.Length == 0)
             {
                 return segments;
@@ -52,7 +54,7 @@ namespace InteractiveExamples
                     sampleTimes,
                     sampleValues,
                     frameStartX,
-                    bitDurationSeconds,
+                    bitDurationUs,
                     uartDataBits,
                     uartStopBits,
                     out byte decodedValue,
@@ -61,7 +63,16 @@ namespace InteractiveExamples
                     continue;
                 }
 
-                AddUartSegment(segments, frameStartX, frameEndX, decodedValue, visibleMin, visibleMax);
+                AddUartSegments(
+                    segments,
+                    frameStartX,
+                    frameEndX,
+                    bitDurationUs,
+                    uartDataBits,
+                    uartStopBits,
+                    decodedValue,
+                    visibleMin,
+                    visibleMax);
                 sampleIndex = FindLastSampleBefore(sampleTimes, frameEndX);
             }
 
@@ -97,7 +108,7 @@ namespace InteractiveExamples
             double[] sampleTimes,
             bool[] sampleValues,
             double frameStartX,
-            double bitDurationSeconds,
+            double bitDurationUs,
             int uartDataBits,
             int uartStopBits,
             out byte decodedValue,
@@ -106,7 +117,7 @@ namespace InteractiveExamples
             decodedValue = 0;
             frameEndX = frameStartX;
 
-            if (SampleAt(sampleTimes, sampleValues, frameStartX + 0.5 * bitDurationSeconds, out bool startBitHigh) == false
+            if (SampleAt(sampleTimes, sampleValues, frameStartX + 0.5 * bitDurationUs, out bool startBitHigh) == false
                 || startBitHigh)
             {
                 return false;
@@ -114,7 +125,7 @@ namespace InteractiveExamples
 
             for (int bitIndex = 0; bitIndex < uartDataBits; bitIndex++)
             {
-                double sampleX = frameStartX + (1.5 + bitIndex) * bitDurationSeconds;
+                double sampleX = frameStartX + (1.5 + bitIndex) * bitDurationUs;
                 if (SampleAt(sampleTimes, sampleValues, sampleX, out bool bitHigh) == false)
                 {
                     return false;
@@ -128,14 +139,14 @@ namespace InteractiveExamples
 
             for (int stopIndex = 0; stopIndex < uartStopBits; stopIndex++)
             {
-                double sampleX = frameStartX + (1.5 + uartDataBits + stopIndex) * bitDurationSeconds;
+                double sampleX = frameStartX + (1.5 + uartDataBits + stopIndex) * bitDurationUs;
                 if (SampleAt(sampleTimes, sampleValues, sampleX, out bool stopBitHigh) == false || stopBitHigh == false)
                 {
                     return false;
                 }
             }
 
-            frameEndX = frameStartX + (1 + uartDataBits + uartStopBits) * bitDurationSeconds;
+            frameEndX = frameStartX + (1 + uartDataBits + uartStopBits) * bitDurationUs;
             return true;
         }
 
@@ -185,11 +196,33 @@ namespace InteractiveExamples
             return Math.Max(0, index - 1);
         }
 
-        private static void AddUartSegment(
+        private static void AddUartSegments(
             List<ProtocolSegment> segments,
             double startX,
             double endX,
+            double bitDurationUs,
+            int uartDataBits,
+            int uartStopBits,
             byte decodedValue,
+            double visibleMin,
+            double visibleMax)
+        {
+            double startBitEndX = startX + bitDurationUs;
+            double dataEndX = startBitEndX + uartDataBits * bitDurationUs;
+            double stopStartX = dataEndX;
+            double stopEndX = stopStartX + uartStopBits * bitDurationUs;
+
+            AddSegment(segments, startX, startBitEndX, "T", true, visibleMin, visibleMax);
+            AddSegment(segments, startBitEndX, dataEndX, FormatLabel(decodedValue), false, visibleMin, visibleMax);
+            AddSegment(segments, stopStartX, Math.Min(stopEndX, endX), "S", true, visibleMin, visibleMax);
+        }
+
+        private static void AddSegment(
+            List<ProtocolSegment> segments,
+            double startX,
+            double endX,
+            string label,
+            bool isMarker,
             double visibleMin,
             double visibleMax)
         {
@@ -205,16 +238,28 @@ namespace InteractiveExamples
                 return;
             }
 
-            segments.Add(new ProtocolSegment
+            ProtocolSegment segment = new ProtocolSegment
             {
                 StartX = clippedStart,
                 EndX = clippedEnd,
-                IsMarker = false,
-                Label = FormatLabel(decodedValue),
-                FillColor = Color.FromRgb(82, 142, 255),
-                BorderColor = Color.FromRgb(182, 214, 255),
-                ForegroundColor = Color.FromRgb(250, 252, 255)
-            });
+                IsMarker = isMarker,
+                Label = label
+            };
+
+            if (isMarker)
+            {
+                segment.FillColor = Color.FromRgb(156, 231, 73);
+                segment.BorderColor = Color.FromRgb(209, 255, 145);
+                segment.ForegroundColor = Color.FromRgb(18, 38, 12);
+            }
+            else
+            {
+                segment.FillColor = Color.FromRgb(82, 142, 255);
+                segment.BorderColor = Color.FromRgb(182, 214, 255);
+                segment.ForegroundColor = Color.FromRgb(250, 252, 255);
+            }
+
+            segments.Add(segment);
         }
 
         private static string FormatLabel(byte value)
