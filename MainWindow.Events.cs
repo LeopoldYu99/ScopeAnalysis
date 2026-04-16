@@ -91,6 +91,11 @@ namespace InteractiveExamples
             SetDecodeVisible(_isDecodeVisible == false);
         }
 
+        private void buttonSignal1_Click(object sender, RoutedEventArgs e)
+        {
+            ShowSignalGeneratorForSignal(0);
+        }
+
         private void buttonFitY_Click(object sender, RoutedEventArgs e)
         {
             FitYAxisToAll();

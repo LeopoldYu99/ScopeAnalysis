@@ -7,9 +7,18 @@ using Microsoft.Win32;
 
 namespace LCWpf
 {
-    /// <summary>
-    /// SerialPortDataProducer.xaml 的交互逻辑
-    /// </summary>
+    public sealed class SerialWaveformBuildResult
+    {
+        public byte[] WaveData { get; set; }
+        public uint SampleRate { get; set; }
+        public int BaudRate { get; set; }
+        public int DataBits { get; set; }
+        public double StopBits { get; set; }
+        public ParityMode Parity { get; set; }
+        public int IdleBits { get; set; }
+        public string InputText { get; set; }
+    }
+
     public partial class SerialPortDataProducer : UserControl
     {
         public SerialPortDataProducer()
@@ -29,45 +38,38 @@ namespace LCWpf
         {
             try
             {
-                var baudRate = GetBaudRate();
-                var dataBits = GetDataBits();
-                var stopBits = GetStopBitsValue();
-                var parity = GetParityMode();
-                var idleBits = GetIdleBits();
-                var sampleRate = GetSampleRate();
-                var inputText = StringInputTextBox.Text ?? "";
-                var samplesPerBit = (double)sampleRate / baudRate;
-                var samplesPerBitInt = (int)Math.Round(samplesPerBit);
+                uint baudRate = GetBaudRate();
+                int dataBits = GetDataBits();
+                double stopBits = GetStopBitsValue();
+                ParityMode parity = GetParityMode();
+                int idleBits = GetIdleBits();
+                uint sampleRate = GetSampleRate();
+                string inputText = StringInputTextBox.Text ?? string.Empty;
+                double samplesPerBit = (double)sampleRate / baudRate;
+                int samplesPerBitInt = (int)Math.Round(samplesPerBit);
 
-                int bitsPerFrame = 1 + dataBits;
-                if (parity != ParityMode.None)
-                {
-                    bitsPerFrame += 1;
-                }
-                bitsPerFrame += (int)Math.Round(stopBits);
+                int bitsPerFrame = 1 + dataBits + (parity != ParityMode.None ? 1 : 0) + (int)Math.Round(stopBits);
+                int totalFrames = inputText.Length;
+                long totalBits = (long)totalFrames * (idleBits + bitsPerFrame);
+                long totalSamples = totalBits * samplesPerBitInt;
+                long totalBytes = (totalSamples + 7) / 8;
 
-                var totalFrames = inputText.Length;
-                var totalBits = idleBits + totalFrames * bitsPerFrame;
-                var totalSamples = (long)totalBits * samplesPerBitInt;
-                var totalBytes = (totalSamples + 7) / 8;
-
-                var info = $"波特率: {baudRate} bps\n" +
-                           $"数据位: {dataBits}\n" +
-                           $"停止位: {stopBits}\n" +
-                           $"校验位: {GetParityString(parity)}\n" +
-                           $"空闲位: {idleBits}\n" +
-                           $"采样率: {sampleRate} Hz\n" +
-                           $"每位采样点: {samplesPerBitInt}\n" +
-                           $"每帧位数: {bitsPerFrame}\n" +
-                           $"发送字符: {inputText.Length}\n" +
-                           $"总采样点: {totalSamples:N0}\n" +
-                           $"文件大小: {totalBytes:N0} 字节";
-
-                InfoTextBlock.Text = info;
+                InfoTextBlock.Text =
+                    $"Baud rate: {baudRate} bps\n" +
+                    $"Data bits: {dataBits}\n" +
+                    $"Stop bits: {stopBits}\n" +
+                    $"Parity: {GetParityString(parity)}\n" +
+                    $"Idle bits: {idleBits}\n" +
+                    $"Sample rate: {sampleRate} Hz\n" +
+                    $"Samples/bit: {samplesPerBitInt}\n" +
+                    $"Bits/frame: {bitsPerFrame}\n" +
+                    $"Chars: {inputText.Length}\n" +
+                    $"Samples: {totalSamples:N0}\n" +
+                    $"Bytes: {totalBytes:N0}";
             }
             catch
             {
-                InfoTextBlock.Text = "配置有误，请检查输入";
+                InfoTextBlock.Text = "Invalid configuration.";
             }
         }
 
@@ -75,70 +77,102 @@ namespace LCWpf
         {
             try
             {
-                var baudRate = GetBaudRate();
-                var dataBits = GetDataBits();
-                var stopBitsValue = GetStopBitsValue();
-                var parity = GetParityMode();
-                var idleBits = GetIdleBits();
-                var sampleRate = GetSampleRate();
-                var inputText = StringInputTextBox.Text ?? "";
-                var samplesPerBit = (int)Math.Round((double)sampleRate / baudRate);
+                SerialWaveformBuildResult buildResult = BuildWaveform();
 
-                var waveData = GenerateWaveform(inputText, dataBits, stopBitsValue, parity, idleBits, samplesPerBit);
-
-                var saveDialog = new SaveFileDialog
+                SaveFileDialog saveDialog = new SaveFileDialog
                 {
-                    Filter = "BIN文件 (*.bin)|*.bin|所有文件 (*.*)|*.*",
+                    Filter = "BIN files (*.bin)|*.bin|All files (*.*)|*.*",
                     DefaultExt = ".bin",
                     FileName = "serial_wave.bin"
                 };
 
                 if (saveDialog.ShowDialog() == true)
                 {
-                    File.WriteAllBytes(saveDialog.FileName, waveData);
+                    File.WriteAllBytes(saveDialog.FileName, buildResult.WaveData);
                     MessageBox.Show(
-                        $"BIN文件已生成!\n\n路径: {saveDialog.FileName}\n采样点数: {waveData.Length:N0}\n文件大小: {waveData.Length:N0} 字节",
-                        "成功",
+                        $"BIN file generated.\n\nPath: {saveDialog.FileName}\nBytes: {buildResult.WaveData.Length:N0}",
+                        "Success",
                         MessageBoxButton.OK,
                         MessageBoxImage.Information);
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"生成失败:\n{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Generation failed:\n{ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        public bool TryBuildWaveform(out SerialWaveformBuildResult buildResult, out string errorMessage)
+        {
+            buildResult = null;
+            errorMessage = null;
+
+            try
+            {
+                buildResult = BuildWaveform();
+                return buildResult != null;
+            }
+            catch (Exception ex)
+            {
+                errorMessage = ex.Message;
+                return false;
+            }
+        }
+
+        private SerialWaveformBuildResult BuildWaveform()
+        {
+            uint baudRate = GetBaudRate();
+            int dataBits = GetDataBits();
+            double stopBitsValue = GetStopBitsValue();
+            ParityMode parity = GetParityMode();
+            int idleBits = GetIdleBits();
+            uint sampleRate = GetSampleRate();
+            string inputText = StringInputTextBox.Text ?? string.Empty;
+            int samplesPerBit = (int)Math.Round((double)sampleRate / baudRate);
+
+            return new SerialWaveformBuildResult
+            {
+                WaveData = GenerateWaveform(inputText, dataBits, stopBitsValue, parity, idleBits, samplesPerBit),
+                SampleRate = sampleRate,
+                BaudRate = (int)baudRate,
+                DataBits = dataBits,
+                StopBits = stopBitsValue,
+                Parity = parity,
+                IdleBits = idleBits,
+                InputText = inputText
+            };
         }
 
         private byte[] GenerateWaveform(string text, int dataBits, double stopBits, ParityMode parity, int idleBits, int samplesPerBit)
         {
-            var bits = new List<byte>();
+            List<byte> bits = new List<byte>();
 
-            for (var i = 0; i < idleBits * samplesPerBit; i++)
+            foreach (char character in text)
             {
-                bits.Add(1);
-            }
+                for (int i = 0; i < idleBits * samplesPerBit; i++)
+                {
+                    bits.Add(1);
+                }
 
-            foreach (char c in text)
-            {
-                var data = (byte)(c & ((1 << dataBits) - 1));
+                byte data = (byte)(character & ((1 << dataBits) - 1));
 
-                for (var i = 0; i < samplesPerBit; i++)
+                for (int i = 0; i < samplesPerBit; i++)
                 {
                     bits.Add(0);
                 }
 
-                var onesCount = 0;
-                for (var bit = 0; bit < dataBits; bit++)
+                int onesCount = 0;
+                for (int bit = 0; bit < dataBits; bit++)
                 {
-                    var val = (byte)((data >> bit) & 1);
-                    if (val == 1)
+                    byte value = (byte)((data >> bit) & 1);
+                    if (value == 1)
                     {
                         onesCount++;
                     }
 
-                    for (var i = 0; i < samplesPerBit; i++)
+                    for (int i = 0; i < samplesPerBit; i++)
                     {
-                        bits.Add(val);
+                        bits.Add(value);
                     }
                 }
 
@@ -164,22 +198,22 @@ namespace LCWpf
                             break;
                     }
 
-                    for (var i = 0; i < samplesPerBit; i++)
+                    for (int i = 0; i < samplesPerBit; i++)
                     {
                         bits.Add(parityBit);
                     }
                 }
 
-                var stopSamples = (int)Math.Round(stopBits * samplesPerBit);
-                for (var i = 0; i < stopSamples; i++)
+                int stopSamples = (int)Math.Round(stopBits * samplesPerBit);
+                for (int i = 0; i < stopSamples; i++)
                 {
                     bits.Add(1);
                 }
             }
 
-            var byteCount = (bits.Count + 7) / 8;
-            var result = new byte[byteCount];
-            for (var i = 0; i < bits.Count; i++)
+            int byteCount = (bits.Count + 7) / 8;
+            byte[] result = new byte[byteCount];
+            for (int i = 0; i < bits.Count; i++)
             {
                 if (bits[i] == 1)
                 {
@@ -192,10 +226,9 @@ namespace LCWpf
 
         private uint GetBaudRate()
         {
-            var item = BaudRateComboBox.SelectedItem as ComboBoxItem;
-            var content = item != null ? item.Content as string : null;
-            uint value;
-            if (content != null && uint.TryParse(content, out value))
+            ComboBoxItem item = BaudRateComboBox.SelectedItem as ComboBoxItem;
+            string content = item != null ? item.Content as string : null;
+            if (content != null && uint.TryParse(content, out uint value))
             {
                 return value;
             }
@@ -205,10 +238,9 @@ namespace LCWpf
 
         private int GetDataBits()
         {
-            var item = DataBitsComboBox.SelectedItem as ComboBoxItem;
-            var content = item != null ? item.Content as string : null;
-            int value;
-            if (content != null && int.TryParse(content, out value))
+            ComboBoxItem item = DataBitsComboBox.SelectedItem as ComboBoxItem;
+            string content = item != null ? item.Content as string : null;
+            if (content != null && int.TryParse(content, out int value))
             {
                 return value;
             }
@@ -218,10 +250,9 @@ namespace LCWpf
 
         private double GetStopBitsValue()
         {
-            var item = StopBitsComboBox.SelectedItem as ComboBoxItem;
-            var content = item != null ? item.Content as string : null;
-            double value;
-            if (content != null && double.TryParse(content, out value))
+            ComboBoxItem item = StopBitsComboBox.SelectedItem as ComboBoxItem;
+            string content = item != null ? item.Content as string : null;
+            if (content != null && double.TryParse(content, out double value))
             {
                 return value;
             }
@@ -233,8 +264,6 @@ namespace LCWpf
         {
             switch (ParityComboBox.SelectedIndex)
             {
-                case 0:
-                    return ParityMode.None;
                 case 1:
                     return ParityMode.Odd;
                 case 2:
@@ -250,8 +279,7 @@ namespace LCWpf
 
         private int GetIdleBits()
         {
-            int value;
-            if (int.TryParse(IdleBitsTextBox.Text, out value) && value >= 0)
+            if (int.TryParse(IdleBitsTextBox.Text, out int value) && value >= 0)
             {
                 return value;
             }
@@ -261,8 +289,7 @@ namespace LCWpf
 
         private uint GetSampleRate()
         {
-            uint value;
-            if (uint.TryParse(SampleRateTextBox.Text, out value) && value > 0)
+            if (uint.TryParse(SampleRateTextBox.Text, out uint value) && value > 0)
             {
                 return value;
             }
@@ -270,12 +297,10 @@ namespace LCWpf
             return 1000000;
         }
 
-        private string GetParityString(ParityMode mode)
+        private static string GetParityString(ParityMode mode)
         {
             switch (mode)
             {
-                case ParityMode.None:
-                    return "None";
                 case ParityMode.Odd:
                     return "Odd";
                 case ParityMode.Even:

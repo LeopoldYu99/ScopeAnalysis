@@ -32,7 +32,8 @@ namespace InteractiveExamples
                 return segments;
             }
 
-            bool hasAcceptedFrame = false;
+            double sampleIntervalUs = EstimateSampleInterval(sampleTimes);
+            double previousFrameEndX = double.NaN;
             for (int sampleIndex = 1; sampleIndex < sampleTimes.Length; sampleIndex++)
             {
                 if (sampleValues[sampleIndex - 1] == false || sampleValues[sampleIndex])
@@ -41,8 +42,7 @@ namespace InteractiveExamples
                 }
 
                 double frameStartX = sampleTimes[sampleIndex];
-                if (hasAcceptedFrame == false
-                    && HasRequiredIdleBeforeStart(sampleTimes, sampleValues, sampleIndex - 1, frameStartX, minimumIdleDurationUs) == false)
+                if (HasRequiredIdleBeforeStart(sampleTimes, sampleValues, sampleIndex - 1, frameStartX, minimumIdleDurationUs, sampleIntervalUs) == false)
                 {
                     continue;
                 }
@@ -61,6 +61,7 @@ namespace InteractiveExamples
                     continue;
                 }
 
+                AddIdleSegment(segments, previousFrameEndX, frameStartX, sampleIntervalUs);
                 AddUartSegments(
                     segments,
                     frameStartX,
@@ -70,7 +71,7 @@ namespace InteractiveExamples
                     uartStopBits,
                     uartParityMode,
                     decodedValue);
-                hasAcceptedFrame = true;
+                previousFrameEndX = frameEndX;
                 // Resume scanning from the latter half of the stop bit so a back-to-back
                 // frame transition at the stop/start boundary is still seen on the next pass.
                 sampleIndex = FindLastSampleBefore(sampleTimes, frameEndX - 0.5 * bitDurationUs);
@@ -235,12 +236,29 @@ namespace InteractiveExamples
             AddSegment(segments, stopStartX, Math.Min(stopEndX, endX), "S", true);
         }
 
+        private static void AddIdleSegment(List<ProtocolSegment> segments, double previousFrameEndX, double nextFrameStartX, double sampleIntervalUs)
+        {
+            if (double.IsNaN(previousFrameEndX) || nextFrameStartX <= previousFrameEndX)
+            {
+                return;
+            }
+
+            double minimumGapUs = sampleIntervalUs > 0 ? sampleIntervalUs * 0.5 : 1e-9;
+            if (nextFrameStartX - previousFrameEndX < minimumGapUs)
+            {
+                return;
+            }
+
+            AddSegment(segments, previousFrameEndX, nextFrameStartX, "I", true);
+        }
+
         private static bool HasRequiredIdleBeforeStart(
             double[] sampleTimes,
             bool[] sampleValues,
             int highSampleIndex,
             double frameStartX,
-            double minimumIdleDurationUs)
+            double minimumIdleDurationUs,
+            double sampleIntervalUs)
         {
             if (minimumIdleDurationUs <= 0)
             {
@@ -259,7 +277,14 @@ namespace InteractiveExamples
             }
 
             double idleStartX = sampleTimes[runStartIndex];
-            return frameStartX - idleStartX + 1e-9 >= minimumIdleDurationUs;
+            double actualIdleDurationUs = frameStartX - idleStartX;
+            if (sampleIntervalUs <= 0)
+            {
+                return actualIdleDurationUs + 1e-9 >= minimumIdleDurationUs;
+            }
+
+            double quantizedRequiredIdleDurationUs = Math.Round(minimumIdleDurationUs / sampleIntervalUs) * sampleIntervalUs;
+            return actualIdleDurationUs + 1e-9 >= quantizedRequiredIdleDurationUs;
         }
 
         private static bool ValidateStopBits(
@@ -324,6 +349,21 @@ namespace InteractiveExamples
             }
 
             return ones;
+        }
+
+        private static double EstimateSampleInterval(double[] sampleTimes)
+        {
+            double minimumDelta = double.MaxValue;
+            for (int i = 1; i < sampleTimes.Length; i++)
+            {
+                double delta = sampleTimes[i] - sampleTimes[i - 1];
+                if (delta > 0 && delta < minimumDelta)
+                {
+                    minimumDelta = delta;
+                }
+            }
+
+            return minimumDelta == double.MaxValue ? 0 : minimumDelta;
         }
 
         private static void AddSegment(

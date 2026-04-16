@@ -22,6 +22,16 @@ namespace InteractiveExamples
             }
 
             byte[] bytes = File.ReadAllBytes(filePath);
+            return ImportBytes(Path.GetFileNameWithoutExtension(filePath), bytes, sampleIntervalSeconds);
+        }
+
+        public static BinaryWaveformImportResult ImportBytes(string signalName, byte[] bytes, double sampleIntervalSeconds)
+        {
+            if (bytes == null || bytes.Length == 0)
+            {
+                return null;
+            }
+
             SeriesPoint[] points = ImportBinaryWaveformAsZeroOne(bytes, sampleIntervalSeconds);
             if (points == null || points.Length == 0)
             {
@@ -30,7 +40,7 @@ namespace InteractiveExamples
 
             return new BinaryWaveformImportResult
             {
-                SignalName = Path.GetFileNameWithoutExtension(filePath),
+                SignalName = string.IsNullOrWhiteSpace(signalName) ? "Signal" : signalName,
                 Points = points
             };
         }
