@@ -73,7 +73,9 @@ namespace InteractiveExamples
                     decodedValue,
                     visibleMin,
                     visibleMax);
-                sampleIndex = FindLastSampleBefore(sampleTimes, frameEndX);
+                // Resume scanning from the latter half of the stop bit so a back-to-back
+                // frame transition at the stop/start boundary is still seen on the next pass.
+                sampleIndex = FindLastSampleBefore(sampleTimes, frameEndX - 0.5 * bitDurationUs);
             }
 
             return segments;
@@ -264,11 +266,6 @@ namespace InteractiveExamples
 
         private static string FormatLabel(byte value)
         {
-            if (value >= 32 && value <= 126)
-            {
-                return ((char)value).ToString();
-            }
-
             return value.ToString("X2");
         }
     }
