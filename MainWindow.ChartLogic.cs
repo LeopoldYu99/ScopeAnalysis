@@ -434,6 +434,7 @@ namespace InteractiveExamples
         private sealed class DecodeCacheEntry
         {
             public int HistoryVersion { get; set; }
+            public int DecodeSettingsVersion { get; set; }
             public List<ProtocolSegment> Segments { get; set; }
         }
 
@@ -663,20 +664,32 @@ namespace InteractiveExamples
                 return new List<ProtocolSegment>();
             }
 
+            UartDecodeSettings decodeSettings = signal.DecodeSettings;
+            if (decodeSettings == null)
+            {
+                return new List<ProtocolSegment>();
+            }
+
             int historyVersion = signal.HistoryVersion;
+            int decodeSettingsVersion = decodeSettings.Version;
 
             DecodeCacheEntry cacheEntry;
-            if (_decodeCache.TryGetValue(signal, out cacheEntry) == false || cacheEntry.HistoryVersion != historyVersion)
+            if (_decodeCache.TryGetValue(signal, out cacheEntry) == false
+                || cacheEntry.HistoryVersion != historyVersion
+                || cacheEntry.DecodeSettingsVersion != decodeSettingsVersion)
             {
                 SeriesPoint[] history = signal.GetAllRecentPointsSnapshot();
                 cacheEntry = new DecodeCacheEntry
                 {
                     HistoryVersion = historyVersion,
+                    DecodeSettingsVersion = decodeSettingsVersion,
                     Segments = DecodeLogic.BuildProtocolSegments(
                         history,
-                        UartBaudRate,
-                        UartDataBits,
-                        UartStopBits)
+                        decodeSettings.BaudRate,
+                        decodeSettings.DataBits,
+                        decodeSettings.StopBits,
+                        decodeSettings.ParityMode,
+                        decodeSettings.IdleBits)
                 };
 
                 _decodeCache[signal] = cacheEntry;
@@ -857,6 +870,11 @@ namespace InteractiveExamples
 
 
             ChartSignal signal = new ChartSignal(string.Format("Signal {0}", seriesIndex + 1), kind, YMin, YMax);
+            signal.DecodeSettings.BaudRate = 19200;
+            signal.DecodeSettings.DataBits = 8;
+            signal.DecodeSettings.StopBits = 1;
+            signal.DecodeSettings.ParityMode = UartParityMode.None;
+            signal.DecodeSettings.IdleBits = 4;
             Color lineBaseColor = DefaultColors.SeriesForBlackBackgroundWpf[seriesIndex % DefaultColors.SeriesForBlackBackgroundWpf.Length];
 
             AxisY axisY = new AxisY(view);

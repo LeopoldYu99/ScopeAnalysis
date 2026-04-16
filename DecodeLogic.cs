@@ -11,15 +11,18 @@ namespace InteractiveExamples
             SeriesPoint[] history,
             int uartBaudRate,
             int uartDataBits,
-            int uartStopBits)
+            double uartStopBits,
+            UartParityMode uartParityMode,
+            int uartIdleBits)
         {
             List<ProtocolSegment> segments = new List<ProtocolSegment>();
-            if (history == null || history.Length == 0)
+            if (history == null || history.Length == 0 || uartBaudRate <= 0 || uartDataBits <= 0 || uartStopBits <= 0)
             {
                 return segments;
             }
 
             double bitDurationUs = 1000000.0 / uartBaudRate;
+            double minimumIdleDurationUs = Math.Max(0, uartIdleBits) * bitDurationUs;
 
             bool[] sampleValues;
             double[] sampleTimes;
@@ -29,6 +32,7 @@ namespace InteractiveExamples
                 return segments;
             }
 
+            bool hasAcceptedFrame = false;
             for (int sampleIndex = 1; sampleIndex < sampleTimes.Length; sampleIndex++)
             {
                 if (sampleValues[sampleIndex - 1] == false || sampleValues[sampleIndex])
@@ -37,6 +41,12 @@ namespace InteractiveExamples
                 }
 
                 double frameStartX = sampleTimes[sampleIndex];
+                if (hasAcceptedFrame == false
+                    && HasRequiredIdleBeforeStart(sampleTimes, sampleValues, sampleIndex - 1, frameStartX, minimumIdleDurationUs) == false)
+                {
+                    continue;
+                }
+
                 if (TryDecodeFrame(
                     sampleTimes,
                     sampleValues,
@@ -44,6 +54,7 @@ namespace InteractiveExamples
                     bitDurationUs,
                     uartDataBits,
                     uartStopBits,
+                    uartParityMode,
                     out byte decodedValue,
                     out double frameEndX) == false)
                 {
@@ -57,7 +68,9 @@ namespace InteractiveExamples
                     bitDurationUs,
                     uartDataBits,
                     uartStopBits,
+                    uartParityMode,
                     decodedValue);
+                hasAcceptedFrame = true;
                 // Resume scanning from the latter half of the stop bit so a back-to-back
                 // frame transition at the stop/start boundary is still seen on the next pass.
                 sampleIndex = FindLastSampleBefore(sampleTimes, frameEndX - 0.5 * bitDurationUs);
@@ -97,12 +110,14 @@ namespace InteractiveExamples
             double frameStartX,
             double bitDurationUs,
             int uartDataBits,
-            int uartStopBits,
+            double uartStopBits,
+            UartParityMode uartParityMode,
             out byte decodedValue,
             out double frameEndX)
         {
             decodedValue = 0;
             frameEndX = frameStartX;
+            int parityBitCount = uartParityMode == UartParityMode.None ? 0 : 1;
 
             if (SampleAt(sampleTimes, sampleValues, frameStartX + 0.5 * bitDurationUs, out bool startBitHigh) == false
                 || startBitHigh)
@@ -124,16 +139,26 @@ namespace InteractiveExamples
                 }
             }
 
-            for (int stopIndex = 0; stopIndex < uartStopBits; stopIndex++)
+            if (parityBitCount > 0)
             {
-                double sampleX = frameStartX + (1.5 + uartDataBits + stopIndex) * bitDurationUs;
-                if (SampleAt(sampleTimes, sampleValues, sampleX, out bool stopBitHigh) == false || stopBitHigh == false)
+                double paritySampleX = frameStartX + (1.5 + uartDataBits) * bitDurationUs;
+                if (SampleAt(sampleTimes, sampleValues, paritySampleX, out bool parityBitHigh) == false)
+                {
+                    return false;
+                }
+
+                if (parityBitHigh != CalculateParityBit(decodedValue, uartDataBits, uartParityMode))
                 {
                     return false;
                 }
             }
 
-            frameEndX = frameStartX + (1 + uartDataBits + uartStopBits) * bitDurationUs;
+            if (ValidateStopBits(sampleTimes, sampleValues, frameStartX, bitDurationUs, uartDataBits, parityBitCount, uartStopBits) == false)
+            {
+                return false;
+            }
+
+            frameEndX = frameStartX + (1 + uartDataBits + parityBitCount + uartStopBits) * bitDurationUs;
             return true;
         }
 
@@ -189,17 +214,116 @@ namespace InteractiveExamples
             double endX,
             double bitDurationUs,
             int uartDataBits,
-            int uartStopBits,
+            double uartStopBits,
+            UartParityMode uartParityMode,
             byte decodedValue)
         {
             double startBitEndX = startX + bitDurationUs;
             double dataEndX = startBitEndX + uartDataBits * bitDurationUs;
             double stopStartX = dataEndX;
+            if (uartParityMode != UartParityMode.None)
+            {
+                double parityEndX = stopStartX + bitDurationUs;
+                AddSegment(segments, stopStartX, parityEndX, "P", true);
+                stopStartX = parityEndX;
+            }
+
             double stopEndX = stopStartX + uartStopBits * bitDurationUs;
 
             AddSegment(segments, startX, startBitEndX, "T", true);
             AddSegment(segments, startBitEndX, dataEndX, FormatLabel(decodedValue), false);
             AddSegment(segments, stopStartX, Math.Min(stopEndX, endX), "S", true);
+        }
+
+        private static bool HasRequiredIdleBeforeStart(
+            double[] sampleTimes,
+            bool[] sampleValues,
+            int highSampleIndex,
+            double frameStartX,
+            double minimumIdleDurationUs)
+        {
+            if (minimumIdleDurationUs <= 0)
+            {
+                return true;
+            }
+
+            if (highSampleIndex < 0 || highSampleIndex >= sampleTimes.Length || sampleValues[highSampleIndex] == false)
+            {
+                return false;
+            }
+
+            int runStartIndex = highSampleIndex;
+            while (runStartIndex > 0 && sampleValues[runStartIndex - 1])
+            {
+                runStartIndex--;
+            }
+
+            double idleStartX = sampleTimes[runStartIndex];
+            return frameStartX - idleStartX + 1e-9 >= minimumIdleDurationUs;
+        }
+
+        private static bool ValidateStopBits(
+            double[] sampleTimes,
+            bool[] sampleValues,
+            double frameStartX,
+            double bitDurationUs,
+            int uartDataBits,
+            int parityBitCount,
+            double uartStopBits)
+        {
+            double stopStartBitOffset = 1 + uartDataBits + parityBitCount;
+            int wholeStopBits = (int)Math.Floor(uartStopBits);
+            for (int stopIndex = 0; stopIndex < wholeStopBits; stopIndex++)
+            {
+                double sampleX = frameStartX + (stopStartBitOffset + stopIndex + 0.5) * bitDurationUs;
+                if (SampleAt(sampleTimes, sampleValues, sampleX, out bool stopBitHigh) == false || stopBitHigh == false)
+                {
+                    return false;
+                }
+            }
+
+            double fractionalStopBits = uartStopBits - wholeStopBits;
+            if (fractionalStopBits > 1e-9)
+            {
+                double sampleX = frameStartX + (stopStartBitOffset + wholeStopBits + fractionalStopBits / 2.0) * bitDurationUs;
+                if (SampleAt(sampleTimes, sampleValues, sampleX, out bool stopBitHigh) == false || stopBitHigh == false)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static bool CalculateParityBit(byte decodedValue, int uartDataBits, UartParityMode uartParityMode)
+        {
+            switch (uartParityMode)
+            {
+                case UartParityMode.Odd:
+                    return (CountSetBits(decodedValue, uartDataBits) & 0x1) == 0;
+                case UartParityMode.Even:
+                    return (CountSetBits(decodedValue, uartDataBits) & 0x1) != 0;
+                case UartParityMode.Mark:
+                    return true;
+                case UartParityMode.Space:
+                    return false;
+                default:
+                    return false;
+            }
+        }
+
+        private static int CountSetBits(byte value, int bitCount)
+        {
+            int ones = 0;
+            for (int bitIndex = 0; bitIndex < bitCount; bitIndex++)
+            {
+                if (((value >> bitIndex) & 0x1) != 0)
+                {
+                    ones++;
+                }
+            }
+
+            return ones;
         }
 
         private static void AddSegment(

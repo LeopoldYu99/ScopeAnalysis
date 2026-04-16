@@ -96,6 +96,8 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="DecodeLogic.cs" />
+    <Compile Include="UartDecodeSettings.cs" />
+    <Compile Include="UartParityMode.cs" />
     <Compile Include="ProtocolSegment.cs">
       <SubType>Code</SubType>
     </Compile>

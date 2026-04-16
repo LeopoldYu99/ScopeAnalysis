@@ -29,12 +29,14 @@ namespace InteractiveExamples
             Kind = kind;
             _analogMin = analogMin;
             _analogMax = analogMax;
+            DecodeSettings = new UartDecodeSettings();
         }
 
         public string Name { get; private set; }
         public SignalValueKind Kind { get; private set; }
         public AxisY AxisY { get; set; }
         public PointLineSeries Series { get; set; }
+        public UartDecodeSettings DecodeSettings { get; private set; }
         public Random Randomizer { get; private set; }
         public double ValueState { get; private set; }
         public bool HasPreviousValue { get; private set; }
