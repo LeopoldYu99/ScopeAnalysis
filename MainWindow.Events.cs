@@ -96,6 +96,21 @@ namespace InteractiveExamples
             ShowSignalGeneratorForSignal(0);
         }
 
+        private void buttonSignal2_Click(object sender, RoutedEventArgs e)
+        {
+            ShowSignalGeneratorForSignal(1);
+        }
+
+        private void buttonSignal3_Click(object sender, RoutedEventArgs e)
+        {
+            ShowSignalGeneratorForSignal(2);
+        }
+
+        private void buttonSignal4_Click(object sender, RoutedEventArgs e)
+        {
+            ShowSignalGeneratorForSignal(3);
+        }
+
         private void buttonFitY_Click(object sender, RoutedEventArgs e)
         {
             FitYAxisToAll();

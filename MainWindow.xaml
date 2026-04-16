@@ -89,6 +89,9 @@
                 <Button x:Name="buttonPoints" Width="90" Height="32" Click="buttonPoints_Click" Content="Points" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
                 <Button x:Name="buttonDecode" Width="90" Height="32" Click="buttonDecode_Click" Content="Decode" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
                 <Button x:Name="buttonSignal1" Width="90" Height="32" Click="buttonSignal1_Click" Content="Signal1" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
+                <Button x:Name="buttonSignal2" Width="90" Height="32" Click="buttonSignal2_Click" Content="Signal2" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
+                <Button x:Name="buttonSignal3" Width="90" Height="32" Click="buttonSignal3_Click" Content="Signal3" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
+                <Button x:Name="buttonSignal4" Width="90" Height="32" Click="buttonSignal4_Click" Content="Signal4" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
                 <Button x:Name="buttonFitY" Width="80" Height="32" Click="buttonFitY_Click" Content="Y Fit" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
                 <Button x:Name="buttonFitX" Width="80" Height="32" Click="buttonFitX_Click" Content="X Fit" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
                 <Button x:Name="buttonFitXY" Width="80" Height="32" Click="buttonFitXY_Click" Content="XY Fit" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>

@@ -36,7 +36,7 @@ namespace InteractiveExamples
             DisposeAllAndClear(view.YAxes);
             _chartSignals.Clear();
 
-            int signalCount = UseBinaryFileDataSource ? 1 : _seriesCount;
+            int signalCount = _seriesCount;
             for (int seriesIndex = 0; seriesIndex < signalCount; seriesIndex++)
             {
                 _chartSignals.Add(CreateChartSignal(view, seriesIndex));

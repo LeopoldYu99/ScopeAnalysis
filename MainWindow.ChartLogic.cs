@@ -446,9 +446,7 @@ namespace InteractiveExamples
             {
                 return;
             }
-
             _decodeOverlay.Children.Clear();
-
             if (_isDecodeVisible == false || _chart == null)
             {
                 _decodeOverlay.Visibility = Visibility.Collapsed;
