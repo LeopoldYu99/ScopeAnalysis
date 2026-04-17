@@ -50,7 +50,9 @@ namespace InteractiveExamples
             //    }
             //}
 
-            if (position.Y >= _chart.ActualHeight - margins.Bottom)
+            bool isOverPlotArea = IsPointInsidePlotArea(position);
+            bool isOverXAxisArea = position.Y >= _chart.ActualHeight - margins.Bottom;
+            if (isOverPlotArea || isOverXAxisArea)
             {
                 double? anchorX = TryGetXAxisValueAt(position.X);
                 ZoomX(zoomFactor, anchorX);
