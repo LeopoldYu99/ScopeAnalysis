@@ -38,7 +38,7 @@ namespace InteractiveExamples
         private double _xLen = 200;
 
         private const double YMin = 0;
-        private const double YMax = 1;
+        private const double YMax = 1.2;
 
         private bool _hasConsumedData;
         private bool _isCursorEnabled;
@@ -111,10 +111,14 @@ namespace InteractiveExamples
             view.XAxes[0].AutoFormatLabels = false;
             view.XAxes[0].LabelsNumberFormat = UseBinaryFileDataSource ? "0" : "0.000";
             view.XAxes[0].Title.Text = "";
+            view.XAxes[0].AllowScrolling = true;
             view.XAxes[0].SetRange(0, 100000);
             view.XAxes[0].MajorGrid.Pattern = LinePattern.Solid;
             view.XAxes[0].Units.Text = UseBinaryFileDataSource ? "us" : "s";
             view.ZoomPanOptions.DevicePrimaryButtonAction = UserInteractiveDeviceButtonAction.Pan;
+            view.ZoomPanOptions.PanDirection = PanDirection.Horizontal;
+            view.ZoomPanOptions.WheelZooming = WheelZooming.Off;
+            view.ZoomPanOptions.AxisWheelAction = AxisWheelAction.None;
 
             view.DropOldSeriesData = true;
 

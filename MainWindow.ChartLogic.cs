@@ -137,8 +137,7 @@ namespace InteractiveExamples
                         continue;
                     }
 
-                    bool scaleChanged = false;
-                    yAxis.Fit(0.0, out scaleChanged, true, false);
+                    yAxis.SetRange(YMin, YMax);
                 }
             }
             finally
@@ -183,15 +182,8 @@ namespace InteractiveExamples
             // Prevent follow/page mode from immediately overriding the fitted X range.
             SetXAxisViewMode(XAxisViewMode.Free);
 
-            _chart.BeginUpdate();
-            try
-            {
-                _chart.ViewXY.ZoomToFit();
-            }
-            finally
-            {
-                _chart.EndUpdate();
-            }
+            FitXAxisToAll();
+            FitYAxisToAll();
 
             UpdateCursorVisual();
         }
@@ -962,7 +954,7 @@ namespace InteractiveExamples
             //}
             //else
             //{
-                axisY.SetRange(0, 1);
+                axisY.SetRange(YMin, YMax);
             //}
 
             axisY.Title.Text = signal.Name;
@@ -970,12 +962,15 @@ namespace InteractiveExamples
             axisY.Title.Color = ChartTools.CalcGradient(lineBaseColor, Colors.White, 50);
             axisY.Units.Visible = false;
             axisY.AllowScaling = false;
+            axisY.AllowScrolling = false;
             axisY.MajorGrid.Visible = false;
             axisY.MinorGrid.Visible = false;
             axisY.MajorGrid.Pattern = LinePattern.Solid;
             axisY.AutoDivSeparationPercent = 0;
             axisY.Units.Text = "mV";
             axisY.Visible = true;
+            axisY.LabelsVisible = false;
+            axisY.MajorDivTickStyle.Visible = false;
             axisY.MajorDivTickStyle.Alignment = Alignment.Near;
             axisY.MinorDivTickStyle.Visible = false;
             axisY.Title.HorizontalAlign = YAxisTitleAlignmentHorizontal.Left;
@@ -983,7 +978,7 @@ namespace InteractiveExamples
             //if (seriesIndex == _seriesCount - 1)
             //{
             axisY.MiniScale.ShowX = true;
-            axisY.MiniScale.ShowY = true;
+            axisY.MiniScale.ShowY = false;
             axisY.MiniScale.Color = Color.FromArgb(255, 255, 204, 0);
             axisY.MiniScale.HorizontalAlign = AlignmentHorizontal.Right;
             axisY.MiniScale.VerticalAlign = AlignmentVertical.Bottom;
