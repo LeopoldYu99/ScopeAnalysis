@@ -18,6 +18,9 @@ namespace InteractiveExamples
         private Canvas _decodeOverlay;
         private Canvas _cursorOverlay;
         private Line _cursorLine;
+        private Line _cursorMeasurementStartLine;
+        private Line _cursorMeasurementEndLine;
+        private Line _cursorMeasurementSpanLine;
         private System.Windows.Controls.Border _cursorValueBorder;
         private TextBlock _cursorValueText;
         private readonly List<System.Windows.Controls.Border> _cursorAxisValueBorders = new List<System.Windows.Controls.Border>();
@@ -175,11 +178,39 @@ namespace InteractiveExamples
                 Visibility = Visibility.Collapsed
             };
 
+            _cursorMeasurementStartLine = new Line
+            {
+                Stroke = new SolidColorBrush(Color.FromArgb(230, 255, 214, 96)),
+                StrokeThickness = 1,
+                StrokeDashArray = new DoubleCollection(new[] { 3.0, 3.0 }),
+                SnapsToDevicePixels = true,
+                Visibility = Visibility.Collapsed
+            };
+
+            _cursorMeasurementEndLine = new Line
+            {
+                Stroke = new SolidColorBrush(Color.FromArgb(230, 255, 214, 96)),
+                StrokeThickness = 1,
+                StrokeDashArray = new DoubleCollection(new[] { 3.0, 3.0 }),
+                SnapsToDevicePixels = true,
+                Visibility = Visibility.Collapsed
+            };
+
+            _cursorMeasurementSpanLine = new Line
+            {
+                Stroke = new SolidColorBrush(Color.FromArgb(240, 255, 214, 96)),
+                StrokeThickness = 1.4,
+                StrokeDashArray = new DoubleCollection(new[] { 5.0, 3.0 }),
+                SnapsToDevicePixels = true,
+                Visibility = Visibility.Collapsed
+            };
+
             _cursorValueText = new TextBlock
             {
                 Foreground = new SolidColorBrush(Color.FromRgb(255, 214, 96)),
                 FontSize = 12,
-                FontWeight = FontWeights.Bold
+                FontWeight = FontWeights.Bold,
+                TextAlignment = TextAlignment.Left
             };
 
             _cursorValueBorder = new System.Windows.Controls.Border
@@ -188,12 +219,15 @@ namespace InteractiveExamples
                 BorderBrush = new SolidColorBrush(Color.FromArgb(235, 255, 196, 64)),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(4),
-                Padding = new Thickness(6, 2, 6, 2),
+                Padding = new Thickness(8, 4, 8, 4),
                 Child = _cursorValueText,
                 Visibility = Visibility.Collapsed
             };
 
             _cursorOverlay.Children.Add(_cursorLine);
+            _cursorOverlay.Children.Add(_cursorMeasurementStartLine);
+            _cursorOverlay.Children.Add(_cursorMeasurementEndLine);
+            _cursorOverlay.Children.Add(_cursorMeasurementSpanLine);
             _cursorOverlay.Children.Add(_cursorValueBorder);
 
             gridMain.Children.Add(_chart);

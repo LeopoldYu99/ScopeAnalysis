@@ -232,6 +232,423 @@ namespace InteractiveExamples
             return true;
         }
 
+        private enum DigitalEdgeDirection
+        {
+            Rising,
+            Falling
+        }
+
+        private sealed class DigitalEdge
+        {
+            public double X { get; set; }
+            public double ValueAfter { get; set; }
+            public DigitalEdgeDirection Direction { get; set; }
+        }
+
+        private sealed class CursorMeasurement
+        {
+            public ChartSignal Signal { get; set; }
+            public DigitalEdgeDirection Direction { get; set; }
+            public double Width { get; set; }
+            public double Period { get; set; }
+            public double FrequencyHz { get; set; }
+            public double DutyCyclePercent { get; set; }
+            public double DisplayYValue { get; set; }
+            public double PeriodStartX { get; set; }
+            public double PeriodEndX { get; set; }
+            public int MatchRank { get; set; }
+            public double DistanceToCursor { get; set; }
+        }
+
+        private bool TryGetCursorMeasurement(out CursorMeasurement measurement)
+        {
+            measurement = null;
+            if (_chart == null)
+            {
+                return false;
+            }
+
+            for (int signalIndex = 0; signalIndex < _chartSignals.Count; signalIndex++)
+            {
+                ChartSignal signal = _chartSignals[signalIndex];
+                if (signal == null
+                    || signal.Kind == SignalValueKind.Analog
+                    || signal.AxisY == null
+                    || signal.AxisY.Visible == false)
+                {
+                    continue;
+                }
+
+                CursorMeasurement candidate;
+                if (TryBuildCursorMeasurement(signal, _cursorXValue, out candidate) == false)
+                {
+                    continue;
+                }
+
+                if (measurement == null
+                    || candidate.MatchRank < measurement.MatchRank
+                    || (candidate.MatchRank == measurement.MatchRank && candidate.DistanceToCursor < measurement.DistanceToCursor))
+                {
+                    measurement = candidate;
+                }
+            }
+
+            return measurement != null;
+        }
+
+        private static bool TryBuildCursorMeasurement(ChartSignal signal, double cursorX, out CursorMeasurement measurement)
+        {
+            measurement = null;
+            if (signal == null)
+            {
+                return false;
+            }
+
+            SeriesPoint[] points = signal.GetAllRecentPointsSnapshot();
+            List<DigitalEdge> edges = BuildDigitalEdges(points);
+            if (edges.Count < 3)
+            {
+                return false;
+            }
+
+            CursorMeasurement bestMeasurement = null;
+            for (int i = 0; i <= edges.Count - 3; i++)
+            {
+                DigitalEdge firstEdge = edges[i];
+                DigitalEdge middleEdge = edges[i + 1];
+                DigitalEdge lastEdge = edges[i + 2];
+
+                if (firstEdge.Direction == middleEdge.Direction || firstEdge.Direction != lastEdge.Direction)
+                {
+                    continue;
+                }
+
+                double width = middleEdge.X - firstEdge.X;
+                double period = lastEdge.X - firstEdge.X;
+                if (width <= 0 || period <= 0 || width > period)
+                {
+                    continue;
+                }
+
+                int matchRank = 2;
+                double distanceToCursor = Math.Abs(cursorX - (firstEdge.X + lastEdge.X) / 2.0);
+                if (cursorX >= firstEdge.X && cursorX <= middleEdge.X)
+                {
+                    matchRank = 0;
+                    distanceToCursor = 0;
+                }
+                else if (cursorX >= firstEdge.X && cursorX <= lastEdge.X)
+                {
+                    matchRank = 1;
+                    distanceToCursor = Math.Abs(cursorX - (firstEdge.X + lastEdge.X) / 2.0);
+                }
+
+                CursorMeasurement candidate = new CursorMeasurement
+                {
+                    Signal = signal,
+                    Direction = firstEdge.Direction,
+                    Width = width,
+                    Period = period,
+                    FrequencyHz = 1.0 / period,
+                    DutyCyclePercent = width / period * 100.0,
+                    DisplayYValue = firstEdge.ValueAfter,
+                    PeriodStartX = firstEdge.X,
+                    PeriodEndX = lastEdge.X,
+                    MatchRank = matchRank,
+                    DistanceToCursor = distanceToCursor
+                };
+
+                if (bestMeasurement == null
+                    || candidate.MatchRank < bestMeasurement.MatchRank
+                    || (candidate.MatchRank == bestMeasurement.MatchRank && candidate.DistanceToCursor < bestMeasurement.DistanceToCursor))
+                {
+                    bestMeasurement = candidate;
+                }
+            }
+
+            measurement = bestMeasurement;
+            return measurement != null;
+        }
+
+        private static List<DigitalEdge> BuildDigitalEdges(SeriesPoint[] points)
+        {
+            List<DigitalEdge> edges = new List<DigitalEdge>();
+            if (points == null || points.Length < 2)
+            {
+                return edges;
+            }
+
+            for (int i = 1; i < points.Length; i++)
+            {
+                double previousValue = points[i - 1].Y;
+                double currentValue = points[i].Y;
+                bool previousHigh = previousValue >= 0.5;
+                bool currentHigh = currentValue >= 0.5;
+                if (previousHigh == currentHigh)
+                {
+                    continue;
+                }
+
+                edges.Add(new DigitalEdge
+                {
+                    X = points[i].X,
+                    ValueAfter = currentHigh ? 1.0 : 0.0,
+                    Direction = currentHigh ? DigitalEdgeDirection.Rising : DigitalEdgeDirection.Falling
+                });
+            }
+
+            return edges;
+        }
+
+        private string BuildCursorMeasurementText(CursorMeasurement measurement)
+        {
+            if (measurement == null)
+            {
+                return _cursorXValue.ToString("0.000");
+            }
+
+            string edgeLabel = measurement.Direction == DigitalEdgeDirection.Rising ? "上升沿" : "下降沿";
+            return string.Format(
+                "{0}  {1}\n宽度: {2}\n周期: {3}\n频率: {4}\n占空比: {5:0.00}%",
+                measurement.Signal.Name,
+                edgeLabel,
+                FormatTimeValue(measurement.Width),
+                FormatTimeValue(measurement.Period),
+                FormatFrequencyValue(measurement.FrequencyHz),
+                measurement.DutyCyclePercent);
+        }
+
+        private string FormatTimeValue(double axisValue)
+        {
+            double seconds = axisValue * GetXAxisSecondsPerUnit();
+            double absoluteSeconds = Math.Abs(seconds);
+            if (absoluteSeconds >= 1.0)
+            {
+                return string.Format("{0:0.###} s", seconds);
+            }
+
+            if (absoluteSeconds >= 1e-3)
+            {
+                return string.Format("{0:0.###} ms", seconds * 1e3);
+            }
+
+            if (absoluteSeconds >= 1e-6)
+            {
+                return string.Format("{0:0.###} us", seconds * 1e6);
+            }
+
+            if (absoluteSeconds >= 1e-9)
+            {
+                return string.Format("{0:0.###} ns", seconds * 1e9);
+            }
+
+            return string.Format("{0:0.###E+0} s", seconds);
+        }
+
+        private string FormatFrequencyValue(double frequencyHz)
+        {
+            double absoluteFrequency = Math.Abs(frequencyHz);
+            if (absoluteFrequency >= 1e6)
+            {
+                return string.Format("{0:0.###} MHz", frequencyHz / 1e6);
+            }
+
+            if (absoluteFrequency >= 1e3)
+            {
+                return string.Format("{0:0.###} kHz", frequencyHz / 1e3);
+            }
+
+            return string.Format("{0:0.###} Hz", frequencyHz);
+        }
+
+        private double GetXAxisSecondsPerUnit()
+        {
+            if (_chart == null)
+            {
+                return 1.0;
+            }
+
+            string unitsText = _chart.ViewXY.XAxes[0].Units.Text;
+            if (string.Equals(unitsText, "us", StringComparison.OrdinalIgnoreCase))
+            {
+                return 1e-6;
+            }
+
+            if (string.Equals(unitsText, "ms", StringComparison.OrdinalIgnoreCase))
+            {
+                return 1e-3;
+            }
+
+            if (string.Equals(unitsText, "ns", StringComparison.OrdinalIgnoreCase))
+            {
+                return 1e-9;
+            }
+
+            return 1.0;
+        }
+
+        private void HideCursorMeasurementVisuals()
+        {
+            if (_cursorMeasurementStartLine != null)
+            {
+                _cursorMeasurementStartLine.Visibility = Visibility.Collapsed;
+            }
+
+            if (_cursorMeasurementEndLine != null)
+            {
+                _cursorMeasurementEndLine.Visibility = Visibility.Collapsed;
+            }
+
+            if (_cursorMeasurementSpanLine != null)
+            {
+                _cursorMeasurementSpanLine.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private bool TryGetYAxisBounds(AxisY targetAxis, out double segmentTop, out double segmentBottom)
+        {
+            segmentTop = 0;
+            segmentBottom = 0;
+            if (_chart == null || targetAxis == null)
+            {
+                return false;
+            }
+
+            double plotLeft;
+            double plotTop;
+            double plotRight;
+            double plotBottom;
+            if (TryGetPlotAreaBounds(out plotLeft, out plotTop, out plotRight, out plotBottom) == false)
+            {
+                return false;
+            }
+
+            int visibleAxisCount = 0;
+            foreach (AxisY axis in _chart.ViewXY.YAxes)
+            {
+                if (axis.Visible)
+                {
+                    visibleAxisCount++;
+                }
+            }
+
+            if (visibleAxisCount == 0)
+            {
+                return false;
+            }
+
+            double plotHeight = plotBottom - plotTop;
+            double segmentsGap = _chart.ViewXY.AxisLayout.SegmentsGap;
+            double totalGapHeight = segmentsGap * (visibleAxisCount - 1);
+            double segmentHeight = (plotHeight - totalGapHeight) / visibleAxisCount;
+            if (segmentHeight <= 0)
+            {
+                return false;
+            }
+
+            double currentTop = plotTop;
+            foreach (AxisY axis in _chart.ViewXY.YAxes)
+            {
+                if (axis.Visible == false)
+                {
+                    continue;
+                }
+
+                double currentBottom = currentTop + segmentHeight;
+                if (ReferenceEquals(axis, targetAxis))
+                {
+                    segmentTop = currentTop;
+                    segmentBottom = currentBottom;
+                    return true;
+                }
+
+                currentTop = currentBottom + segmentsGap;
+            }
+
+            return false;
+        }
+
+        private void UpdateCursorMeasurementVisual(CursorMeasurement measurement, double plotLeft, double plotRight)
+        {
+            if (_cursorMeasurementStartLine == null
+                || _cursorMeasurementEndLine == null
+                || _cursorMeasurementSpanLine == null
+                || measurement == null
+                || measurement.Signal == null
+                || measurement.Signal.AxisY == null
+                || _chart == null)
+            {
+                HideCursorMeasurementVisuals();
+                return;
+            }
+
+            AxisX xAxis = _chart.ViewXY.XAxes[0];
+            double visibleMin = xAxis.Minimum;
+            double visibleMax = xAxis.Maximum;
+            if (visibleMax <= visibleMin)
+            {
+                HideCursorMeasurementVisuals();
+                return;
+            }
+
+            double segmentTop;
+            double segmentBottom;
+            if (TryGetYAxisBounds(measurement.Signal.AxisY, out segmentTop, out segmentBottom) == false)
+            {
+                HideCursorMeasurementVisuals();
+                return;
+            }
+
+            double startCoord = plotLeft + (measurement.PeriodStartX - visibleMin) / (visibleMax - visibleMin) * (plotRight - plotLeft);
+            double endCoord = plotLeft + (measurement.PeriodEndX - visibleMin) / (visibleMax - visibleMin) * (plotRight - plotLeft);
+            if (double.IsNaN(startCoord) || double.IsNaN(endCoord) || double.IsInfinity(startCoord) || double.IsInfinity(endCoord))
+            {
+                HideCursorMeasurementVisuals();
+                return;
+            }
+
+            startCoord = Math.Max(plotLeft, Math.Min(plotRight, startCoord));
+            endCoord = Math.Max(plotLeft, Math.Min(plotRight, endCoord));
+            if (Math.Abs(endCoord - startCoord) < 1.0)
+            {
+                HideCursorMeasurementVisuals();
+                return;
+            }
+
+            double signalY = measurement.Signal.AxisY.ValueToCoord(0.5, true);
+            if (double.IsNaN(signalY) || double.IsInfinity(signalY))
+            {
+                signalY = (segmentTop + segmentBottom) / 2.0;
+            }
+
+            signalY = Math.Max(segmentTop + 2.0, Math.Min(segmentBottom - 2.0, signalY));
+            double lineTop = Math.Max(segmentTop + 2.0, signalY - 12.0);
+            double lineBottom = Math.Min(segmentBottom - 2.0, signalY + 12.0);
+            if (lineBottom <= lineTop)
+            {
+                lineTop = segmentTop + 2.0;
+                lineBottom = segmentBottom - 2.0;
+            }
+
+            _cursorMeasurementStartLine.X1 = startCoord;
+            _cursorMeasurementStartLine.X2 = startCoord;
+            _cursorMeasurementStartLine.Y1 = lineTop;
+            _cursorMeasurementStartLine.Y2 = lineBottom;
+            _cursorMeasurementStartLine.Visibility = Visibility.Visible;
+
+            _cursorMeasurementEndLine.X1 = endCoord;
+            _cursorMeasurementEndLine.X2 = endCoord;
+            _cursorMeasurementEndLine.Y1 = lineTop;
+            _cursorMeasurementEndLine.Y2 = lineBottom;
+            _cursorMeasurementEndLine.Visibility = Visibility.Visible;
+
+            _cursorMeasurementSpanLine.X1 = Math.Min(startCoord, endCoord);
+            _cursorMeasurementSpanLine.X2 = Math.Max(startCoord, endCoord);
+            _cursorMeasurementSpanLine.Y1 = signalY;
+            _cursorMeasurementSpanLine.Y2 = signalY;
+            _cursorMeasurementSpanLine.Visibility = Visibility.Visible;
+        }
+
         private void UpdateCursorVisual()
         {
             if (_cursorOverlay == null || _cursorLine == null || _cursorValueBorder == null || _cursorValueText == null)
@@ -246,6 +663,7 @@ namespace InteractiveExamples
                 _cursorOverlay.Visibility = Visibility.Collapsed;
                 _cursorLine.Visibility = Visibility.Collapsed;
                 _cursorValueBorder.Visibility = Visibility.Collapsed;
+                HideCursorMeasurementVisuals();
                 HideCursorAxisValueLabels();
                 return;
             }
@@ -259,6 +677,7 @@ namespace InteractiveExamples
                 _cursorOverlay.Visibility = Visibility.Collapsed;
                 _cursorLine.Visibility = Visibility.Collapsed;
                 _cursorValueBorder.Visibility = Visibility.Collapsed;
+                HideCursorMeasurementVisuals();
                 HideCursorAxisValueLabels();
                 return;
             }
@@ -271,6 +690,7 @@ namespace InteractiveExamples
                 _cursorOverlay.Visibility = Visibility.Collapsed;
                 _cursorLine.Visibility = Visibility.Collapsed;
                 _cursorValueBorder.Visibility = Visibility.Collapsed;
+                HideCursorMeasurementVisuals();
                 HideCursorAxisValueLabels();
                 return;
             }
@@ -281,6 +701,7 @@ namespace InteractiveExamples
                 _cursorOverlay.Visibility = Visibility.Visible;
                 _cursorLine.Visibility = Visibility.Collapsed;
                 _cursorValueBorder.Visibility = Visibility.Collapsed;
+                HideCursorMeasurementVisuals();
                 HideCursorAxisValueLabels();
                 return;
             }
@@ -297,13 +718,54 @@ namespace InteractiveExamples
             _cursorLine.Y2 = plotBottom;
             _cursorLine.Visibility = Visibility.Visible;
 
-            _cursorValueText.Text = _cursorXValue.ToString("0.000");
+            CursorMeasurement measurement;
+            if (TryGetCursorMeasurement(out measurement))
+            {
+                _cursorValueText.Text = BuildCursorMeasurementText(measurement);
+                _cursorValueBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(
+                    235,
+                    measurement.Signal.Series.LineStyle.Color.R,
+                    measurement.Signal.Series.LineStyle.Color.G,
+                    measurement.Signal.Series.LineStyle.Color.B));
+            }
+            else
+            {
+                _cursorValueText.Text = _cursorXValue.ToString("0.000");
+                _cursorValueBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(235, 255, 196, 64));
+            }
+
+            UpdateCursorMeasurementVisual(measurement, plotLeft, plotRight);
+
             _cursorValueBorder.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
 
             double labelWidth = _cursorValueBorder.DesiredSize.Width;
             double labelHeight = _cursorValueBorder.DesiredSize.Height;
-            double labelLeft = Math.Max(plotLeft, Math.Min(plotRight - labelWidth, xCoord - labelWidth / 2.0));
-            double labelTop = Math.Max(0, plotBottom - labelHeight - 4);
+            double labelLeft = Math.Min(plotRight - labelWidth, xCoord + 12.0);
+            if (labelLeft < plotLeft)
+            {
+                labelLeft = plotLeft;
+            }
+
+            if (labelLeft + labelWidth > plotRight)
+            {
+                labelLeft = Math.Max(plotLeft, xCoord - labelWidth - 12.0);
+            }
+
+            double labelTop;
+            if (measurement != null && measurement.Signal != null && measurement.Signal.AxisY != null)
+            {
+                double measurementY = measurement.Signal.AxisY.ValueToCoord(measurement.DisplayYValue, true);
+                if (double.IsNaN(measurementY) || double.IsInfinity(measurementY))
+                {
+                    measurementY = (plotTop + plotBottom) / 2.0;
+                }
+
+                labelTop = Math.Max(plotTop, Math.Min(plotBottom - labelHeight, measurementY - labelHeight / 2.0));
+            }
+            else
+            {
+                labelTop = Math.Max(plotTop, plotBottom - labelHeight - 4.0);
+            }
 
             Canvas.SetLeft(_cursorValueBorder, labelLeft);
             Canvas.SetTop(_cursorValueBorder, labelTop);
