@@ -98,7 +98,7 @@ namespace InteractiveExamples
 
         private void Chart_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            if (_chart == null || _isCursorEnabled == false)
+            if (_chart == null)
             {
                 return;
             }
@@ -109,22 +109,42 @@ namespace InteractiveExamples
                 return;
             }
 
-            _isCursorDragging = true;
-            _chart.CaptureMouse();
-            SetCursorXFromControlX(position.X);
-            e.Handled = true;
+            _isCursorHovering = true;
+            if (_isCursorEnabled)
+            {
+                _isCursorDragging = true;
+                _chart.CaptureMouse();
+                e.Handled = true;
+            }
+
+            SetCursorFromControlPosition(position.X, position.Y);
         }
 
         private void Chart_PreviewMouseMove(object sender, MouseEventArgs e)
         {
-            if (_chart == null || _isCursorEnabled == false || _isCursorDragging == false)
+            if (_chart == null)
             {
                 return;
             }
 
             Point position = e.GetPosition(_chart);
-            SetCursorXFromControlX(position.X);
-            e.Handled = true;
+            if (IsPointInsidePlotArea(position) == false)
+            {
+                _isCursorHovering = false;
+                if (_isCursorDragging == false)
+                {
+                    UpdateCursorVisual();
+                }
+
+                return;
+            }
+
+            _isCursorHovering = true;
+            SetCursorFromControlPosition(position.X, position.Y);
+            if (_isCursorDragging)
+            {
+                e.Handled = true;
+            }
         }
 
         private void Chart_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
@@ -146,6 +166,14 @@ namespace InteractiveExamples
         private void Chart_LostMouseCapture(object sender, MouseEventArgs e)
         {
             _isCursorDragging = false;
+        }
+
+        private void Chart_MouseLeave(object sender, MouseEventArgs e)
+        {
+            _isCursorHovering = false;
+            _isCursorDragging = false;
+            _cursorMeasurementSignal = null;
+            UpdateCursorVisual();
         }
 
 

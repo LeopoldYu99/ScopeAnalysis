@@ -148,6 +148,8 @@ namespace InteractiveExamples
 
             AxisX xAxis = _chart.ViewXY.XAxes[0];
             _cursorXValue = (xAxis.Minimum + xAxis.Maximum) / 2.0;
+            _hoverMeasurementXValue = _cursorXValue;
+            _cursorMeasurementSignal = FindPreferredMeasurementSignal();
         }
 
         private void SetCursorXFromControlX(double controlX)
@@ -160,6 +162,77 @@ namespace InteractiveExamples
 
             _cursorXValue = xValue.Value;
             UpdateCursorVisual();
+        }
+
+        private void SetCursorFromControlPosition(double controlX, double controlY)
+        {
+            double? xValue = TryGetXAxisValueAt(controlX);
+            if (xValue.HasValue == false)
+            {
+                return;
+            }
+
+            _hoverMeasurementXValue = xValue.Value;
+            AxisY targetAxis = TryGetYAxisAt(controlY);
+            if (targetAxis != null)
+            {
+                ChartSignal targetSignal = TryGetSignalByAxis(targetAxis);
+                if (targetSignal != null && targetSignal.Kind != SignalValueKind.Analog)
+                {
+                    _cursorMeasurementSignal = targetSignal;
+                }
+            }
+
+            if (_isCursorEnabled && _isCursorDragging)
+            {
+                _cursorXValue = xValue.Value;
+            }
+
+            UpdateCursorVisual();
+        }
+
+        private ChartSignal TryGetSignalByAxis(AxisY axisY)
+        {
+            if (axisY == null)
+            {
+                return null;
+            }
+
+            for (int i = 0; i < _chartSignals.Count; i++)
+            {
+                ChartSignal signal = _chartSignals[i];
+                if (signal != null && ReferenceEquals(signal.AxisY, axisY))
+                {
+                    return signal;
+                }
+            }
+
+            return null;
+        }
+
+        private ChartSignal FindPreferredMeasurementSignal()
+        {
+            if (_cursorMeasurementSignal != null
+                && _cursorMeasurementSignal.Kind != SignalValueKind.Analog
+                && _cursorMeasurementSignal.AxisY != null
+                && _cursorMeasurementSignal.AxisY.Visible)
+            {
+                return _cursorMeasurementSignal;
+            }
+
+            for (int i = 0; i < _chartSignals.Count; i++)
+            {
+                ChartSignal signal = _chartSignals[i];
+                if (signal != null
+                    && signal.Kind != SignalValueKind.Analog
+                    && signal.AxisY != null
+                    && signal.AxisY.Visible)
+                {
+                    return signal;
+                }
+            }
+
+            return null;
         }
 
         private void EnsureCursorAxisValueLabels()
@@ -260,7 +333,7 @@ namespace InteractiveExamples
             public double DistanceToCursor { get; set; }
         }
 
-        private bool TryGetCursorMeasurement(out CursorMeasurement measurement)
+        private bool TryGetCursorMeasurement(double measurementXValue, out CursorMeasurement measurement)
         {
             measurement = null;
             if (_chart == null)
@@ -268,29 +341,19 @@ namespace InteractiveExamples
                 return false;
             }
 
-            for (int signalIndex = 0; signalIndex < _chartSignals.Count; signalIndex++)
+            ChartSignal signal = FindPreferredMeasurementSignal();
+            if (signal == null
+                || signal.Kind == SignalValueKind.Analog
+                || signal.AxisY == null
+                || signal.AxisY.Visible == false)
             {
-                ChartSignal signal = _chartSignals[signalIndex];
-                if (signal == null
-                    || signal.Kind == SignalValueKind.Analog
-                    || signal.AxisY == null
-                    || signal.AxisY.Visible == false)
-                {
-                    continue;
-                }
+                return false;
+            }
 
-                CursorMeasurement candidate;
-                if (TryBuildCursorMeasurement(signal, _cursorXValue, out candidate) == false)
-                {
-                    continue;
-                }
-
-                if (measurement == null
-                    || candidate.MatchRank < measurement.MatchRank
-                    || (candidate.MatchRank == measurement.MatchRank && candidate.DistanceToCursor < measurement.DistanceToCursor))
-                {
-                    measurement = candidate;
-                }
+            _cursorMeasurementSignal = signal;
+            if (TryBuildCursorMeasurement(signal, measurementXValue, out measurement) == false)
+            {
+                return false;
             }
 
             return measurement != null;
@@ -409,8 +472,7 @@ namespace InteractiveExamples
 
             string edgeLabel = measurement.Direction == DigitalEdgeDirection.Rising ? "上升沿" : "下降沿";
             return string.Format(
-                "{0}  {1}\n宽度: {2}\n周期: {3}\n频率: {4}\n占空比: {5:0.00}%",
-                measurement.Signal.Name,
+                "{0}\n宽度: {1}\n周期: {2}\n频率: {3}\n占空比: {4:0.00}%",
                 edgeLabel,
                 FormatTimeValue(measurement.Width),
                 FormatTimeValue(measurement.Period),
@@ -658,7 +720,10 @@ namespace InteractiveExamples
 
             EnsureCursorAxisValueLabels();
 
-            if (_isCursorEnabled == false || _chart == null)
+            bool showCursor = _isCursorEnabled;
+            bool showMeasurement = _isCursorHovering;
+
+            if ((showCursor == false && showMeasurement == false) || _chart == null)
             {
                 _cursorOverlay.Visibility = Visibility.Collapsed;
                 _cursorLine.Visibility = Visibility.Collapsed;
@@ -696,7 +761,10 @@ namespace InteractiveExamples
             }
 
             double normalizedX = (_cursorXValue - currentMin) / (currentMax - currentMin);
-            if (normalizedX < 0 || normalizedX > 1)
+            double measurementNormalizedX = (_hoverMeasurementXValue - currentMin) / (currentMax - currentMin);
+            bool isCursorXVisible = normalizedX >= 0 && normalizedX <= 1;
+            bool isMeasurementXVisible = measurementNormalizedX >= 0 && measurementNormalizedX <= 1;
+            if ((showCursor && isCursorXVisible == false) && (showMeasurement && isMeasurementXVisible == false))
             {
                 _cursorOverlay.Visibility = Visibility.Visible;
                 _cursorLine.Visibility = Visibility.Collapsed;
@@ -707,19 +775,32 @@ namespace InteractiveExamples
             }
 
             double xCoord = plotLeft + normalizedX * (plotRight - plotLeft);
+            double measurementXCoord = plotLeft + measurementNormalizedX * (plotRight - plotLeft);
 
             _cursorOverlay.Width = _chart.ActualWidth;
             _cursorOverlay.Height = _chart.ActualHeight;
             _cursorOverlay.Visibility = Visibility.Visible;
 
-            _cursorLine.X1 = xCoord;
-            _cursorLine.X2 = xCoord;
-            _cursorLine.Y1 = plotTop;
-            _cursorLine.Y2 = plotBottom;
-            _cursorLine.Visibility = Visibility.Visible;
+            if (showCursor && isCursorXVisible)
+            {
+                _cursorLine.X1 = xCoord;
+                _cursorLine.X2 = xCoord;
+                _cursorLine.Y1 = plotTop;
+                _cursorLine.Y2 = plotBottom;
+                _cursorLine.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                _cursorLine.Visibility = Visibility.Collapsed;
+            }
 
-            CursorMeasurement measurement;
-            if (TryGetCursorMeasurement(out measurement))
+            CursorMeasurement measurement = null;
+            if (showMeasurement && isMeasurementXVisible)
+            {
+                TryGetCursorMeasurement(_hoverMeasurementXValue, out measurement);
+            }
+
+            if (measurement != null && showMeasurement && isMeasurementXVisible)
             {
                 _cursorValueText.Text = BuildCursorMeasurementText(measurement);
                 _cursorValueBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(
@@ -727,49 +808,70 @@ namespace InteractiveExamples
                     measurement.Signal.Series.LineStyle.Color.R,
                     measurement.Signal.Series.LineStyle.Color.G,
                     measurement.Signal.Series.LineStyle.Color.B));
-            }
-            else
-            {
-                _cursorValueText.Text = _cursorXValue.ToString("0.000");
-                _cursorValueBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(235, 255, 196, 64));
-            }
+                UpdateCursorMeasurementVisual(measurement, plotLeft, plotRight);
 
-            UpdateCursorMeasurementVisual(measurement, plotLeft, plotRight);
+                _cursorValueBorder.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
 
-            _cursorValueBorder.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-
-            double labelWidth = _cursorValueBorder.DesiredSize.Width;
-            double labelHeight = _cursorValueBorder.DesiredSize.Height;
-            double labelLeft = Math.Min(plotRight - labelWidth, xCoord + 12.0);
-            if (labelLeft < plotLeft)
-            {
-                labelLeft = plotLeft;
-            }
-
-            if (labelLeft + labelWidth > plotRight)
-            {
-                labelLeft = Math.Max(plotLeft, xCoord - labelWidth - 12.0);
-            }
-
-            double labelTop;
-            if (measurement != null && measurement.Signal != null && measurement.Signal.AxisY != null)
-            {
-                double measurementY = measurement.Signal.AxisY.ValueToCoord(measurement.DisplayYValue, true);
-                if (double.IsNaN(measurementY) || double.IsInfinity(measurementY))
+                double labelWidth = _cursorValueBorder.DesiredSize.Width;
+                double labelHeight = _cursorValueBorder.DesiredSize.Height;
+                double labelLeft = Math.Min(plotRight - labelWidth, measurementXCoord + 12.0);
+                if (labelLeft < plotLeft)
                 {
-                    measurementY = (plotTop + plotBottom) / 2.0;
+                    labelLeft = plotLeft;
                 }
 
-                labelTop = Math.Max(plotTop, Math.Min(plotBottom - labelHeight, measurementY - labelHeight / 2.0));
+                if (labelLeft + labelWidth > plotRight)
+                {
+                    labelLeft = Math.Max(plotLeft, measurementXCoord - labelWidth - 12.0);
+                }
+
+                double labelTop;
+                if (measurement.Signal != null && measurement.Signal.AxisY != null)
+                {
+                    double measurementY = measurement.Signal.AxisY.ValueToCoord(measurement.DisplayYValue, true);
+                    if (double.IsNaN(measurementY) || double.IsInfinity(measurementY))
+                    {
+                        measurementY = (plotTop + plotBottom) / 2.0;
+                    }
+
+                    labelTop = Math.Max(plotTop, Math.Min(plotBottom - labelHeight, measurementY - labelHeight / 2.0));
+                }
+                else
+                {
+                    labelTop = Math.Max(plotTop, plotBottom - labelHeight - 4.0);
+                }
+
+                Canvas.SetLeft(_cursorValueBorder, labelLeft);
+                Canvas.SetTop(_cursorValueBorder, labelTop);
+                _cursorValueBorder.Visibility = Visibility.Visible;
+            }
+            else if (showCursor && isCursorXVisible)
+            {
+                HideCursorMeasurementVisuals();
+                _cursorValueText.Text = _cursorXValue.ToString("0.000");
+                _cursorValueBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(235, 255, 196, 64));
+                _cursorValueBorder.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+
+                double labelWidth = _cursorValueBorder.DesiredSize.Width;
+                double labelHeight = _cursorValueBorder.DesiredSize.Height;
+                double labelLeft = Math.Max(plotLeft, Math.Min(plotRight - labelWidth, xCoord - labelWidth / 2.0));
+                double labelTop = Math.Max(0, plotBottom - labelHeight - 4.0);
+
+                Canvas.SetLeft(_cursorValueBorder, labelLeft);
+                Canvas.SetTop(_cursorValueBorder, labelTop);
+                _cursorValueBorder.Visibility = Visibility.Visible;
             }
             else
             {
-                labelTop = Math.Max(plotTop, plotBottom - labelHeight - 4.0);
+                _cursorValueBorder.Visibility = Visibility.Collapsed;
+                HideCursorMeasurementVisuals();
             }
 
-            Canvas.SetLeft(_cursorValueBorder, labelLeft);
-            Canvas.SetTop(_cursorValueBorder, labelTop);
-            _cursorValueBorder.Visibility = Visibility.Visible;
+            if (showCursor == false || isCursorXVisible == false)
+            {
+                HideCursorAxisValueLabels();
+                return;
+            }
 
             for (int i = 0; i < _chartSignals.Count; i++)
             {

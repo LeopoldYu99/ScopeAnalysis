@@ -19,6 +19,9 @@ namespace InteractiveExamples
 
             _hasConsumedData = false;
             _lastConsumedX = 0;
+            _isCursorHovering = false;
+            _hoverMeasurementXValue = 0;
+            _cursorMeasurementSignal = null;
 
             ViewXY view = _chart.ViewXY;
 
@@ -459,6 +462,9 @@ namespace InteractiveExamples
 
             CompositionTarget.Rendering -= CompositionTarget_Rendering;
             _signalProducer.ClearPendingData(_chartSignals);
+            _isCursorHovering = false;
+            _hoverMeasurementXValue = 0;
+            _cursorMeasurementSignal = null;
         }
 
         internal bool IsRunning

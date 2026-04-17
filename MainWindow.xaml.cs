@@ -45,8 +45,11 @@ namespace InteractiveExamples
 
         private bool _hasConsumedData;
         private bool _isCursorEnabled;
+        private bool _isCursorHovering;
         private bool _isCursorDragging;
         private double _cursorXValue;
+        private double _hoverMeasurementXValue;
+        private ChartSignal _cursorMeasurementSignal;
         private bool _arePointsVisible;
         private bool _isDecodeVisible = true;
 
@@ -153,6 +156,7 @@ namespace InteractiveExamples
             _chart.PreviewMouseLeftButtonDown += Chart_PreviewMouseLeftButtonDown;
             _chart.PreviewMouseMove += Chart_PreviewMouseMove;
             _chart.PreviewMouseLeftButtonUp += Chart_PreviewMouseLeftButtonUp;
+            _chart.MouseLeave += Chart_MouseLeave;
             _chart.LostMouseCapture += Chart_LostMouseCapture;
 
             _cursorOverlay = new Canvas
