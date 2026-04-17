@@ -105,16 +105,8 @@ namespace InteractiveExamples
             sampleValues = values.ToArray();
         }
 
-        private static bool TryDecodeFrame(
-            double[] sampleTimes,
-            bool[] sampleValues,
-            double frameStartX,
-            double bitDurationUs,
-            int uartDataBits,
-            double uartStopBits,
-            UartParityMode uartParityMode,
-            out byte decodedValue,
-            out double frameEndX)
+        private static bool TryDecodeFrame(  double[] sampleTimes, bool[] sampleValues, double frameStartX, double bitDurationUs, int uartDataBits, double uartStopBits,  
+            UartParityMode uartParityMode, out byte decodedValue, out double frameEndX)
         {
             decodedValue = 0;
             frameEndX = frameStartX;
@@ -232,7 +224,7 @@ namespace InteractiveExamples
             double stopEndX = stopStartX + uartStopBits * bitDurationUs;
 
             AddSegment(segments, startX, startBitEndX, "T", true);
-            AddSegment(segments, startBitEndX, dataEndX, FormatLabel(decodedValue), false);
+            AddSegment(segments, startBitEndX, dataEndX, FormatLabel(decodedValue), false, BuildBitLabels(decodedValue, uartDataBits));
             AddSegment(segments, stopStartX, Math.Min(stopEndX, endX), "S", true);
         }
 
@@ -366,12 +358,29 @@ namespace InteractiveExamples
             return minimumDelta == double.MaxValue ? 0 : minimumDelta;
         }
 
+        private static string[] BuildBitLabels(byte value, int bitCount)
+        {
+            if (bitCount <= 0)
+            {
+                return null;
+            }
+
+            string[] labels = new string[bitCount];
+            for (int bitIndex = 0; bitIndex < bitCount; bitIndex++)
+            {
+                labels[bitIndex] = ((value >> bitIndex) & 0x1) != 0 ? "1" : "0";
+            }
+
+            return labels;
+        }
+
         private static void AddSegment(
             List<ProtocolSegment> segments,
             double startX,
             double endX,
             string label,
-            bool isMarker)
+            bool isMarker,
+            string[] bitLabels = null)
         {
             if (endX <= startX)
             {
@@ -383,7 +392,8 @@ namespace InteractiveExamples
                 StartX = startX,
                 EndX = endX,
                 IsMarker = isMarker,
-                Label = label
+                Label = label,
+                BitLabels = bitLabels
             };
 
             if (isMarker)

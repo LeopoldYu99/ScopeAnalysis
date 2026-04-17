@@ -546,7 +546,7 @@ namespace InteractiveExamples
 
                 if (signal.Kind != SignalValueKind.Analog)
                 {
-                    double rowHeight = Math.Max(18.0, Math.Min(24.0, segmentHeight * 0.24));
+                    double rowHeight = Math.Max(28.0, Math.Min(36.0, segmentHeight * 0.34));
                     rowHeight = Math.Min(rowHeight, Math.Max(4.0, segmentHeight - 2.0));
                     double rowTop = currentTop + Math.Max(1.0, Math.Min(4.0, (segmentHeight - rowHeight) / 2.0));
                     rows.Add(new DecodeRowLayout
@@ -636,6 +636,12 @@ namespace InteractiveExamples
                 return;
             }
 
+            if (segment.IsMarker == false && segment.BitLabels != null && segment.BitLabels.Length > 0)
+            {
+                DrawDataSegmentLabels(segment, left, rowTop, width, rowHeight);
+                return;
+            }
+
             TextBlock label = new TextBlock
             {
                 Text = segment.Label,
@@ -653,6 +659,79 @@ namespace InteractiveExamples
             Canvas.SetLeft(label, left + (width - label.DesiredSize.Width) / 2.0);
             Canvas.SetTop(label, rowTop + (rowHeight - label.DesiredSize.Height) / 2.0 - 1.0);
             _decodeOverlay.Children.Add(label);
+        }
+
+        private void DrawDataSegmentLabels(ProtocolSegment segment, double left, double rowTop, double width, double rowHeight)
+        {
+            TextBlock topLabel = new TextBlock
+            {
+                Text = segment.Label,
+                Foreground = new SolidColorBrush(segment.ForegroundColor),
+                FontSize = 11,
+                FontWeight = FontWeights.Bold,
+                TextAlignment = TextAlignment.Center
+            };
+
+            topLabel.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            if (topLabel.DesiredSize.Width <= width - 8.0)
+            {
+                Canvas.SetLeft(topLabel, left + (width - topLabel.DesiredSize.Width) / 2.0);
+                Canvas.SetTop(topLabel, rowTop + 1.0);
+                _decodeOverlay.Children.Add(topLabel);
+            }
+
+            int bitCount = segment.BitLabels.Length;
+            if (bitCount <= 0)
+            {
+                return;
+            }
+
+            double bitBandTop = rowTop + rowHeight * 0.48;
+            double bitBandHeight = Math.Max(9.0, rowHeight - (bitBandTop - rowTop) - 1.0);
+            double bitWidth = width / bitCount;
+            if (bitWidth < 8.0 || bitBandHeight < 8.0)
+            {
+                return;
+            }
+
+            for (int bitIndex = 0; bitIndex < bitCount; bitIndex++)
+            {
+                double bitLeft = left + bitIndex * bitWidth;
+                double cellWidth = Math.Max(2.0, bitWidth - 1.0);
+                Rectangle bitCell = new Rectangle
+                {
+                    Width = cellWidth,
+                    Height = bitBandHeight,
+                    Fill = new SolidColorBrush(Color.FromArgb(220, 109, 204, 224)),
+                    Stroke = new SolidColorBrush(Color.FromArgb(230, 208, 245, 255)),
+                    StrokeThickness = 0.8,
+                    RadiusX = 1.5,
+                    RadiusY = 1.5
+                };
+
+                Canvas.SetLeft(bitCell, bitLeft + 0.5);
+                Canvas.SetTop(bitCell, bitBandTop);
+                _decodeOverlay.Children.Add(bitCell);
+
+                TextBlock bitLabel = new TextBlock
+                {
+                    Text = segment.BitLabels[bitIndex],
+                    Foreground = new SolidColorBrush(Color.FromRgb(7, 35, 47)),
+                    FontSize = 10,
+                    FontWeight = FontWeights.Bold,
+                    TextAlignment = TextAlignment.Center
+                };
+
+                bitLabel.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                if (bitLabel.DesiredSize.Width > cellWidth - 2.0 || bitLabel.DesiredSize.Height > bitBandHeight)
+                {
+                    continue;
+                }
+
+                Canvas.SetLeft(bitLabel, bitLeft + (bitWidth - bitLabel.DesiredSize.Width) / 2.0);
+                Canvas.SetTop(bitLabel, bitBandTop + (bitBandHeight - bitLabel.DesiredSize.Height) / 2.0 - 1.0);
+                _decodeOverlay.Children.Add(bitLabel);
+            }
         }
 
         private List<ProtocolSegment> BuildProtocolSegments(ChartSignal signal, double visibleMin, double visibleMax)
@@ -724,6 +803,7 @@ namespace InteractiveExamples
                     StartX = clippedStart,
                     EndX = clippedEnd,
                     Label = segment.Label,
+                    BitLabels = segment.BitLabels,
                     FillColor = segment.FillColor,
                     BorderColor = segment.BorderColor,
                     ForegroundColor = segment.ForegroundColor,
