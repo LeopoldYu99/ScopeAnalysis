@@ -327,6 +327,7 @@ namespace InteractiveExamples
             public double FrequencyHz { get; set; }
             public double DutyCyclePercent { get; set; }
             public double DisplayYValue { get; set; }
+            public bool IsHighPulseWidth { get; set; }
             public double PeriodStartX { get; set; }
             public double PeriodEndX { get; set; }
             public int MatchRank { get; set; }
@@ -387,8 +388,36 @@ namespace InteractiveExamples
                 }
 
                 double width = middleEdge.X - firstEdge.X;
-                double period = lastEdge.X - firstEdge.X;
-                if (width <= 0 || period <= 0 || width > period)
+                double measuredPeriod = lastEdge.X - firstEdge.X;
+                if (width <= 0 || measuredPeriod <= 0 || width > measuredPeriod)
+                {
+                    continue;
+                }
+
+                bool isHighPulseWidth = firstEdge.Direction == DigitalEdgeDirection.Rising;
+                double highDutyRatio = isHighPulseWidth
+                    ? width / measuredPeriod
+                    : (measuredPeriod - width) / measuredPeriod;
+                highDutyRatio = Math.Max(0.0, Math.Min(1.0, highDutyRatio));
+
+                double derivedPeriod = measuredPeriod;
+                if (isHighPulseWidth)
+                {
+                    if (highDutyRatio > 1e-9)
+                    {
+                        derivedPeriod = width / highDutyRatio;
+                    }
+                }
+                else
+                {
+                    double lowDutyRatio = 1.0 - highDutyRatio;
+                    if (lowDutyRatio > 1e-9)
+                    {
+                        derivedPeriod = width / lowDutyRatio;
+                    }
+                }
+
+                if (derivedPeriod <= 0 || double.IsNaN(derivedPeriod) || double.IsInfinity(derivedPeriod))
                 {
                     continue;
                 }
@@ -411,10 +440,11 @@ namespace InteractiveExamples
                     Signal = signal,
                     Direction = firstEdge.Direction,
                     Width = width,
-                    Period = period,
-                    FrequencyHz = 1.0 / period,
-                    DutyCyclePercent = width / period * 100.0,
+                    Period = derivedPeriod,
+                    FrequencyHz = 1.0 / derivedPeriod,
+                    DutyCyclePercent = highDutyRatio * 100.0,
                     DisplayYValue = firstEdge.ValueAfter,
+                    IsHighPulseWidth = isHighPulseWidth,
                     PeriodStartX = firstEdge.X,
                     PeriodEndX = lastEdge.X,
                     MatchRank = matchRank,
