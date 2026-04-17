@@ -120,74 +120,6 @@ namespace InteractiveExamples
             UpdateDecodeOverlay();
         }
 
-        private void FitYAxisToAll()
-        {
-            if (_chart == null)
-            {
-                return;
-            }
-
-            _chart.BeginUpdate();
-            try
-            {
-                foreach (AxisY yAxis in _chart.ViewXY.YAxes)
-                {
-                    if (yAxis.Visible == false)
-                    {
-                        continue;
-                    }
-
-                    yAxis.SetRange(YMin, YMax);
-                }
-            }
-            finally
-            {
-                _chart.EndUpdate();
-            }
-
-            UpdateCursorVisual();
-        }
-
-        private void FitXAxisToAll()
-        {
-            if (_chart == null)
-            {
-                return;
-            }
-
-            // Prevent follow/page mode from immediately overriding the fitted range.
-            SetXAxisViewMode(XAxisViewMode.Free);
-
-            _chart.BeginUpdate();
-            try
-            {
-                bool scaleChanged = false;
-                _chart.ViewXY.XAxes[0].Fit(out scaleChanged, true);
-            }
-            finally
-            {
-                _chart.EndUpdate();
-            }
-
-            UpdateCursorVisual();
-        }
-
-        private void FitXYToAll()
-        {
-            if (_chart == null)
-            {
-                return;
-            }
-
-            // Prevent follow/page mode from immediately overriding the fitted X range.
-            SetXAxisViewMode(XAxisViewMode.Free);
-
-            FitXAxisToAll();
-            FitYAxisToAll();
-
-            UpdateCursorVisual();
-        }
-
         private void SetCursorEnabled(bool enabled)
         {
             _isCursorEnabled = enabled;
@@ -864,28 +796,6 @@ namespace InteractiveExamples
             return null;
         }
 
-        private void SetXAxisViewMode(XAxisViewMode mode)
-        {
-            _xAxisViewMode = mode;
-            UpdateXAxisViewModeButtons();
-
-            if (_chart == null || _hasConsumedData == false || mode != XAxisViewMode.FollowScroll)
-            {
-                return;
-            }
-
-            _chart.BeginUpdate();
-            UpdateXAxisView(_lastConsumedX);
-            _chart.EndUpdate();
-        }
-
-        private void UpdateXAxisViewModeButtons()
-        {
-            UpdateXAxisViewModeButton(buttonFollowScrollMode, _xAxisViewMode == XAxisViewMode.FollowScroll);
-            UpdateXAxisViewModeButton(buttonPageMode, _xAxisViewMode == XAxisViewMode.Paging);
-            UpdateXAxisViewModeButton(buttonFreeMode, _xAxisViewMode == XAxisViewMode.Free);
-        }
-
         private static void UpdateXAxisViewModeButton(Button button, bool isActive)
         {
             if (button == null)
@@ -900,28 +810,6 @@ namespace InteractiveExamples
 
         private void UpdateXAxisView(double lastX)
         {
-            AxisX xAxis = _chart.ViewXY.XAxes[0];
-
-            if (_xAxisViewMode == XAxisViewMode.FollowScroll)
-            {
-                xAxis.ScrollPosition = lastX;
-                UpdateCursorVisual();
-                return;
-            }
-
-            if (_xAxisViewMode != XAxisViewMode.Paging || lastX < xAxis.Maximum)
-            {
-                UpdateCursorVisual();
-                return;
-            }
-
-            double pageWidth = xAxis.Maximum - xAxis.Minimum;
-            if (pageWidth <= 0)
-            {
-                pageWidth = _xLen;
-            }
-
-            xAxis.SetRange(lastX, lastX + pageWidth);
             UpdateCursorVisual();
         }
 

@@ -59,23 +59,6 @@ namespace InteractiveExamples
         }
 
 
-
-
-        private void buttonFollowScrollMode_Click(object sender, RoutedEventArgs e)
-        {
-            SetXAxisViewMode(XAxisViewMode.FollowScroll);
-        }
-
-        private void buttonPageMode_Click(object sender, RoutedEventArgs e)
-        {
-            SetXAxisViewMode(XAxisViewMode.Paging);
-        }
-
-        private void buttonFreeMode_Click(object sender, RoutedEventArgs e)
-        {
-            SetXAxisViewMode(XAxisViewMode.Free);
-        }
-
         private void buttonCursor_Click(object sender, RoutedEventArgs e)
         {
             SetCursorEnabled(_isCursorEnabled == false);
@@ -109,21 +92,6 @@ namespace InteractiveExamples
         private void buttonSignal4_Click(object sender, RoutedEventArgs e)
         {
             ShowSignalGeneratorForSignal(3);
-        }
-
-        private void buttonFitY_Click(object sender, RoutedEventArgs e)
-        {
-            FitYAxisToAll();
-        }
-
-        private void buttonFitX_Click(object sender, RoutedEventArgs e)
-        {
-            FitXAxisToAll();
-        }
-
-        private void buttonFitXY_Click(object sender, RoutedEventArgs e)
-        {
-            FitXYToAll();
         }
 
         private void Chart_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)

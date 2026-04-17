@@ -81,10 +81,6 @@
 
         <Border Grid.Row="0" Background="#FF1C1C1C" BorderBrush="#FF3C3C3C" BorderThickness="0,0,0,1" Padding="10,8">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <Label Content="视图模式" Foreground="White" FontSize="14" FontWeight="Bold" VerticalAlignment="Center" Padding="0" Margin="0,0,12,0"/>
-                <Button x:Name="buttonFollowScrollMode" Width="100" Height="32" Click="buttonFollowScrollMode_Click" Content="跟随滚动" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
-                <Button x:Name="buttonPageMode" Width="90" Height="32" Click="buttonPageMode_Click" Content="翻页" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
-                <Button x:Name="buttonFreeMode" Width="90" Height="32" Click="buttonFreeMode_Click" Content="自由" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
                 <Button x:Name="buttonCursor" Width="90" Height="32" Click="buttonCursor_Click" Content="Cursor" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
                 <Button x:Name="buttonPoints" Width="90" Height="32" Click="buttonPoints_Click" Content="Points" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
                 <Button x:Name="buttonDecode" Width="90" Height="32" Click="buttonDecode_Click" Content="Decode" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
@@ -92,9 +88,6 @@
                 <Button x:Name="buttonSignal2" Width="90" Height="32" Click="buttonSignal2_Click" Content="Signal2" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
                 <Button x:Name="buttonSignal3" Width="90" Height="32" Click="buttonSignal3_Click" Content="Signal3" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
                 <Button x:Name="buttonSignal4" Width="90" Height="32" Click="buttonSignal4_Click" Content="Signal4" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
-                <Button x:Name="buttonFitY" Width="80" Height="32" Click="buttonFitY_Click" Content="Y Fit" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
-                <Button x:Name="buttonFitX" Width="80" Height="32" Click="buttonFitX_Click" Content="X Fit" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
-                <Button x:Name="buttonFitXY" Width="80" Height="32" Click="buttonFitXY_Click" Content="XY Fit" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
             </StackPanel>
         </Border>
 

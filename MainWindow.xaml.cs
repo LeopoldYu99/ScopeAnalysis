@@ -53,20 +53,10 @@ namespace InteractiveExamples
         private const double MicrosecondsPerSecond = 1000000.0;
         private const double ImportedSampleRate = 1000000.0;
 
-        private enum XAxisViewMode
-        {
-            FollowScroll,
-            Paging,
-            Free
-        }
-
-        private XAxisViewMode _xAxisViewMode = XAxisViewMode.Paging;
-
         public Example8BillionPoints()
         {
             InitializeComponent();
             _producerTimer = new Timer(ProducerTimerCallback, null, Timeout.Infinite, Timeout.Infinite);
-            UpdateXAxisViewModeButtons();
             UpdateCursorButton();
             UpdatePointsButton();
             UpdateDecodeButton();

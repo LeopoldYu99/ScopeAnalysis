@@ -113,7 +113,6 @@ namespace InteractiveExamples
 
             double rangeMax = Math.Max(CurrentSampleIntervalSeconds, _lastConsumedX);
             view.XAxes[0].SetRange(0, rangeMax);
-            SetXAxisViewMode(XAxisViewMode.Free);
             return true;
         }
 
@@ -275,7 +274,6 @@ namespace InteractiveExamples
 
                 double rangeMax = Math.Max(sampleInterval, _lastConsumedX);
                 _chart.ViewXY.XAxes[0].SetRange(0, rangeMax);
-                SetXAxisViewMode(XAxisViewMode.Free);
             }
             finally
             {
