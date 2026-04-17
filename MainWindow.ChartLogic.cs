@@ -743,6 +743,7 @@ namespace InteractiveExamples
 
         private void UpdateCursorVisual()
         {
+            _isCursorVisualDirty = false;
             if (_cursorOverlay == null || _cursorLine == null || _cursorValueBorder == null || _cursorValueText == null)
             {
                 return;
@@ -960,10 +961,12 @@ namespace InteractiveExamples
 
         private void UpdateDecodeOverlay()
         {
+            _isDecodeOverlayDirty = false;
             if (_decodeOverlay == null)
             {
                 return;
             }
+
             _decodeOverlay.Children.Clear();
             if (_isDecodeVisible == false || _chart == null)
             {
@@ -1301,10 +1304,16 @@ namespace InteractiveExamples
                 return visibleSegments;
             }
 
-            for (int i = 0; i < segments.Count; i++)
+            int startIndex = FindFirstVisibleSegmentIndex(segments, visibleMin);
+            for (int i = startIndex; i < segments.Count; i++)
             {
                 ProtocolSegment segment = segments[i];
-                if (segment.EndX < visibleMin || segment.StartX > visibleMax)
+                if (segment.StartX > visibleMax)
+                {
+                    break;
+                }
+
+                if (segment.EndX < visibleMin)
                 {
                     continue;
                 }
@@ -1330,6 +1339,29 @@ namespace InteractiveExamples
             }
 
             return visibleSegments;
+        }
+
+        private static int FindFirstVisibleSegmentIndex(List<ProtocolSegment> segments, double visibleMin)
+        {
+            int low = 0;
+            int high = segments.Count - 1;
+            int result = segments.Count;
+
+            while (low <= high)
+            {
+                int mid = low + ((high - low) / 2);
+                if (segments[mid].EndX >= visibleMin)
+                {
+                    result = mid;
+                    high = mid - 1;
+                }
+                else
+                {
+                    low = mid + 1;
+                }
+            }
+
+            return result;
         }
 
         private AxisY TryGetYAxisAt(double controlY)
@@ -1402,9 +1434,73 @@ namespace InteractiveExamples
             button.Foreground = isActive ? Brushes.Black : Brushes.White;
         }
 
+        private void MarkDecodeOverlayDirty()
+        {
+            _isDecodeOverlayDirty = true;
+        }
+
+        private void MarkCursorVisualDirty()
+        {
+            _isCursorVisualDirty = true;
+        }
+
+        private void InvalidateOverlayCaches()
+        {
+            _lastViewportMin = double.NaN;
+            _lastViewportMax = double.NaN;
+            _lastViewportWidth = double.NaN;
+            _lastViewportHeight = double.NaN;
+            MarkDecodeOverlayDirty();
+            MarkCursorVisualDirty();
+        }
+
+        private static bool AreClose(double left, double right)
+        {
+            if (double.IsNaN(left) || double.IsNaN(right))
+            {
+                return double.IsNaN(left) && double.IsNaN(right);
+            }
+
+            double scale = Math.Max(1.0, Math.Max(Math.Abs(left), Math.Abs(right)));
+            return Math.Abs(left - right) <= scale * 1e-9;
+        }
+
+        private bool RefreshOverlayDirtyStateFromViewport()
+        {
+            if (_chart == null)
+            {
+                return false;
+            }
+
+            AxisX xAxis = _chart.ViewXY.XAxes[0];
+            double currentMin = xAxis.Minimum;
+            double currentMax = xAxis.Maximum;
+            double currentWidth = _chart.ActualWidth;
+            double currentHeight = _chart.ActualHeight;
+
+            bool viewportChanged =
+                AreClose(_lastViewportMin, currentMin) == false
+                || AreClose(_lastViewportMax, currentMax) == false
+                || AreClose(_lastViewportWidth, currentWidth) == false
+                || AreClose(_lastViewportHeight, currentHeight) == false;
+
+            if (viewportChanged)
+            {
+                _lastViewportMin = currentMin;
+                _lastViewportMax = currentMax;
+                _lastViewportWidth = currentWidth;
+                _lastViewportHeight = currentHeight;
+                MarkDecodeOverlayDirty();
+                MarkCursorVisualDirty();
+            }
+
+            return viewportChanged;
+        }
+
         private void UpdateXAxisView(double lastX)
         {
-            UpdateCursorVisual();
+            MarkDecodeOverlayDirty();
+            MarkCursorVisualDirty();
         }
 
         private ChartSignal CreateChartSignal(ViewXY view, int seriesIndex)
@@ -1557,6 +1653,7 @@ namespace InteractiveExamples
             double newMax = zoomAnchor + (currentMax - zoomAnchor) * factor;
             xAxis.SetRange(newMin, newMax);
             _chart.EndUpdate();
+            MarkDecodeOverlayDirty();
             UpdateCursorVisual();
         }
 

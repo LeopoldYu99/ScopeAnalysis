@@ -34,6 +34,7 @@ namespace InteractiveExamples
             _chart.BeginUpdate();
             _chart.ViewXY.AxisLayout.AutoShrinkSegmentsGap = false;
             _decodeCache.Clear();
+            InvalidateOverlayCaches();
 
             DisposeAllAndClear(view.PointLineSeries);
             DisposeAllAndClear(view.YAxes);
@@ -374,31 +375,25 @@ namespace InteractiveExamples
             }
         }
 
-        private void ConsumePendingSignalData()
+        private bool ConsumePendingSignalData()
         {
             if (_chart == null)
             {
-                return;
+                return false;
             }
 
             _chart.BeginUpdate();
             try
             {
-                ConsumePendingSignalBatch();
+                return ConsumePendingSignalBatch();
             }
             finally
             {
                 _chart.EndUpdate();
             }
-
-            if (_hasConsumedData)
-            {
-                UpdateXAxisView(_lastConsumedX);
-                UpdateSweepBands(_lastConsumedX);
-            }
         }
 
-        private void ConsumePendingSignalBatch()
+        private bool ConsumePendingSignalBatch()
         {
             double maxX = double.MinValue;
             bool hasConsumedPoint = false;
@@ -431,7 +426,13 @@ namespace InteractiveExamples
             {
                 _lastConsumedX = maxX;
                 _hasConsumedData = true;
+                MarkDecodeOverlayDirty();
+                MarkCursorVisualDirty();
+                UpdateXAxisView(_lastConsumedX);
+                UpdateSweepBands(_lastConsumedX);
             }
+
+            return hasConsumedPoint;
         }
 
         public void Dispose()

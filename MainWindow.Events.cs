@@ -18,8 +18,17 @@ namespace InteractiveExamples
             }
 
             ConsumePendingSignalData();
-            UpdateDecodeOverlay();
-            UpdateCursorVisual();
+            RefreshOverlayDirtyStateFromViewport();
+
+            if (_isDecodeOverlayDirty)
+            {
+                UpdateDecodeOverlay();
+            }
+
+            if (_isCursorVisualDirty)
+            {
+                UpdateCursorVisual();
+            }
         }
 
         private void Chart_PreviewMouseWheel(object sender, MouseWheelEventArgs e)

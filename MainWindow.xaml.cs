@@ -52,6 +52,12 @@ namespace InteractiveExamples
         private ChartSignal _cursorMeasurementSignal;
         private bool _arePointsVisible;
         private bool _isDecodeVisible = true;
+        private bool _isDecodeOverlayDirty = true;
+        private bool _isCursorVisualDirty = true;
+        private double _lastViewportMin = double.NaN;
+        private double _lastViewportMax = double.NaN;
+        private double _lastViewportWidth = double.NaN;
+        private double _lastViewportHeight = double.NaN;
 
         private const float LineWidth = 1f;
         private const int ProducerIntervalMs = 50;

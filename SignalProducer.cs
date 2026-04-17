@@ -14,7 +14,7 @@ namespace InteractiveExamples
         public object SyncRoot
         {
             get
-            {
+            {   
                 return _syncRoot;
             }
         }
