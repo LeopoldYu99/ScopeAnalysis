@@ -133,7 +133,7 @@ namespace InteractiveExamples
             }
         }
 
-        public void AppendRecentPoints(SeriesPoint[] points, double keepSeconds)
+        public void AppendRecentPoints(SeriesPoint[] points)
         {
             if (points == null || points.Length == 0)
             {
@@ -147,16 +147,14 @@ namespace InteractiveExamples
                     _recentPoints.AddLast(points[i]);
                 }
 
-                TrimRecentPointsUnsafe(keepSeconds);
                 _historyVersion++;
             }
         }
 
-        public SeriesPoint[] GetRecentPointsSnapshot(double keepSeconds)
+        public SeriesPoint[] GetRecentPointsSnapshot()
         {
             lock (_historySync)
             {
-                TrimRecentPointsUnsafe(keepSeconds);
                 SeriesPoint[] snapshot = new SeriesPoint[_recentPoints.Count];
                 _recentPoints.CopyTo(snapshot, 0);
                 return snapshot;
@@ -218,25 +216,6 @@ namespace InteractiveExamples
                 }
 
                 _recentPoints.Clear();
-            }
-        }
-
-        private void TrimRecentPointsUnsafe(double keepSeconds)
-        {
-            if (_recentPoints.Last == null)
-            {
-                return;
-            }
-
-            double minX = _recentPoints.Last.Value.X - Math.Max(keepSeconds, 1.0);
-            while (_recentPoints.First != null && _recentPoints.First.Value.X < minX)
-            {
-                if (_recentPoints.First.Next == null)
-                {
-                    break;
-                }
-
-                _recentPoints.RemoveFirst();
             }
         }
 

@@ -83,14 +83,6 @@ namespace InteractiveExamples
             }
         }
 
-        private double VisibleRangeSeconds
-        {
-            get
-            {
-                return _xLen * CurrentSampleIntervalSeconds;
-            }
-        }
-
         private void CreateChart()
         {
             _chart = new LightningChart();

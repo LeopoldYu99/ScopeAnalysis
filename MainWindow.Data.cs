@@ -64,7 +64,7 @@ namespace InteractiveExamples
             if (loadedFromBinaryFile == false)
             {
                 _signalProducer.Reset(_chartSignals, _appendCountPerRound, CurrentSampleIntervalSeconds);
-                view.XAxes[0].SetRange(0, VisibleRangeSeconds);
+                view.XAxes[0].SetRange(0, _xLen * CurrentSampleIntervalSeconds);
             }
 
             _chart.EndUpdate();
@@ -108,9 +108,7 @@ namespace InteractiveExamples
             signal.AxisY.Title.Text = importResult.SignalName;
 
             signal.Series.AddPoints(points, false);
-
-            double keepSeconds = Math.Max(VisibleRangeSeconds * 6.0, points[points.Length - 1].X + CurrentSampleIntervalSeconds);
-            signal.AppendRecentPoints(points, keepSeconds);
+            signal.AppendRecentPoints(points);
 
             _lastConsumedX = points[points.Length - 1].X;
             _hasConsumedData = true;
@@ -269,9 +267,7 @@ namespace InteractiveExamples
                 SeriesPoint[] points = importResult.Points;
                 signal.AxisY.Title.Text = signal.Name;
                 signal.Series.AddPoints(points, false);
-
-                double keepSeconds = Math.Max(VisibleRangeSeconds * 6.0, points[points.Length - 1].X + sampleInterval);
-                signal.AppendRecentPoints(points, keepSeconds);
+                signal.AppendRecentPoints(points);
 
                 _lastConsumedX = points[points.Length - 1].X;
                 _hasConsumedData = true;
@@ -409,7 +405,7 @@ namespace InteractiveExamples
                 if (points != null && points.Length > 0)
                 {
                     signal.Series.AddPoints(points, false);
-                    signal.AppendRecentPoints(points, Math.Max(VisibleRangeSeconds * 6.0, 2.0));
+                    signal.AppendRecentPoints(points);
 
                     for (int i = 0; i < points.Length; i++)
                     {
