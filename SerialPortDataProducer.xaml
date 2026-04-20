@@ -88,7 +88,7 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="采样率:" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                <TextBox Grid.Column="1" x:Name="SampleRateTextBox" Text="1000000"/>
+                <TextBox Grid.Column="1" x:Name="SampleRateTextBox" Text="500000000"/>
                 <TextBlock Grid.Column="2" Text="Hz" VerticalAlignment="Center" Margin="10,0,0,0"/>
             </Grid>
         </GroupBox>
