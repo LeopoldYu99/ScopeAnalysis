@@ -20,9 +20,9 @@ namespace InteractiveExamples
                 UpdateDecodeOverlay();
             }
 
-            if (_isCursorVisualDirty)
+            if (_isMeasurementVisualDirty)
             {
-                UpdateCursorVisual();
+                UpdateMeasurementVisual();
             }
         }
 
@@ -94,12 +94,12 @@ namespace InteractiveExamples
             Point position = e.GetPosition(_chart);
             if (IsPointInsidePlotArea(position) == false)
             {
-                _isCursorHovering = false;
-                UpdateCursorVisual();
+                _isMeasurementHovering = false;
+                UpdateMeasurementVisual();
                 return;
             }
 
-            _isCursorHovering = true;
+            _isMeasurementHovering = true;
             UpdateMeasurementFromControlPosition(position.X, position.Y);
         }
 

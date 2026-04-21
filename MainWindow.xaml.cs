@@ -15,12 +15,12 @@ namespace InteractiveExamples
     {
         private LightningChart _chart;
         private Canvas _decodeOverlay;
-        private Canvas _cursorOverlay;
-        private Line _cursorMeasurementStartLine;
-        private Line _cursorMeasurementEndLine;
-        private Line _cursorMeasurementSpanLine;
-        private System.Windows.Controls.Border _cursorValueBorder;
-        private TextBlock _cursorValueText;
+        private Canvas _measurementOverlay;
+        private Line _measurementStartLine;
+        private Line _measurementEndLine;
+        private Line _measurementSpanLine;
+        private System.Windows.Controls.Border _measurementValueBorder;
+        private TextBlock _measurementValueText;
         private readonly Dictionary<ChartSignal, DecodeCacheEntry> _decodeCache = new Dictionary<ChartSignal, DecodeCacheEntry>();
 
         private readonly List<ChartSignal> _chartSignals = new List<ChartSignal>();
@@ -31,13 +31,13 @@ namespace InteractiveExamples
         private const double YMin = 0;
         private const double YMax = 1.2;
 
-        private bool _isCursorHovering;
-        private double _hoverMeasurementXValue;
-        private ChartSignal _cursorMeasurementSignal;
+        private bool _isMeasurementHovering;
+        private double _measurementHoverXValue;
+        private ChartSignal _measurementSignal;
         private bool _arePointsVisible;
         private bool _isDecodeVisible = true;
         private bool _isDecodeOverlayDirty = true;
-        private bool _isCursorVisualDirty = true;
+        private bool _isMeasurementVisualDirty = true;
         private double _lastViewportMin = double.NaN;
         private double _lastViewportMax = double.NaN;
         private double _lastViewportWidth = double.NaN;
@@ -124,7 +124,7 @@ namespace InteractiveExamples
             _chart.PreviewMouseWheel += Chart_PreviewMouseWheel;
             _chart.PreviewMouseMove += Chart_PreviewMouseMove;
 
-            _cursorOverlay = new Canvas
+            _measurementOverlay = new Canvas
             {
                 Background = Brushes.Transparent,
                 IsHitTestVisible = false,
@@ -138,7 +138,7 @@ namespace InteractiveExamples
                 Visibility = _isDecodeVisible ? Visibility.Visible : Visibility.Collapsed
             };
 
-            _cursorMeasurementStartLine = new Line
+            _measurementStartLine = new Line
             {
                 Stroke = new SolidColorBrush(Color.FromArgb(230, 255, 214, 96)),
                 StrokeThickness = 1,
@@ -147,7 +147,7 @@ namespace InteractiveExamples
                 Visibility = Visibility.Collapsed
             };
 
-            _cursorMeasurementEndLine = new Line
+            _measurementEndLine = new Line
             {
                 Stroke = new SolidColorBrush(Color.FromArgb(230, 255, 214, 96)),
                 StrokeThickness = 1,
@@ -156,7 +156,7 @@ namespace InteractiveExamples
                 Visibility = Visibility.Collapsed
             };
 
-            _cursorMeasurementSpanLine = new Line
+            _measurementSpanLine = new Line
             {
                 Stroke = new SolidColorBrush(Color.FromArgb(240, 255, 214, 96)),
                 StrokeThickness = 1.4,
@@ -165,7 +165,7 @@ namespace InteractiveExamples
                 Visibility = Visibility.Collapsed
             };
 
-            _cursorValueText = new TextBlock
+            _measurementValueText = new TextBlock
             {
                 Foreground = new SolidColorBrush(Color.FromRgb(255, 214, 96)),
                 FontSize = 12,
@@ -173,21 +173,21 @@ namespace InteractiveExamples
                 TextAlignment = TextAlignment.Left
             };
 
-            _cursorValueBorder = new System.Windows.Controls.Border
+            _measurementValueBorder = new System.Windows.Controls.Border
             {
                 Background = new SolidColorBrush(Color.FromArgb(215, 24, 26, 30)),
                 BorderBrush = new SolidColorBrush(Color.FromArgb(235, 255, 196, 64)),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(4),
                 Padding = new Thickness(8, 4, 8, 4),
-                Child = _cursorValueText,
+                Child = _measurementValueText,
                 Visibility = Visibility.Collapsed
             };
 
-            _cursorOverlay.Children.Add(_cursorMeasurementStartLine);
-            _cursorOverlay.Children.Add(_cursorMeasurementEndLine);
-            _cursorOverlay.Children.Add(_cursorMeasurementSpanLine);
-            _cursorOverlay.Children.Add(_cursorValueBorder);
+            _measurementOverlay.Children.Add(_measurementStartLine);
+            _measurementOverlay.Children.Add(_measurementEndLine);
+            _measurementOverlay.Children.Add(_measurementSpanLine);
+            _measurementOverlay.Children.Add(_measurementValueBorder);
 
             gridMain.Children.Add(_chart);
             Grid.SetRow(_chart, 0);
@@ -198,10 +198,10 @@ namespace InteractiveExamples
             Grid.SetColumn(_decodeOverlay, 0);
             Panel.SetZIndex(_decodeOverlay, 1);
 
-            gridMain.Children.Add(_cursorOverlay);
-            Grid.SetRow(_cursorOverlay, 0);
-            Grid.SetColumn(_cursorOverlay, 0);
-            Panel.SetZIndex(_cursorOverlay, 2);
+            gridMain.Children.Add(_measurementOverlay);
+            Grid.SetRow(_measurementOverlay, 0);
+            Grid.SetColumn(_measurementOverlay, 0);
+            Panel.SetZIndex(_measurementOverlay, 2);
 
             Start();
         }

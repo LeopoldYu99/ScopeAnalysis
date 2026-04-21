@@ -28,9 +28,9 @@ namespace InteractiveExamples
             Stop();
 
             _lastConsumedX = 0;
-            _isCursorHovering = false;
-            _hoverMeasurementXValue = 0;
-            _cursorMeasurementSignal = null;
+            _isMeasurementHovering = false;
+            _measurementHoverXValue = 0;
+            _measurementSignal = null;
 
             ViewXY view = _chart.ViewXY;
 
@@ -393,7 +393,7 @@ namespace InteractiveExamples
 
             InvalidateOverlayCaches();
             UpdateDecodeOverlay();
-            UpdateCursorVisual();
+            UpdateMeasurementVisual();
         }
 
         private void ImportWaveformToSignal(int signalIndex, BinaryWaveformImportResult importResult, string displayName)
@@ -487,7 +487,7 @@ namespace InteractiveExamples
 
             InvalidateOverlayCaches();
             UpdateDecodeOverlay();
-            UpdateCursorVisual();
+            UpdateMeasurementVisual();
         }
 
         private static byte[][] SplitProtocolBytes(byte[] protocolBytes, int channelCount)
@@ -605,9 +605,9 @@ namespace InteractiveExamples
         public void Stop()
         {
             CompositionTarget.Rendering -= CompositionTarget_Rendering;
-            _isCursorHovering = false;
-            _hoverMeasurementXValue = 0;
-            _cursorMeasurementSignal = null;
+            _isMeasurementHovering = false;
+            _measurementHoverXValue = 0;
+            _measurementSignal = null;
         }
     }
 }
