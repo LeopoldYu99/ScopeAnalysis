@@ -2,17 +2,25 @@ using Arction.Wpf.Charting.Views.ViewXY;
 using Arction.Wpf.Charting.SeriesXY;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using Arction.Wpf.Charting;
 using LCWpf;
+using Microsoft.Win32;
 
 namespace InteractiveExamples
 {
     public partial class Example8BillionPoints
     {
+        private sealed class SignalImportSelection
+        {
+            public string ProtocolName { get; set; }
+            public string FilePath { get; set; }
+        }
+
         public void Start()
         {
             Stop();
@@ -161,6 +169,261 @@ namespace InteractiveExamples
             }
 
             ImportGeneratedWaveformToSignal(signalIndex, buildResult);
+        }
+
+        private void ShowDataProducerDialog()
+        {
+            SerialPortDataProducer producer = new SerialPortDataProducer();
+
+            Window dialog = new Window
+            {
+                Title = "DataProducer",
+                Owner = this,
+                Width = 860,
+                Height = 680,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                ResizeMode = ResizeMode.CanResize,
+                Background = Brushes.White,
+                Content = BuildDataProducerDialogContent(producer)
+            };
+
+            dialog.ShowDialog();
+        }
+
+        private static UIElement BuildDataProducerDialogContent(SerialPortDataProducer producer)
+        {
+            Grid layoutRoot = new Grid
+            {
+                Margin = new Thickness(12)
+            };
+            layoutRoot.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            layoutRoot.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            Grid.SetRow(producer, 0);
+            layoutRoot.Children.Add(producer);
+
+            StackPanel buttonBar = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Margin = new Thickness(0, 12, 0, 0)
+            };
+
+            Button closeButton = new Button
+            {
+                Content = "Close",
+                Width = 96,
+                Height = 32,
+                IsCancel = true
+            };
+            closeButton.Click += (sender, e) =>
+            {
+                Window dialog = Window.GetWindow((DependencyObject)sender);
+                if (dialog != null)
+                {
+                    dialog.DialogResult = false;
+                }
+            };
+
+            buttonBar.Children.Add(closeButton);
+            Grid.SetRow(buttonBar, 1);
+            layoutRoot.Children.Add(buttonBar);
+
+            return layoutRoot;
+        }
+
+        private void ShowSignalImportDialogForSignal(int signalIndex)
+        {
+            if (_chart == null || signalIndex < 0 || signalIndex >= _chartSignals.Count)
+            {
+                return;
+            }
+
+            string signalName = _chartSignals[signalIndex].Name;
+            SignalImportSelection selection = null;
+
+            Window dialog = new Window
+            {
+                Title = string.Format("{0} Import", signalName),
+                Owner = this,
+                Width = 560,
+                Height = 250,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                ResizeMode = ResizeMode.NoResize,
+                Background = Brushes.White
+            };
+
+            Grid layoutRoot = new Grid
+            {
+                Margin = new Thickness(16)
+            };
+            layoutRoot.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            layoutRoot.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            layoutRoot.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            layoutRoot.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            layoutRoot.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            layoutRoot.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            layoutRoot.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            TextBlock protocolLabel = new TextBlock
+            {
+                Text = "Protocol:",
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 10, 0)
+            };
+            Grid.SetRow(protocolLabel, 0);
+            Grid.SetColumn(protocolLabel, 0);
+            layoutRoot.Children.Add(protocolLabel);
+
+            ComboBox protocolComboBox = new ComboBox
+            {
+                MinWidth = 220,
+                SelectedIndex = 0
+            };
+            protocolComboBox.Items.Add("串口");
+            protocolComboBox.Items.Add("2线串口");
+            protocolComboBox.Items.Add("3线串口");
+            protocolComboBox.Items.Add("4线串口");
+            Grid.SetRow(protocolComboBox, 0);
+            Grid.SetColumn(protocolComboBox, 1);
+            Grid.SetColumnSpan(protocolComboBox, 2);
+            layoutRoot.Children.Add(protocolComboBox);
+
+            TextBlock fileLabel = new TextBlock
+            {
+                Text = "File:",
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 12, 10, 0)
+            };
+            Grid.SetRow(fileLabel, 1);
+            Grid.SetColumn(fileLabel, 0);
+            layoutRoot.Children.Add(fileLabel);
+
+            TextBox filePathTextBox = new TextBox
+            {
+                Margin = new Thickness(0, 12, 10, 0),
+                MinWidth = 220
+            };
+            Grid.SetRow(filePathTextBox, 1);
+            Grid.SetColumn(filePathTextBox, 1);
+            layoutRoot.Children.Add(filePathTextBox);
+
+            Button browseButton = new Button
+            {
+                Content = "Browse...",
+                Width = 96,
+                Height = 28,
+                Margin = new Thickness(0, 12, 0, 0)
+            };
+            browseButton.Click += (sender, e) =>
+            {
+                OpenFileDialog openFileDialog = new OpenFileDialog
+                {
+                    Filter = "BIN files (*.bin)|*.bin|All files (*.*)|*.*",
+                    CheckFileExists = true,
+                    Multiselect = false
+                };
+
+                if (openFileDialog.ShowDialog(dialog) == true)
+                {
+                    filePathTextBox.Text = openFileDialog.FileName;
+                }
+            };
+            Grid.SetRow(browseButton, 1);
+            Grid.SetColumn(browseButton, 2);
+            layoutRoot.Children.Add(browseButton);
+
+            TextBlock hintTextBlock = new TextBlock
+            {
+                Text = "当前只完成协议和文件选择流程，实际导入逻辑后续再接入。",
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 16, 0, 0),
+                Foreground = Brushes.DimGray
+            };
+            Grid.SetRow(hintTextBlock, 2);
+            Grid.SetColumnSpan(hintTextBlock, 3);
+            layoutRoot.Children.Add(hintTextBlock);
+
+            StackPanel buttonBar = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Margin = new Thickness(0, 16, 0, 0)
+            };
+
+            Button importButton = new Button
+            {
+                Content = "Import",
+                Width = 96,
+                Height = 32,
+                Margin = new Thickness(0, 0, 8, 0),
+                IsDefault = true
+            };
+            importButton.Click += (sender, e) =>
+            {
+                string selectedProtocol = protocolComboBox.SelectedItem as string;
+                string filePath = filePathTextBox.Text == null ? string.Empty : filePathTextBox.Text.Trim();
+                if (string.IsNullOrEmpty(selectedProtocol))
+                {
+                    MessageBox.Show(dialog, "Please select a protocol.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (string.IsNullOrEmpty(filePath))
+                {
+                    MessageBox.Show(dialog, "Please select a file.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (File.Exists(filePath) == false)
+                {
+                    MessageBox.Show(dialog, "Selected file does not exist.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                selection = new SignalImportSelection
+                {
+                    ProtocolName = selectedProtocol,
+                    FilePath = filePath
+                };
+                dialog.DialogResult = true;
+            };
+
+            Button cancelButton = new Button
+            {
+                Content = "Cancel",
+                Width = 96,
+                Height = 32,
+                IsCancel = true
+            };
+            cancelButton.Click += (sender, e) =>
+            {
+                dialog.DialogResult = false;
+            };
+
+            buttonBar.Children.Add(importButton);
+            buttonBar.Children.Add(cancelButton);
+            Grid.SetRow(buttonBar, 3);
+            Grid.SetColumnSpan(buttonBar, 3);
+            layoutRoot.Children.Add(buttonBar);
+
+            dialog.Content = layoutRoot;
+
+            bool? result = dialog.ShowDialog();
+            if (result == true && selection != null)
+            {
+                MessageBox.Show(
+                    this,
+                    string.Format(
+                        "已为 {0} 选择导入配置。{1}{1}协议: {2}{1}文件: {3}{1}{1}当前仅完成弹窗和选择流程，具体导入逻辑暂未实现。",
+                        signalName,
+                        Environment.NewLine,
+                        selection.ProtocolName,
+                        selection.FilePath),
+                    "Import Placeholder",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
         }
 
         private UIElement BuildSignalGeneratorDialogContent(SerialPortDataProducer producer, Func<bool, bool> validateClose)

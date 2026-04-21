@@ -85,24 +85,29 @@ namespace InteractiveExamples
             SetDecodeVisible(_isDecodeVisible == false);
         }
 
+        private void buttonTestFile_Click(object sender, RoutedEventArgs e)
+        {
+            ShowDataProducerDialog();
+        }
+
         private void buttonSignal1_Click(object sender, RoutedEventArgs e)
         {
-            ShowSignalGeneratorForSignal(0);
+            ShowSignalImportDialogForSignal(0);
         }
 
         private void buttonSignal2_Click(object sender, RoutedEventArgs e)
         {
-            ShowSignalGeneratorForSignal(1);
+            ShowSignalImportDialogForSignal(1);
         }
 
         private void buttonSignal3_Click(object sender, RoutedEventArgs e)
         {
-            ShowSignalGeneratorForSignal(2);
+            ShowSignalImportDialogForSignal(2);
         }
 
         private void buttonSignal4_Click(object sender, RoutedEventArgs e)
         {
-            ShowSignalGeneratorForSignal(3);
+            ShowSignalImportDialogForSignal(3);
         }
 
         private void Chart_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)

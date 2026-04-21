@@ -96,7 +96,7 @@ namespace LCWpf
             {
                 int previewByteCount = (int)Math.Min(GetGeneratedByteCount(), PreviewByteCount);
                 SerialPreviewState previewState = BuildPreviewState(
-                    GetPayloadSeedBytes(),
+                    GetPrimaryPayloadSeedBytes(),
                     previewByteCount,
                     GetEmptyDataRatio(),
                     GetDefaultByteValue(),
@@ -113,13 +113,23 @@ namespace LCWpf
 
         public bool TryBuildWaveform(out SerialWaveformBuildResult buildResult, out string errorMessage)
         {
+            byte[] generatedBytes = BuildPrimaryGeneratedPayloadBytes();
+            byte[] generatedBytes2 = BuildSecondaryGeneratedPayloadBytes(generatedBytes.Length);
+            byte[] protocolExportBytes = BuildProtocolExportBytes(
+                generatedBytes,
+                generatedBytes2,
+                GetSelectedProtocolType(),
+                GetClockValue(),
+                GetEnableValue(),
+                GetDefaultByteValue());
+
             buildResult = new SerialWaveformBuildResult
             {
-                WaveData = new byte[0],
+                WaveData = generatedBytes,
                 ClockWaveData = new byte[0],
-                ExportWaveData = new byte[0],
+                ExportWaveData = protocolExportBytes,
                 ProtocolType = GetSelectedProtocolType(),
-                SampleRate = 0,
+                SampleRate = GetSampleRate(),
                 BaudRate = GetBaudRate(),
                 DataBits = GetDataBits(),
                 StopBits = GetStopBits(),
@@ -127,9 +137,9 @@ namespace LCWpf
                 IdleBits = 0,
                 ClockValue = GetClockValue(),
                 EnableValue = GetEnableValue(),
-                InputText = string.Empty,
-                FrameCount = 0,
-                DurationSeconds = 0
+                InputText = PayloadSeedTextBox == null ? string.Empty : PayloadSeedTextBox.Text ?? string.Empty,
+                FrameCount = GetProtocolFrameCount(generatedBytes.Length, generatedBytes2.Length, GetSelectedProtocolType()),
+                DurationSeconds = GetDurationSeconds()
             };
             errorMessage = null;
             return true;
@@ -147,12 +157,7 @@ namespace LCWpf
             {
                 int emptyDataRatio = GetEmptyDataRatio();
                 byte defaultByteValue = GetDefaultByteValue();
-                byte[] generatedBytes = BuildGeneratedBytes(
-                    GetPayloadSeedBytes(),
-                    (int)GetGeneratedByteCount(),
-                    emptyDataRatio,
-                    defaultByteValue,
-                    _previewSeed);
+                byte[] generatedBytes = BuildPrimaryGeneratedPayloadBytes();
                 int defaultByteCount = CountByteOccurrences(generatedBytes, defaultByteValue);
 
                 SaveFileDialog saveDialog = new SaveFileDialog
@@ -185,6 +190,57 @@ namespace LCWpf
             catch (Exception ex)
             {
                 MessageBox.Show("Generation failed:\n" + ex.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void ExportProtocolDataButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                byte defaultByteValue = GetDefaultByteValue();
+                byte[] payloadBytes = BuildPrimaryGeneratedPayloadBytes();
+                byte[] payloadBytes2 = BuildSecondaryGeneratedPayloadBytes(payloadBytes.Length);
+                SerialProtocolType protocolType = GetSelectedProtocolType();
+                byte[] protocolBytes = BuildProtocolExportBytes(
+                    payloadBytes,
+                    payloadBytes2,
+                    protocolType,
+                    GetClockValue(),
+                    GetEnableValue(),
+                    defaultByteValue);
+                long frameCount = GetProtocolFrameCount(payloadBytes.Length, payloadBytes2.Length, protocolType);
+
+                SaveFileDialog saveDialog = new SaveFileDialog
+                {
+                    Filter = "BIN files (*.bin)|*.bin|All files (*.*)|*.*",
+                    DefaultExt = ".bin",
+                    FileName = BuildProtocolExportFileName(protocolType)
+                };
+
+                if (saveDialog.ShowDialog() != true)
+                {
+                    return;
+                }
+
+                File.WriteAllBytes(saveDialog.FileName, protocolBytes);
+                MessageBox.Show(
+                    string.Format(
+                        CultureInfo.InvariantCulture,
+                        "Protocol BIN file generated.{0}{0}Protocol: {1}{0}Path: {2}{0}Payload bytes: {3:N0}{0}Export bytes: {4:N0}{0}Frames: {5:N0}",
+                        Environment.NewLine,
+                        GetProtocolDisplayName(protocolType),
+                        saveDialog.FileName,
+                        payloadBytes.Length,
+                        protocolType == SerialProtocolType.FourWireSerial ? Math.Max(payloadBytes.Length, payloadBytes2.Length) : payloadBytes.Length,
+                        protocolBytes.Length,
+                        frameCount),
+                    "Success",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Protocol export failed:\n" + ex.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -368,6 +424,139 @@ namespace LCWpf
             return byteCount;
         }
 
+        private byte[] BuildPrimaryGeneratedPayloadBytes()
+        {
+            return BuildGeneratedBytes(
+                GetPrimaryPayloadSeedBytes(),
+                (int)GetGeneratedByteCount(),
+                GetEmptyDataRatio(),
+                GetDefaultByteValue(),
+                _previewSeed);
+        }
+
+        private byte[] BuildSecondaryGeneratedPayloadBytes(int byteCount)
+        {
+            if (GetSelectedProtocolType() != SerialProtocolType.FourWireSerial)
+            {
+                return new byte[0];
+            }
+
+            return BuildGeneratedBytes(
+                GetPrimaryPayloadSeedBytes(),
+                byteCount,
+                GetEmptyDataRatio(),
+                GetDefaultByteValue(),
+                _previewSeed ^ 0x5A5A5A5A);
+        }
+
+        private static byte[] BuildProtocolExportBytes(byte[] payloadBytes, byte[] payloadBytes2, SerialProtocolType protocolType, byte clockValue, byte enableValue, byte defaultByteValue)
+        {
+            if ((payloadBytes == null || payloadBytes.Length == 0)
+                && (payloadBytes2 == null || payloadBytes2.Length == 0))
+            {
+                return new byte[0];
+            }
+
+            switch (protocolType)
+            {
+                case SerialProtocolType.TwoWireSerial:
+                    return BuildTwoWireExportBytes(payloadBytes, clockValue);
+                case SerialProtocolType.ThreeWireSerial:
+                    return BuildThreeWireExportBytes(payloadBytes, clockValue, enableValue);
+                case SerialProtocolType.FourWireSerial:
+                    return BuildFourWireExportBytes(payloadBytes, payloadBytes2, clockValue, enableValue, defaultByteValue);
+                default:
+                    return (byte[])payloadBytes.Clone();
+            }
+        }
+
+        private static byte[] BuildTwoWireExportBytes(byte[] payloadBytes, byte clockValue)
+        {
+            byte[] exportBytes = new byte[payloadBytes.Length * 2];
+            int outputIndex = 0;
+            for (int i = 0; i < payloadBytes.Length; i++)
+            {
+                exportBytes[outputIndex++] = clockValue;
+                exportBytes[outputIndex++] = payloadBytes[i];
+            }
+
+            return exportBytes;
+        }
+
+        private static byte[] BuildThreeWireExportBytes(byte[] payloadBytes, byte clockValue, byte enableValue)
+        {
+            byte[] exportBytes = new byte[payloadBytes.Length * 3];
+            int outputIndex = 0;
+            for (int i = 0; i < payloadBytes.Length; i++)
+            {
+                exportBytes[outputIndex++] = clockValue;
+                exportBytes[outputIndex++] = enableValue;
+                exportBytes[outputIndex++] = payloadBytes[i];
+            }
+
+            return exportBytes;
+        }
+
+        private static byte[] BuildFourWireExportBytes(byte[] payloadBytes, byte[] payloadBytes2, byte clockValue, byte enableValue, byte defaultByteValue)
+        {
+            int payloadLength1 = payloadBytes == null ? 0 : payloadBytes.Length;
+            int payloadLength2 = payloadBytes2 == null ? 0 : payloadBytes2.Length;
+            int frameCount = Math.Max(payloadLength1, payloadLength2);
+            byte[] exportBytes = new byte[frameCount * 4];
+            int outputIndex = 0;
+
+            for (int i = 0; i < frameCount; i++)
+            {
+                exportBytes[outputIndex++] = clockValue;
+                exportBytes[outputIndex++] = enableValue;
+                exportBytes[outputIndex++] = i < payloadLength1 ? payloadBytes[i] : defaultByteValue;
+                exportBytes[outputIndex++] = i < payloadLength2 ? payloadBytes2[i] : defaultByteValue;
+            }
+
+            return exportBytes;
+        }
+
+        private static long GetProtocolFrameCount(int payloadByteCount, int payloadByteCount2, SerialProtocolType protocolType)
+        {
+            switch (protocolType)
+            {
+                case SerialProtocolType.FourWireSerial:
+                    return Math.Max(payloadByteCount, payloadByteCount2);
+                default:
+                    return payloadByteCount;
+            }
+        }
+
+        private static string GetProtocolDisplayName(SerialProtocolType protocolType)
+        {
+            switch (protocolType)
+            {
+                case SerialProtocolType.TwoWireSerial:
+                    return "2线串口";
+                case SerialProtocolType.ThreeWireSerial:
+                    return "3线串口";
+                case SerialProtocolType.FourWireSerial:
+                    return "4线串口";
+                default:
+                    return "串口";
+            }
+        }
+
+        private static string BuildProtocolExportFileName(SerialProtocolType protocolType)
+        {
+            switch (protocolType)
+            {
+                case SerialProtocolType.TwoWireSerial:
+                    return "two_wire_protocol_data.bin";
+                case SerialProtocolType.ThreeWireSerial:
+                    return "three_wire_protocol_data.bin";
+                case SerialProtocolType.FourWireSerial:
+                    return "four_wire_protocol_data.bin";
+                default:
+                    return "uart_protocol_data.bin";
+            }
+        }
+
         private SerialProtocolType GetSelectedProtocolType()
         {
             if (ProtocolTypeComboBox == null)
@@ -531,7 +720,7 @@ namespace LCWpf
             }
         }
 
-        private byte[] GetPayloadSeedBytes()
+        private byte[] GetPrimaryPayloadSeedBytes()
         {
             string text = PayloadSeedTextBox == null ? null : PayloadSeedTextBox.Text;
             string normalizedText = string.IsNullOrEmpty(text) ? DefaultPayloadSeedText : text;
