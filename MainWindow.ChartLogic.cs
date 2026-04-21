@@ -108,7 +108,7 @@ namespace InteractiveExamples
             if (targetAxis != null)
             {
                 ChartSignal targetSignal = TryGetSignalByAxis(targetAxis);
-                if (targetSignal != null && targetSignal.Kind != SignalValueKind.Analog)
+                if (targetSignal != null)
                 {
                     _measurementSignal = targetSignal;
                 }
@@ -139,7 +139,6 @@ namespace InteractiveExamples
         private ChartSignal FindPreferredMeasurementSignal()
         {
             if (_measurementSignal != null
-                && _measurementSignal.Kind != SignalValueKind.Analog
                 && _measurementSignal.AxisY != null
                 && _measurementSignal.AxisY.Visible)
             {
@@ -150,7 +149,6 @@ namespace InteractiveExamples
             {
                 ChartSignal signal = _chartSignals[i];
                 if (signal != null
-                    && signal.Kind != SignalValueKind.Analog
                     && signal.AxisY != null
                     && signal.AxisY.Visible)
                 {
@@ -200,7 +198,6 @@ namespace InteractiveExamples
 
             ChartSignal signal = FindPreferredMeasurementSignal();
             if (signal == null
-                || signal.Kind == SignalValueKind.Analog
                 || signal.AxisY == null
                 || signal.AxisY.Visible == false)
             {
@@ -831,18 +828,15 @@ namespace InteractiveExamples
                     continue;
                 }
 
-                if (signal.Kind != SignalValueKind.Analog)
+                double rowHeight = Math.Max(28.0, Math.Min(36.0, segmentHeight * 0.34));
+                rowHeight = Math.Min(rowHeight, Math.Max(4.0, segmentHeight - 2.0));
+                double rowTop = currentTop + Math.Max(1.0, Math.Min(4.0, (segmentHeight - rowHeight) / 2.0));
+                rows.Add(new DecodeRowLayout
                 {
-                    double rowHeight = Math.Max(28.0, Math.Min(36.0, segmentHeight * 0.34));
-                    rowHeight = Math.Min(rowHeight, Math.Max(4.0, segmentHeight - 2.0));
-                    double rowTop = currentTop + Math.Max(1.0, Math.Min(4.0, (segmentHeight - rowHeight) / 2.0));
-                    rows.Add(new DecodeRowLayout
-                    {
-                        Signal = signal,
-                        Top = rowTop + DecodeVerticalOffset,
-                        Height = rowHeight
-                    });
-                }
+                    Signal = signal,
+                    Top = rowTop + DecodeVerticalOffset,
+                    Height = rowHeight
+                });
 
                 currentTop += segmentHeight + segmentsGap;
             }
@@ -1023,7 +1017,7 @@ namespace InteractiveExamples
 
         private List<ProtocolSegment> BuildProtocolSegments(ChartSignal signal, double visibleMin, double visibleMax)
         {
-            if (signal == null || signal.Kind == SignalValueKind.Analog || visibleMax <= visibleMin)
+            if (signal == null || visibleMax <= visibleMin)
             {
                 return new List<ProtocolSegment>();
             }
@@ -1285,19 +1279,7 @@ namespace InteractiveExamples
 
         private ChartSignal CreateChartSignal(ViewXY view, int seriesIndex)
         {
-            SignalValueKind kind = SignalValueKind.Analog;
-            //if (seriesIndex == 0)
-            //{
-                kind = SignalValueKind.StepDigital;
-            //}
-
-            //if (seriesIndex == 1)
-            //{
-            //    kind = SignalValueKind.Digital;
-            //}
-
-
-            ChartSignal signal = new ChartSignal(string.Format("Signal {0}", seriesIndex + 1), kind, YMin, YMax);
+            ChartSignal signal = new ChartSignal(string.Format("Signal {0}", seriesIndex + 1));
             signal.DecodeSettings.BaudRate = 19200;
             signal.DecodeSettings.DataBits = 8;
             signal.DecodeSettings.StopBits = 1;
@@ -1306,14 +1288,7 @@ namespace InteractiveExamples
             Color lineBaseColor = DefaultColors.SeriesForBlackBackgroundWpf[seriesIndex % DefaultColors.SeriesForBlackBackgroundWpf.Length];
 
             AxisY axisY = new AxisY(view);
-            //if (kind == SignalValueKind.Analog)
-            //{
-            //    axisY.SetRange(YMin, YMax);
-            //}
-            //else
-            //{
-                axisY.SetRange(YMin, YMax);
-            //}
+            axisY.SetRange(YMin, YMax);
 
             axisY.Title.Text = signal.Name;
             axisY.Title.Angle = 90;
