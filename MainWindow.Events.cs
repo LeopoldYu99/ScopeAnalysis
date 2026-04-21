@@ -87,29 +87,7 @@ namespace InteractiveExamples
             ShowSignalImportDialogForSignal(3);
         }
 
-        private void Chart_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            if (_chart == null)
-            {
-                return;
-            }
 
-            Point position = e.GetPosition(_chart);
-            if (IsPointInsidePlotArea(position) == false)
-            {
-                return;
-            }
-
-            _isCursorHovering = true;
-            if (_isCursorEnabled)
-            {
-                _isCursorDragging = true;
-                _chart.CaptureMouse();
-                e.Handled = true;
-            }
-
-            SetCursorFromControlPosition(position.X, position.Y);
-        }
 
         private void Chart_PreviewMouseMove(object sender, MouseEventArgs e)
         {
@@ -138,33 +116,6 @@ namespace InteractiveExamples
             }
         }
 
-        private void Chart_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
-        {
-            if (_chart == null || _isCursorDragging == false)
-            {
-                return;
-            }
-
-            _isCursorDragging = false;
-            if (_chart.IsMouseCaptured)
-            {
-                _chart.ReleaseMouseCapture();
-            }
-
-            e.Handled = true;
-        }
-
-        private void Chart_LostMouseCapture(object sender, MouseEventArgs e)
-        {
-            _isCursorDragging = false;
-        }
-
-        private void Chart_MouseLeave(object sender, MouseEventArgs e)
-        {
-            _isCursorHovering = false;
-            _isCursorDragging = false;
-            _cursorMeasurementSignal = null;
-            UpdateCursorVisual();
-        }
+    
     }
 }

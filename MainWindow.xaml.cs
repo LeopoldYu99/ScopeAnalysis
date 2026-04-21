@@ -129,11 +129,7 @@ namespace InteractiveExamples
 
             _chart.EndUpdate();
             _chart.PreviewMouseWheel += Chart_PreviewMouseWheel;
-            _chart.PreviewMouseLeftButtonDown += Chart_PreviewMouseLeftButtonDown;
             _chart.PreviewMouseMove += Chart_PreviewMouseMove;
-            _chart.PreviewMouseLeftButtonUp += Chart_PreviewMouseLeftButtonUp;
-            _chart.MouseLeave += Chart_MouseLeave;
-            _chart.LostMouseCapture += Chart_LostMouseCapture;
 
             _cursorOverlay = new Canvas
             {
