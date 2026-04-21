@@ -13,12 +13,15 @@ namespace LCWpf
         public byte[] WaveData { get; set; }
         public byte[] ClockWaveData { get; set; }
         public byte[] ExportWaveData { get; set; }
+        public SerialProtocolType ProtocolType { get; set; }
         public uint SampleRate { get; set; }
         public int BaudRate { get; set; }
         public int DataBits { get; set; }
         public double StopBits { get; set; }
         public ParityMode Parity { get; set; }
         public int IdleBits { get; set; }
+        public byte ClockValue { get; set; }
+        public byte EnableValue { get; set; }
         public string InputText { get; set; }
         public long FrameCount { get; set; }
         public double DurationSeconds { get; set; }
@@ -42,11 +45,27 @@ namespace LCWpf
             InitializeComponent();
             _previewSeed = Environment.TickCount;
             SampleRateTextBox.Text = FixedSampleRate.ToString(CultureInfo.InvariantCulture);
+            BaudRateComboBox.Text = "115200";
+            SelectComboBoxItemByText(ParityComboBox, "None");
+            SelectComboBoxItemByText(DataBitsComboBox, "8");
+            SelectComboBoxItemByText(StopBitsComboBox, "1");
             SampleRateTextBox.TextChanged += HandleSettingsChanged;
             DurationSecondsTextBox.TextChanged += HandleSettingsChanged;
             PayloadSeedTextBox.TextChanged += HandleSettingsChanged;
             EmptyDataRatioTextBox.TextChanged += HandleSettingsChanged;
             DefaultByteValueTextBox.TextChanged += HandleSettingsChanged;
+            ProtocolTypeComboBox.SelectionChanged += ProtocolTypeComboBox_SelectionChanged;
+            BaudRateComboBox.SelectionChanged += HandleSettingsChanged;
+            BaudRateComboBox.AddHandler(TextBox.TextChangedEvent, new TextChangedEventHandler(HandleSettingsChanged));
+            ParityComboBox.SelectionChanged += HandleSettingsChanged;
+            DataBitsComboBox.SelectionChanged += HandleSettingsChanged;
+            StopBitsComboBox.SelectionChanged += HandleSettingsChanged;
+            TwoWireClkTextBox.TextChanged += HandleSettingsChanged;
+            ThreeWireClkTextBox.TextChanged += HandleSettingsChanged;
+            ThreeWireEnTextBox.TextChanged += HandleSettingsChanged;
+            FourWireClkTextBox.TextChanged += HandleSettingsChanged;
+            FourWireEnTextBox.TextChanged += HandleSettingsChanged;
+            ApplyProtocolVisibility(GetSelectedProtocolType());
             UpdatePreview(null, EventArgs.Empty);
         }
 
@@ -62,6 +81,17 @@ namespace LCWpf
 
         private void UpdatePreview(object sender, EventArgs e)
         {
+            if (SampleRateTextBox == null
+                || DurationSecondsTextBox == null
+                || PayloadSeedTextBox == null
+                || EmptyDataRatioTextBox == null
+                || DefaultByteValueTextBox == null
+                || GeneratedDataPreviewTextBox == null
+                || HexPreviewTextBox == null)
+            {
+                return;
+            }
+
             try
             {
                 int previewByteCount = (int)Math.Min(GetGeneratedByteCount(), PreviewByteCount);
@@ -88,18 +118,27 @@ namespace LCWpf
                 WaveData = new byte[0],
                 ClockWaveData = new byte[0],
                 ExportWaveData = new byte[0],
+                ProtocolType = GetSelectedProtocolType(),
                 SampleRate = 0,
-                BaudRate = 0,
-                DataBits = 0,
-                StopBits = 0,
-                Parity = ParityMode.None,
+                BaudRate = GetBaudRate(),
+                DataBits = GetDataBits(),
+                StopBits = GetStopBits(),
+                Parity = GetParityMode(),
                 IdleBits = 0,
+                ClockValue = GetClockValue(),
+                EnableValue = GetEnableValue(),
                 InputText = string.Empty,
                 FrameCount = 0,
                 DurationSeconds = 0
             };
             errorMessage = null;
             return true;
+        }
+
+        private void ProtocolTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            ApplyProtocolVisibility(GetSelectedProtocolType());
+            HandleSettingsChanged(sender, e);
         }
 
         private void ExportTestDataButton_Click(object sender, RoutedEventArgs e)
@@ -329,6 +368,39 @@ namespace LCWpf
             return byteCount;
         }
 
+        private SerialProtocolType GetSelectedProtocolType()
+        {
+            if (ProtocolTypeComboBox == null)
+            {
+                return SerialProtocolType.Uart;
+            }
+
+            switch (ProtocolTypeComboBox.SelectedIndex)
+            {
+                case 1:
+                    return SerialProtocolType.TwoWireSerial;
+                case 2:
+                    return SerialProtocolType.ThreeWireSerial;
+                case 3:
+                    return SerialProtocolType.FourWireSerial;
+                default:
+                    return SerialProtocolType.Uart;
+            }
+        }
+
+        private void ApplyProtocolVisibility(SerialProtocolType protocolType)
+        {
+            if (UartConfigPanel == null)
+            {
+                return;
+            }
+
+            UartConfigPanel.Visibility = protocolType == SerialProtocolType.Uart ? Visibility.Visible : Visibility.Collapsed;
+            TwoWireConfigPanel.Visibility = protocolType == SerialProtocolType.TwoWireSerial ? Visibility.Visible : Visibility.Collapsed;
+            ThreeWireConfigPanel.Visibility = protocolType == SerialProtocolType.ThreeWireSerial ? Visibility.Visible : Visibility.Collapsed;
+            FourWireConfigPanel.Visibility = protocolType == SerialProtocolType.FourWireSerial ? Visibility.Visible : Visibility.Collapsed;
+        }
+
         private uint GetSampleRate()
         {
             uint value;
@@ -338,6 +410,46 @@ namespace LCWpf
             }
 
             return FixedSampleRate;
+        }
+
+        private int GetBaudRate()
+        {
+            string text = BaudRateComboBox == null ? null : BaudRateComboBox.Text;
+            int value;
+            if (int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out value) && value > 0)
+            {
+                return value;
+            }
+
+            return 115200;
+        }
+
+        private int GetDataBits()
+        {
+            return GetSelectedInteger(DataBitsComboBox, 8);
+        }
+
+        private double GetStopBits()
+        {
+            return GetSelectedDouble(StopBitsComboBox, 1);
+        }
+
+        private ParityMode GetParityMode()
+        {
+            string text = GetComboBoxText(ParityComboBox);
+            switch (text)
+            {
+                case "Odd":
+                    return ParityMode.Odd;
+                case "Even":
+                    return ParityMode.Even;
+                case "Mark":
+                    return ParityMode.Mark;
+                case "Space":
+                    return ParityMode.Space;
+                default:
+                    return ParityMode.None;
+            }
         }
 
         private double GetDurationSeconds()
@@ -391,6 +503,34 @@ namespace LCWpf
             throw new InvalidOperationException("Default value must be a hex byte like 00 or FF.");
         }
 
+        private byte GetClockValue()
+        {
+            switch (GetSelectedProtocolType())
+            {
+                case SerialProtocolType.TwoWireSerial:
+                    return ParseHexByte(TwoWireClkTextBox == null ? null : TwoWireClkTextBox.Text, "CLK");
+                case SerialProtocolType.ThreeWireSerial:
+                    return ParseHexByte(ThreeWireClkTextBox == null ? null : ThreeWireClkTextBox.Text, "CLK");
+                case SerialProtocolType.FourWireSerial:
+                    return ParseHexByte(FourWireClkTextBox == null ? null : FourWireClkTextBox.Text, "CLK");
+                default:
+                    return 0x00;
+            }
+        }
+
+        private byte GetEnableValue()
+        {
+            switch (GetSelectedProtocolType())
+            {
+                case SerialProtocolType.ThreeWireSerial:
+                    return ParseHexByte(ThreeWireEnTextBox == null ? null : ThreeWireEnTextBox.Text, "EN");
+                case SerialProtocolType.FourWireSerial:
+                    return ParseHexByte(FourWireEnTextBox == null ? null : FourWireEnTextBox.Text, "EN");
+                default:
+                    return 0x00;
+            }
+        }
+
         private byte[] GetPayloadSeedBytes()
         {
             string text = PayloadSeedTextBox == null ? null : PayloadSeedTextBox.Text;
@@ -398,6 +538,96 @@ namespace LCWpf
             byte[] bytes = Encoding.ASCII.GetBytes(normalizedText);
             return bytes.Length == 0 ? Encoding.ASCII.GetBytes(DefaultPayloadSeedText) : bytes;
         }
+
+        private static string GetComboBoxText(ComboBox comboBox)
+        {
+            if (comboBox == null)
+            {
+                return string.Empty;
+            }
+
+            ComboBoxItem selectedItem = comboBox.SelectedItem as ComboBoxItem;
+            if (selectedItem != null)
+            {
+                return Convert.ToString(selectedItem.Content, CultureInfo.InvariantCulture);
+            }
+
+            return comboBox.Text ?? string.Empty;
+        }
+
+        private static int GetSelectedInteger(ComboBox comboBox, int fallbackValue)
+        {
+            int value;
+            if (int.TryParse(GetComboBoxText(comboBox), NumberStyles.Integer, CultureInfo.InvariantCulture, out value) && value > 0)
+            {
+                return value;
+            }
+
+            return fallbackValue;
+        }
+
+        private static double GetSelectedDouble(ComboBox comboBox, double fallbackValue)
+        {
+            double value;
+            string text = GetComboBoxText(comboBox);
+            if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value) && value > 0)
+            {
+                return value;
+            }
+
+            return fallbackValue;
+        }
+
+        private static void SelectComboBoxItemByText(ComboBox comboBox, string expectedText)
+        {
+            if (comboBox == null || string.IsNullOrEmpty(expectedText))
+            {
+                return;
+            }
+
+            for (int i = 0; i < comboBox.Items.Count; i++)
+            {
+                ComboBoxItem item = comboBox.Items[i] as ComboBoxItem;
+                if (item == null)
+                {
+                    continue;
+                }
+
+                string itemText = Convert.ToString(item.Content, CultureInfo.InvariantCulture);
+                if (string.Equals(itemText, expectedText, StringComparison.OrdinalIgnoreCase))
+                {
+                    comboBox.SelectedIndex = i;
+                    return;
+                }
+            }
+
+            comboBox.Text = expectedText;
+        }
+
+        private static byte ParseHexByte(string text, string fieldName)
+        {
+            string normalizedText = string.IsNullOrWhiteSpace(text) ? "00" : text.Trim();
+            if (normalizedText.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+            {
+                normalizedText = normalizedText.Substring(2);
+            }
+
+            byte value;
+            if (byte.TryParse(normalizedText, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out value))
+            {
+                return value;
+            }
+
+            throw new InvalidOperationException(fieldName + " must be a hex byte like 00 or FF.");
+        }
+    }
+
+    public enum SerialProtocolType
+    {
+        Uart,
+        TwoWireSerial,
+        ThreeWireSerial,
+        FourWireSerial
     }
 
     public enum ParityMode

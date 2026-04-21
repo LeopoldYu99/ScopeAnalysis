@@ -12,7 +12,206 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
+
+            <GroupBox Grid.Row="2" Header="&#21327;&#35758;&#37197;&#32622;" Margin="0,0,0,10" Padding="10">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="220"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="220"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Row="0"
+                               Grid.Column="0"
+                               Text="&#21327;&#35758;&#31867;&#22411;:"
+                               VerticalAlignment="Center"
+                               Margin="0,0,10,0"/>
+                    <ComboBox Grid.Row="0"
+                              Grid.Column="1"
+                              x:Name="ProtocolTypeComboBox"
+                              SelectedIndex="0">
+                        <ComboBoxItem Content="&#20018;&#21475;"/>
+                        <ComboBoxItem Content="2&#32447;&#20018;&#21475;"/>
+                        <ComboBoxItem Content="3&#32447;&#20018;&#21475;"/>
+                        <ComboBoxItem Content="4&#32447;&#20018;&#21475;"/>
+                    </ComboBox>
+
+                    <TextBlock Grid.Row="1"
+                               Grid.ColumnSpan="5"
+                               Text="&#20808;&#23436;&#25104;&#21327;&#35758;&#37197;&#32622; UI&#65292;&#21518;&#32493;&#20877;&#25509;&#20837;&#30495;&#23454;&#30340;&#29983;&#25104;&#36923;&#36753;&#12290;"
+                               Margin="0,10,0,0"/>
+
+                    <Grid Grid.Row="2"
+                          Grid.ColumnSpan="5"
+                          Margin="0,12,0,0">
+                        <Grid.Resources>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="VerticalAlignment" Value="Center"/>
+                            </Style>
+                        </Grid.Resources>
+
+                        <StackPanel x:Name="UartConfigPanel">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="220"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="220"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Row="0"
+                                           Grid.Column="0"
+                                           Text="&#27874;&#29305;&#29575;:"
+                                           Margin="0,0,10,0"/>
+                                <ComboBox Grid.Row="0"
+                                          Grid.Column="1"
+                                          x:Name="BaudRateComboBox"
+                                          IsEditable="True"
+                                          Text="115200">
+                                    <ComboBoxItem Content="9600"/>
+                                    <ComboBoxItem Content="19200"/>
+                                    <ComboBoxItem Content="38400"/>
+                                    <ComboBoxItem Content="57600"/>
+                                    <ComboBoxItem Content="115200"/>
+                                    <ComboBoxItem Content="230400"/>
+                                    <ComboBoxItem Content="460800"/>
+                                    <ComboBoxItem Content="921600"/>
+                                </ComboBox>
+
+                                <TextBlock Grid.Row="0"
+                                           Grid.Column="2"
+                                           Text="&#26657;&#39564;&#20301;:"
+                                           Margin="12,0,10,0"/>
+                                <ComboBox Grid.Row="0"
+                                          Grid.Column="3"
+                                          x:Name="ParityComboBox"
+                                          SelectedIndex="0">
+                                    <ComboBoxItem Content="None"/>
+                                    <ComboBoxItem Content="Odd"/>
+                                    <ComboBoxItem Content="Even"/>
+                                    <ComboBoxItem Content="Mark"/>
+                                    <ComboBoxItem Content="Space"/>
+                                </ComboBox>
+
+                                <TextBlock Grid.Row="1"
+                                           Grid.Column="0"
+                                           Text="&#25968;&#25454;&#20301;:"
+                                           Margin="0,10,10,0"/>
+                                <ComboBox Grid.Row="1"
+                                          Grid.Column="1"
+                                          x:Name="DataBitsComboBox"
+                                          Margin="0,10,0,0"
+                                          SelectedIndex="3">
+                                    <ComboBoxItem Content="5"/>
+                                    <ComboBoxItem Content="6"/>
+                                    <ComboBoxItem Content="7"/>
+                                    <ComboBoxItem Content="8"/>
+                                    <ComboBoxItem Content="9"/>
+                                </ComboBox>
+
+                                <TextBlock Grid.Row="1"
+                                           Grid.Column="2"
+                                           Text="&#20572;&#27490;&#20301;:"
+                                           Margin="12,10,10,0"/>
+                                <ComboBox Grid.Row="1"
+                                          Grid.Column="3"
+                                          x:Name="StopBitsComboBox"
+                                          Margin="0,10,0,0"
+                                          SelectedIndex="0">
+                                    <ComboBoxItem Content="1"/>
+                                    <ComboBoxItem Content="1.5"/>
+                                    <ComboBoxItem Content="2"/>
+                                </ComboBox>
+                            </Grid>
+                        </StackPanel>
+
+                        <StackPanel x:Name="TwoWireConfigPanel" Visibility="Collapsed">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="220"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0"
+                                           Text="CLK:"
+                                           Margin="0,0,10,0"/>
+                                <TextBox Grid.Column="1"
+                                         x:Name="TwoWireClkTextBox"
+                                         Text="00"/>
+                                <TextBlock Grid.Column="2"
+                                           Text="&#25903;&#25345;&#37197;&#32622; CLK &#23383;&#33410;&#20540;&#65292;&#21518;&#32493;&#29992;&#20110;&#25353; 2 &#32447;&#26684;&#24335;&#32452;&#35013;&#25968;&#25454;&#12290;"
+                                           Margin="12,0,0,0"
+                                           TextWrapping="Wrap"/>
+                            </Grid>
+                        </StackPanel>
+
+                        <StackPanel x:Name="ThreeWireConfigPanel" Visibility="Collapsed">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="220"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="220"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0"
+                                           Text="CLK:"
+                                           Margin="0,0,10,0"/>
+                                <TextBox Grid.Column="1"
+                                         x:Name="ThreeWireClkTextBox"
+                                         Text="00"/>
+                                <TextBlock Grid.Column="2"
+                                           Text="EN:"
+                                           Margin="12,0,10,0"/>
+                                <TextBox Grid.Column="3"
+                                         x:Name="ThreeWireEnTextBox"
+                                         Text="00"/>
+                            </Grid>
+                        </StackPanel>
+
+                        <StackPanel x:Name="FourWireConfigPanel" Visibility="Collapsed">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="220"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="220"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0"
+                                           Text="CLK:"
+                                           Margin="0,0,10,0"/>
+                                <TextBox Grid.Column="1"
+                                         x:Name="FourWireClkTextBox"
+                                         Text="00"/>
+                                <TextBlock Grid.Column="2"
+                                           Text="EN:"
+                                           Margin="12,0,10,0"/>
+                                <TextBox Grid.Column="3"
+                                         x:Name="FourWireEnTextBox"
+                                         Text="00"/>
+                            </Grid>
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </GroupBox>
 
             <GroupBox Grid.Row="0" Header="&#21457;&#36865;&#25968;&#25454;" Margin="0,0,0,10" Padding="10">
                 <Grid>
