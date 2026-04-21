@@ -28,8 +28,12 @@ namespace InteractiveExamples
 
         private int _seriesCount = 4;
 
-        private const double YMin = 0;
+        private const double YMin = -0.2;
         private const double YMax = 1.2;
+        private const double FixedSignalPlotHeight = 100.0;
+        private const int SignalSegmentGap = 40;
+        private const double ChartTopMargin = 47.0;
+        private const double ChartBottomMargin = 34.0;
 
         private bool _isMeasurementHovering;
         private double _measurementHoverXValue;
@@ -88,11 +92,11 @@ namespace InteractiveExamples
             view.DropOldSeriesData = false;
 
             view.AxisLayout.YAxesLayout = YAxesLayout.Stacked;
-            view.AxisLayout.SegmentsGap = 40;
+            view.AxisLayout.SegmentsGap = SignalSegmentGap;
             view.AxisLayout.YAxisAutoPlacement = YAxisAutoPlacement.AllLeft;
             view.AxisLayout.YAxisTitleAutoPlacement = true;
             view.AxisLayout.AutoAdjustMargins = false;
-            view.Margins = new Thickness(70, 47, 20, 34);
+            view.Margins = new Thickness(70, ChartTopMargin, 20, ChartBottomMargin);
 
             Band sweepBandDark = new Band(view, view.XAxes[0], view.YAxes[0])
             {
@@ -213,6 +217,19 @@ namespace InteractiveExamples
                 buttonImport.Content = "Import";
                 buttonImport.Visibility = Visibility.Visible;
             }
+        }
+
+        private void UpdateChartHostHeight()
+        {
+            if (gridMain == null)
+            {
+                return;
+            }
+
+            int signalCount = Math.Max(1, _seriesCount);
+            double plotHeight = signalCount * FixedSignalPlotHeight;
+            double gapHeight = Math.Max(0, signalCount - 1) * SignalSegmentGap;
+            gridMain.Height = ChartTopMargin + plotHeight + gapHeight + ChartBottomMargin;
         }
     }
 }

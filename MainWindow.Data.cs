@@ -48,6 +48,7 @@ namespace InteractiveExamples
                 _chartSignals.Add(CreateChartSignal(view, seriesIndex));
             }
 
+            UpdateChartHostHeight();
             UpdateImportButtons();
             ConfigureChartDataSourceBehavior(view, true);
             view.XAxes[0].SetRange(0, 100);

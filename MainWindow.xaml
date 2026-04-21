@@ -88,32 +88,34 @@
             </StackPanel>
         </Border>
 
-        <Grid Grid.Row="1" Name="gridMain" >
-            <Grid.Background>
-                <SolidColorBrush>Black</SolidColorBrush>
-            </Grid.Background>
-            <!--<Grid.ColumnDefinitions>
-                <ColumnDefinition Width="200"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>-->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <Grid Name="gridMain" VerticalAlignment="Top">
+                <Grid.Background>
+                    <SolidColorBrush>Black</SolidColorBrush>
+                </Grid.Background>
+                <!--<Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="200"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>-->
 
-            <StackPanel Grid.Column="0" x:Name="stackPanel1" Visibility="Collapsed">
+                <StackPanel Grid.Column="0" x:Name="stackPanel1" Visibility="Collapsed">
 
-            <Label x:Name="labeli" Content="Select preset" Foreground="White" FontSize="16" FontWeight="Bold"/>
+                <Label x:Name="labeli" Content="Select preset" Foreground="White" FontSize="16" FontWeight="Bold"/>
 
 
 
-            <Grid Height="8">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="25*"/>
-                    <ColumnDefinition Width="131*"/>
-                    <ColumnDefinition Width="33*"/>
-                </Grid.ColumnDefinitions>
+                <Grid Height="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="25*"/>
+                        <ColumnDefinition Width="131*"/>
+                        <ColumnDefinition Width="33*"/>
+                    </Grid.ColumnDefinitions>
+                </Grid>
+
+
+
+                </StackPanel>
             </Grid>
-
-
-
-            </StackPanel>
-        </Grid>
+        </ScrollViewer>
     </Grid>
 </Window>
