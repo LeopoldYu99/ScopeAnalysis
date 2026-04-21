@@ -1,9 +1,5 @@
-using Arction.Wpf.Charting;
-using Arction.Wpf.Charting.Axes;
 using System;
-using System.Linq;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Input;
 
 namespace InteractiveExamples
@@ -17,7 +13,6 @@ namespace InteractiveExamples
                 return;
             }
 
-            ConsumePendingSignalData();
             RefreshOverlayDirtyStateFromViewport();
 
             if (_isDecodeOverlayDirty)
@@ -42,23 +37,6 @@ namespace InteractiveExamples
             Thickness margins = _chart.ViewXY.Margins;
             double zoomFactor = e.Delta > 0 ? 0.8 : 1.25;
 
-            //if (position.X <= margins.Left)
-            //{
-            //    AxisY targetYAxis = TryGetYAxisAt(position.Y);
-            //    if (targetYAxis != null)
-            //    {
-            //        double anchorY;
-            //        if (targetYAxis.CoordToValue((float)position.Y, out anchorY, true) == false)
-            //        {
-            //            anchorY = (targetYAxis.Minimum + targetYAxis.Maximum) / 2.0;
-            //        }
-
-            //        ZoomY(targetYAxis, zoomFactor, anchorY);
-            //        e.Handled = true;
-            //        return;
-            //    }
-            //}
-
             bool isOverPlotArea = IsPointInsidePlotArea(position);
             bool isOverXAxisArea = position.Y >= _chart.ActualHeight - margins.Bottom;
             if (isOverPlotArea || isOverXAxisArea)
@@ -68,7 +46,6 @@ namespace InteractiveExamples
                 e.Handled = true;
             }
         }
-
 
         private void buttonCursor_Click(object sender, RoutedEventArgs e)
         {
@@ -85,29 +62,29 @@ namespace InteractiveExamples
             SetDecodeVisible(_isDecodeVisible == false);
         }
 
-        private void buttonTestFile_Click(object sender, RoutedEventArgs e)
+        private void buttonGenerateBin_Click(object sender, RoutedEventArgs e)
         {
             ShowDataProducerDialog();
         }
 
         private void buttonSignal1_Click(object sender, RoutedEventArgs e)
         {
-            ShowSignalImportDialogForSignalV2(0);
+            ShowSignalImportDialogForSignal(0);
         }
 
         private void buttonSignal2_Click(object sender, RoutedEventArgs e)
         {
-            ShowSignalImportDialogForSignalV2(1);
+            ShowSignalImportDialogForSignal(1);
         }
 
         private void buttonSignal3_Click(object sender, RoutedEventArgs e)
         {
-            ShowSignalImportDialogForSignalV2(2);
+            ShowSignalImportDialogForSignal(2);
         }
 
         private void buttonSignal4_Click(object sender, RoutedEventArgs e)
         {
-            ShowSignalImportDialogForSignalV2(3);
+            ShowSignalImportDialogForSignal(3);
         }
 
         private void Chart_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -189,9 +166,5 @@ namespace InteractiveExamples
             _cursorMeasurementSignal = null;
             UpdateCursorVisual();
         }
-
-
-
-
     }
 }

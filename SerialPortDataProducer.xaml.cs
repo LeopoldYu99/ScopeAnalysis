@@ -4,6 +4,7 @@ using System.IO;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using InteractiveExamples;
 using Microsoft.Win32;
 
 namespace LCWpf
@@ -809,14 +810,6 @@ namespace LCWpf
 
             throw new InvalidOperationException(fieldName + " must be a hex byte like 00 or FF.");
         }
-    }
-
-    public enum SerialProtocolType
-    {
-        Uart,
-        TwoWireSerial,
-        ThreeWireSerial,
-        FourWireSerial
     }
 
     public enum ParityMode

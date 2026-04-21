@@ -4,7 +4,6 @@ using Arction.Wpf.Charting.SeriesXY;
 using Arction.Wpf.Charting.Views.ViewXY;
 using System;
 using System.Collections.Generic;
-using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -27,23 +26,14 @@ namespace InteractiveExamples
         private readonly List<TextBlock> _cursorAxisValueTexts = new List<TextBlock>();
         private readonly Dictionary<ChartSignal, DecodeCacheEntry> _decodeCache = new Dictionary<ChartSignal, DecodeCacheEntry>();
 
-        private Timer _producerTimer;
-        private readonly SignalProducer _signalProducer = new SignalProducer();
-        private const bool UseBinaryFileDataSource = true;
-        private const string BinaryWaveFilePath = @"C:\Users\admin-250327\Desktop\net9.0-windows\serial_wave.bin";
-
         private readonly List<ChartSignal> _chartSignals = new List<ChartSignal>();
         private double _lastConsumedX;
-        private bool _isStreaming;
 
         private int _seriesCount = 4;
-        private int _appendCountPerRound = DefaultAppendCountPerRound;
-        private double _xLen = 200;
 
         private const double YMin = 0;
         private const double YMax = 1.2;
 
-        private bool _hasConsumedData;
         private bool _isCursorEnabled;
         private bool _isCursorHovering;
         private bool _isCursorDragging;
@@ -60,27 +50,15 @@ namespace InteractiveExamples
         private double _lastViewportHeight = double.NaN;
 
         private const float LineWidth = 1f;
-        private const int ProducerIntervalMs = 50;
-        private const int DefaultAppendCountPerRound = 10;
         private const double MicrosecondsPerSecond = 1000000.0;
-        private const double ImportedSampleRate = 1000000.0;
 
         public Example8BillionPoints()
         {
             InitializeComponent();
-            _producerTimer = new Timer(ProducerTimerCallback, null, Timeout.Infinite, Timeout.Infinite);
             UpdateCursorButton();
             UpdatePointsButton();
             UpdateDecodeButton();
             CreateChart();
-        }
-
-        private double CurrentSampleIntervalSeconds
-        {
-            get
-            {
-                return ProducerIntervalMs / 1000.0 / Math.Max(1, _appendCountPerRound);
-            }
         }
 
         private void CreateChart()
@@ -97,24 +75,24 @@ namespace InteractiveExamples
             _chart.Title.Color = Color.FromArgb(255, 255, 204, 0);
             _chart.Title.Align = ChartTitleAlignment.TopCenter;
 
-            var view = _chart.ViewXY;
+            ViewXY view = _chart.ViewXY;
 
-            view.XAxes[0].ScrollMode = XAxisScrollMode.Scrolling;
+            view.XAxes[0].ScrollMode = XAxisScrollMode.None;
             view.XAxes[0].SweepingGap = 0;
             view.XAxes[0].ValueType = AxisValueType.Number;
             view.XAxes[0].AutoFormatLabels = false;
-            view.XAxes[0].LabelsNumberFormat = UseBinaryFileDataSource ? "0" : "0.000";
+            view.XAxes[0].LabelsNumberFormat = "0";
             view.XAxes[0].Title.Text = "";
             view.XAxes[0].AllowScrolling = true;
-            view.XAxes[0].SetRange(0, 100000);
+            view.XAxes[0].SetRange(0, 100);
             view.XAxes[0].MajorGrid.Pattern = LinePattern.Solid;
-            view.XAxes[0].Units.Text = UseBinaryFileDataSource ? "us" : "s";
+            view.XAxes[0].Units.Text = "us";
             view.ZoomPanOptions.DevicePrimaryButtonAction = UserInteractiveDeviceButtonAction.Pan;
             view.ZoomPanOptions.PanDirection = PanDirection.Horizontal;
             view.ZoomPanOptions.WheelZooming = WheelZooming.Off;
             view.ZoomPanOptions.AxisWheelAction = AxisWheelAction.None;
 
-            view.DropOldSeriesData = true;
+            view.DropOldSeriesData = false;
 
             view.AxisLayout.YAxesLayout = YAxesLayout.Stacked;
             view.AxisLayout.SegmentsGap = 40;
@@ -123,7 +101,7 @@ namespace InteractiveExamples
             view.AxisLayout.AutoAdjustMargins = false;
             view.Margins = new Thickness(70, 47, 20, 34);
 
-            var sweepBandDark = new Band(view, view.XAxes[0], view.YAxes[0])
+            Band sweepBandDark = new Band(view, view.XAxes[0], view.YAxes[0])
             {
                 BorderWidth = 0
             };
@@ -135,7 +113,7 @@ namespace InteractiveExamples
             sweepBandDark.AllowUserInteraction = false;
             view.Bands.Add(sweepBandDark);
 
-            var sweepBandBright = new Band(view, view.XAxes[0], view.YAxes[0])
+            Band sweepBandBright = new Band(view, view.XAxes[0], view.YAxes[0])
             {
                 BorderWidth = 0
             };

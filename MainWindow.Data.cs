@@ -1,16 +1,15 @@
-using Arction.Wpf.Charting.Views.ViewXY;
+using Arction.Wpf.Charting;
 using Arction.Wpf.Charting.SeriesXY;
+using Arction.Wpf.Charting.Views.ViewXY;
+using LCWpf;
+using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using Arction.Wpf.Charting;
-using LCWpf;
-using Microsoft.Win32;
 
 namespace InteractiveExamples
 {
@@ -28,19 +27,12 @@ namespace InteractiveExamples
         {
             Stop();
 
-            _hasConsumedData = false;
             _lastConsumedX = 0;
             _isCursorHovering = false;
             _hoverMeasurementXValue = 0;
             _cursorMeasurementSignal = null;
 
             ViewXY view = _chart.ViewXY;
-
-
-
-            _signalProducer.ClearPendingData(_chartSignals);
-
- 
 
             _chart.BeginUpdate();
             _chart.ViewXY.AxisLayout.AutoShrinkSegmentsGap = false;
@@ -51,40 +43,15 @@ namespace InteractiveExamples
             DisposeAllAndClear(view.YAxes);
             _chartSignals.Clear();
 
-            int signalCount = _seriesCount;
-            for (int seriesIndex = 0; seriesIndex < signalCount; seriesIndex++)
+            for (int seriesIndex = 0; seriesIndex < _seriesCount; seriesIndex++)
             {
                 _chartSignals.Add(CreateChartSignal(view, seriesIndex));
             }
 
-            bool loadedFromBinaryFile = false;
-            if (UseBinaryFileDataSource)
-            {
-                ConfigureChartDataSourceBehavior(view, true);
-                loadedFromBinaryFile = LoadSignalsFromBinaryFile(view);
-                if (loadedFromBinaryFile == false)
-                {
-                    ConfigureChartDataSourceBehavior(view, false);
-                }
-            }
-            else
-            {
-                ConfigureChartDataSourceBehavior(view, false);
-            }
-
-            if (loadedFromBinaryFile == false)
-            {
-                _signalProducer.Reset(_chartSignals, _appendCountPerRound, CurrentSampleIntervalSeconds);
-                view.XAxes[0].SetRange(0, _xLen * CurrentSampleIntervalSeconds);
-            }
+            ConfigureChartDataSourceBehavior(view, true);
+            view.XAxes[0].SetRange(0, 100);
 
             _chart.EndUpdate();
-            _isStreaming = loadedFromBinaryFile == false;
-
-            if (_isStreaming)
-            {
-                _producerTimer.Change(ProducerIntervalMs, ProducerIntervalMs);
-            }
 
             CompositionTarget.Rendering -= CompositionTarget_Rendering;
             CompositionTarget.Rendering += CompositionTarget_Rendering;
@@ -101,86 +68,13 @@ namespace InteractiveExamples
             view.XAxes[0].ScrollMode = useStaticImportedData ? XAxisScrollMode.None : XAxisScrollMode.Scrolling;
         }
 
-        private bool LoadSignalsFromBinaryFile(ViewXY view)
-        {
-            if (_chartSignals.Count == 0)
-            {
-                return false;
-            }
-
-            BinaryWaveformImportResult importResult = BinaryWaveformImporter.ImportFile( BinaryWaveFilePath,  MicrosecondsPerSecond / ImportedSampleRate);
-            if (importResult == null || importResult.Points == null || importResult.Points.Length == 0)
-            {
-                return false;
-            }
-
-            ChartSignal signal = _chartSignals[0];
-            SeriesPoint[] points = importResult.Points;
-            signal.AxisY.Title.Text = importResult.SignalName;
-
-            signal.Series.AddPoints(points, false);
-            signal.AppendRecentPoints(points);
-
-            _lastConsumedX = points[points.Length - 1].X;
-            _hasConsumedData = true;
-
-            double rangeMax = Math.Max(CurrentSampleIntervalSeconds, _lastConsumedX);
-            view.XAxes[0].SetRange(0, rangeMax);
-            return true;
-        }
-
-        private void ShowSignalGeneratorForSignal(int signalIndex)
-        {
-            if (_chart == null || signalIndex < 0 || signalIndex >= _chartSignals.Count)
-            {
-                return;
-            }
-
-            SerialPortDataProducer producer = new SerialPortDataProducer();
-            SerialWaveformBuildResult buildResult = null;
-
-            Window dialog = new Window
-            {
-                Title = string.Format("{0} Generator", _chartSignals[signalIndex].Name),
-                Owner = this,
-                Width = 820,
-                Height = 620,
-                WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                ResizeMode = ResizeMode.CanResize,
-                Background = Brushes.White,
-                Content = BuildSignalGeneratorDialogContent(producer, dialogResult =>
-                {
-                    if (dialogResult == false)
-                    {
-                        return false;
-                    }
-
-                    if (producer.TryBuildWaveform(out buildResult, out string errorMessage) == false)
-                    {
-                        MessageBox.Show(this, errorMessage ?? "Unable to generate waveform.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                        return false;
-                    }
-
-                    return true;
-                })
-            };
-
-            bool? result = dialog.ShowDialog();
-            if (result != true || buildResult == null)
-            {
-                return;
-            }
-
-            ImportGeneratedWaveformToSignal(signalIndex, buildResult);
-        }
-
         private void ShowDataProducerDialog()
         {
             SerialPortDataProducer producer = new SerialPortDataProducer();
 
             Window dialog = new Window
             {
-                Title = "DataProducer",
+                Title = "Generate BIN",
                 Owner = this,
                 Width = 860,
                 Height = 680,
@@ -250,200 +144,6 @@ namespace InteractiveExamples
                 Title = string.Format("{0} Import", signalName),
                 Owner = this,
                 Width = 560,
-                Height = 250,
-                WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                ResizeMode = ResizeMode.NoResize,
-                Background = Brushes.White
-            };
-
-            Grid layoutRoot = new Grid
-            {
-                Margin = new Thickness(16)
-            };
-            layoutRoot.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            layoutRoot.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            layoutRoot.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-            layoutRoot.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            layoutRoot.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            layoutRoot.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            layoutRoot.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-            TextBlock protocolLabel = new TextBlock
-            {
-                Text = "Protocol:",
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, 10, 0)
-            };
-            Grid.SetRow(protocolLabel, 0);
-            Grid.SetColumn(protocolLabel, 0);
-            layoutRoot.Children.Add(protocolLabel);
-
-            ComboBox protocolComboBox = new ComboBox
-            {
-                MinWidth = 220,
-                SelectedIndex = 0
-            };
-            protocolComboBox.Items.Add("串口");
-            protocolComboBox.Items.Add("2线串口");
-            protocolComboBox.Items.Add("3线串口");
-            protocolComboBox.Items.Add("4线串口");
-            Grid.SetRow(protocolComboBox, 0);
-            Grid.SetColumn(protocolComboBox, 1);
-            Grid.SetColumnSpan(protocolComboBox, 2);
-            layoutRoot.Children.Add(protocolComboBox);
-
-            TextBlock fileLabel = new TextBlock
-            {
-                Text = "File:",
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 12, 10, 0)
-            };
-            Grid.SetRow(fileLabel, 1);
-            Grid.SetColumn(fileLabel, 0);
-            layoutRoot.Children.Add(fileLabel);
-
-            TextBox filePathTextBox = new TextBox
-            {
-                Margin = new Thickness(0, 12, 10, 0),
-                MinWidth = 220
-            };
-            Grid.SetRow(filePathTextBox, 1);
-            Grid.SetColumn(filePathTextBox, 1);
-            layoutRoot.Children.Add(filePathTextBox);
-
-            Button browseButton = new Button
-            {
-                Content = "Browse...",
-                Width = 96,
-                Height = 28,
-                Margin = new Thickness(0, 12, 0, 0)
-            };
-            browseButton.Click += (sender, e) =>
-            {
-                OpenFileDialog openFileDialog = new OpenFileDialog
-                {
-                    Filter = "BIN files (*.bin)|*.bin|All files (*.*)|*.*",
-                    CheckFileExists = true,
-                    Multiselect = false
-                };
-
-                if (openFileDialog.ShowDialog(dialog) == true)
-                {
-                    filePathTextBox.Text = openFileDialog.FileName;
-                }
-            };
-            Grid.SetRow(browseButton, 1);
-            Grid.SetColumn(browseButton, 2);
-            layoutRoot.Children.Add(browseButton);
-
-            TextBlock hintTextBlock = new TextBlock
-            {
-                Text = "当前只完成协议和文件选择流程，实际导入逻辑后续再接入。",
-                TextWrapping = TextWrapping.Wrap,
-                Margin = new Thickness(0, 16, 0, 0),
-                Foreground = Brushes.DimGray
-            };
-            Grid.SetRow(hintTextBlock, 2);
-            Grid.SetColumnSpan(hintTextBlock, 3);
-            layoutRoot.Children.Add(hintTextBlock);
-
-            StackPanel buttonBar = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                HorizontalAlignment = HorizontalAlignment.Right,
-                Margin = new Thickness(0, 16, 0, 0)
-            };
-
-            Button importButton = new Button
-            {
-                Content = "Import",
-                Width = 96,
-                Height = 32,
-                Margin = new Thickness(0, 0, 8, 0),
-                IsDefault = true
-            };
-            importButton.Click += (sender, e) =>
-            {
-                string selectedProtocol = protocolComboBox.SelectedItem as string;
-                string filePath = filePathTextBox.Text == null ? string.Empty : filePathTextBox.Text.Trim();
-                if (string.IsNullOrEmpty(selectedProtocol))
-                {
-                    MessageBox.Show(dialog, "Please select a protocol.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
-
-                if (string.IsNullOrEmpty(filePath))
-                {
-                    MessageBox.Show(dialog, "Please select a file.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
-
-                if (File.Exists(filePath) == false)
-                {
-                    MessageBox.Show(dialog, "Selected file does not exist.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
-
-                selection = new SignalImportSelection
-                {
-                    ProtocolName = selectedProtocol,
-                    FilePath = filePath
-                };
-                dialog.DialogResult = true;
-            };
-
-            Button cancelButton = new Button
-            {
-                Content = "Cancel",
-                Width = 96,
-                Height = 32,
-                IsCancel = true
-            };
-            cancelButton.Click += (sender, e) =>
-            {
-                dialog.DialogResult = false;
-            };
-
-            buttonBar.Children.Add(importButton);
-            buttonBar.Children.Add(cancelButton);
-            Grid.SetRow(buttonBar, 3);
-            Grid.SetColumnSpan(buttonBar, 3);
-            layoutRoot.Children.Add(buttonBar);
-
-            dialog.Content = layoutRoot;
-
-            bool? result = dialog.ShowDialog();
-            if (result == true && selection != null)
-            {
-                MessageBox.Show(
-                    this,
-                    string.Format(
-                        "已为 {0} 选择导入配置。{1}{1}协议: {2}{1}文件: {3}{1}{1}当前仅完成弹窗和选择流程，具体导入逻辑暂未实现。",
-                        signalName,
-                        Environment.NewLine,
-                        selection.ProtocolName,
-                        selection.FilePath),
-                    "Import Placeholder",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
-            }
-        }
-
-        private void ShowSignalImportDialogForSignalV2(int signalIndex)
-        {
-            if (_chart == null || signalIndex < 0 || signalIndex >= _chartSignals.Count)
-            {
-                return;
-            }
-
-            string signalName = _chartSignals[signalIndex].Name;
-            SignalImportSelection selection = null;
-
-            Window dialog = new Window
-            {
-                Title = string.Format("{0} Import", signalName),
-                Owner = this,
-                Width = 560,
                 Height = 310,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 ResizeMode = ResizeMode.NoResize,
@@ -476,12 +176,12 @@ namespace InteractiveExamples
             ComboBox protocolComboBox = new ComboBox
             {
                 MinWidth = 220,
-                SelectedIndex = 1
+                SelectedIndex = 0
             };
-            protocolComboBox.Items.Add("串口");
-            protocolComboBox.Items.Add("2线串口");
-            protocolComboBox.Items.Add("3线串口");
-            protocolComboBox.Items.Add("4线串口");
+            protocolComboBox.Items.Add("Single channel");
+            protocolComboBox.Items.Add("2-wire");
+            protocolComboBox.Items.Add("3-wire");
+            protocolComboBox.Items.Add("4-wire");
             Grid.SetRow(protocolComboBox, 0);
             Grid.SetColumn(protocolComboBox, 1);
             Grid.SetColumnSpan(protocolComboBox, 2);
@@ -563,7 +263,7 @@ namespace InteractiveExamples
 
             TextBlock hintTextBlock = new TextBlock
             {
-                Text = "当前先实现 2 线串口导入。导入后会拆成两条线显示，并按 1 / 采样率 的时间间隔对齐。",
+                Text = "导入会根据协议拆分二进制数据，并按采样率换算到时间轴。Single channel 直接导入当前通道。",
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 16, 0, 0),
                 Foreground = Brushes.DimGray
@@ -590,11 +290,10 @@ namespace InteractiveExamples
             importButton.Click += (sender, e) =>
             {
                 string selectedProtocol = protocolComboBox.SelectedItem as string;
-                SerialProtocolType protocolType = GetSelectedImportProtocolType(protocolComboBox.SelectedIndex);
                 string filePath = filePathTextBox.Text == null ? string.Empty : filePathTextBox.Text.Trim();
                 uint sampleRate;
 
-                if (protocolType == SerialProtocolType.Uart || string.IsNullOrEmpty(selectedProtocol))
+                if (string.IsNullOrEmpty(selectedProtocol))
                 {
                     MessageBox.Show(dialog, "Please select a protocol.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
@@ -620,9 +319,8 @@ namespace InteractiveExamples
 
                 selection = new SignalImportSelection
                 {
-                    ProtocolType = protocolType,
-                    // Keep using the legacy dialog dispatch path, then branch by ProtocolType later.
-                    ProtocolName = protocolType == SerialProtocolType.Uart ? selectedProtocol : protocolComboBox.Items[1] as string,
+                    ProtocolType = GetSelectedImportProtocolType(protocolComboBox.SelectedIndex),
+                    ProtocolName = selectedProtocol,
                     FilePath = filePath,
                     SampleRate = sampleRate
                 };
@@ -655,83 +353,37 @@ namespace InteractiveExamples
                 return;
             }
 
-            if (string.Equals(selection.ProtocolName, "2线串口", StringComparison.Ordinal))
+            if (selection.ProtocolType == SerialProtocolType.Uart)
             {
-                ImportTwoWireProtocolToSignals(signalIndex, selection);
+                ImportBinaryWaveformToSignal(signalIndex, selection);
                 return;
             }
 
-            MessageBox.Show(
-                this,
-                string.Format(
-                    "已为 {0} 选择导入配置。{1}{1}协议: {2}{1}文件: {3}{1}采样率: {4:N0} Hz{1}{1}当前仅 2 线串口已接入导入逻辑，其他协议稍后再实现。",
-                    signalName,
-                    Environment.NewLine,
-                    selection.ProtocolName,
-                    selection.FilePath,
-                    selection.SampleRate),
-                "Import Placeholder",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+            ImportProtocolToSignals(signalIndex, selection);
         }
 
-        private void ImportTwoWireProtocolToSignals(int signalIndex, SignalImportSelection selection)
+        private void ImportBinaryWaveformToSignal(int signalIndex, SignalImportSelection selection)
         {
-            if (selection != null && selection.ProtocolType != SerialProtocolType.Uart)
+            if (_chart == null || selection == null || signalIndex < 0 || signalIndex >= _chartSignals.Count)
             {
-                ImportProtocolToSignals(signalIndex, selection);
-                return;
-            }
-
-            if (_chart == null || selection == null)
-            {
-                return;
-            }
-
-            if (signalIndex < 0 || signalIndex + 1 >= _chartSignals.Count)
-            {
-                MessageBox.Show(this, "2线串口导入至少需要连续两路信号显示。", "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            byte[] protocolBytes = File.ReadAllBytes(selection.FilePath);
-            if (protocolBytes == null || protocolBytes.Length < 2)
-            {
-                MessageBox.Show(this, "导入文件内容不足，无法拆分为 CLK 和 DATA 两路。", "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            byte[][] splitBytes = SplitTwoWireProtocolBytes(protocolBytes);
-            if (splitBytes == null || splitBytes.Length != 2 || splitBytes[0].Length == 0 || splitBytes[1].Length == 0)
-            {
-                MessageBox.Show(this, "2线串口数据拆分失败。", "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
             double sampleInterval = MicrosecondsPerSecond / selection.SampleRate;
-            BinaryWaveformImportResult clkImportResult = BinaryWaveformImporter.ImportBytes(_chartSignals[signalIndex].Name, splitBytes[0], sampleInterval);
-            BinaryWaveformImportResult dataImportResult = BinaryWaveformImporter.ImportBytes(_chartSignals[signalIndex + 1].Name, splitBytes[1], sampleInterval);
-            if (clkImportResult == null || clkImportResult.Points == null || clkImportResult.Points.Length == 0
-                || dataImportResult == null || dataImportResult.Points == null || dataImportResult.Points.Length == 0)
+            BinaryWaveformImportResult importResult = BinaryWaveformImporter.ImportFile(selection.FilePath, sampleInterval);
+            if (importResult == null || importResult.Points == null || importResult.Points.Length == 0)
             {
-                MessageBox.Show(this, "2线串口波形转换失败。", "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(this, "Failed to import waveform from the selected file.", "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
-
-            Stop();
-            _isStreaming = false;
 
             _chart.BeginUpdate();
             try
             {
                 ConfigureChartDataSourceBehavior(_chart.ViewXY, true);
-                ImportWaveformToSignal(signalIndex, clkImportResult, "CLK");
-                ImportWaveformToSignal(signalIndex + 1, dataImportResult, "DATA");
+                ImportWaveformToSignal(signalIndex, importResult, importResult.SignalName);
 
-                double clkMaxX = clkImportResult.Points[clkImportResult.Points.Length - 1].X;
-                double dataMaxX = dataImportResult.Points[dataImportResult.Points.Length - 1].X;
-                _lastConsumedX = Math.Max(clkMaxX, dataMaxX);
-                _hasConsumedData = true;
+                _lastConsumedX = importResult.Points[importResult.Points.Length - 1].X;
                 _chart.ViewXY.XAxes[0].SetRange(0, Math.Max(sampleInterval, _lastConsumedX));
             }
             finally
@@ -739,8 +391,7 @@ namespace InteractiveExamples
                 _chart.EndUpdate();
             }
 
-            CompositionTarget.Rendering -= CompositionTarget_Rendering;
-            CompositionTarget.Rendering += CompositionTarget_Rendering;
+            InvalidateOverlayCaches();
             UpdateDecodeOverlay();
             UpdateCursorVisual();
         }
@@ -754,7 +405,6 @@ namespace InteractiveExamples
 
             ChartSignal signal = _chartSignals[signalIndex];
             _decodeCache.Remove(signal);
-            signal.ClearPendingChunks();
             signal.ClearRecentPoints();
             signal.Series.Clear();
             signal.AxisY.Title.Text = displayName;
@@ -817,9 +467,6 @@ namespace InteractiveExamples
                 return;
             }
 
-            Stop();
-            _isStreaming = false;
-
             _chart.BeginUpdate();
             try
             {
@@ -831,7 +478,6 @@ namespace InteractiveExamples
                 }
 
                 _lastConsumedX = importResults.Max(result => result.Points[result.Points.Length - 1].X);
-                _hasConsumedData = true;
                 _chart.ViewXY.XAxes[0].SetRange(0, Math.Max(sampleInterval, _lastConsumedX));
             }
             finally
@@ -839,31 +485,9 @@ namespace InteractiveExamples
                 _chart.EndUpdate();
             }
 
-            CompositionTarget.Rendering -= CompositionTarget_Rendering;
-            CompositionTarget.Rendering += CompositionTarget_Rendering;
+            InvalidateOverlayCaches();
             UpdateDecodeOverlay();
             UpdateCursorVisual();
-        }
-
-        private static byte[][] SplitTwoWireProtocolBytes(byte[] protocolBytes)
-        {
-            if (protocolBytes == null || protocolBytes.Length < 2)
-            {
-                return null;
-            }
-
-            int pairCount = protocolBytes.Length / 2;
-            byte[] clkBytes = new byte[pairCount];
-            byte[] dataBytes = new byte[pairCount];
-
-            for (int i = 0; i < pairCount; i++)
-            {
-                int sourceIndex = i * 2;
-                clkBytes[i] = protocolBytes[sourceIndex];
-                dataBytes[i] = protocolBytes[sourceIndex + 1];
-            }
-
-            return new[] { clkBytes, dataBytes };
         }
 
         private static byte[][] SplitProtocolBytes(byte[] protocolBytes, int channelCount)
@@ -890,144 +514,6 @@ namespace InteractiveExamples
             }
 
             return channels;
-        }
-
-        private UIElement BuildSignalGeneratorDialogContent(SerialPortDataProducer producer, Func<bool, bool> validateClose)
-        {
-            Grid layoutRoot = new Grid
-            {
-                Margin = new Thickness(12)
-            };
-            layoutRoot.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-            layoutRoot.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-
-            Grid.SetRow(producer, 0);
-            layoutRoot.Children.Add(producer);
-
-            StackPanel buttonBar = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                HorizontalAlignment = HorizontalAlignment.Right,
-                Margin = new Thickness(0, 12, 0, 0)
-            };
-
-            Button importButton = new Button
-            {
-                Content = "Import",
-                Width = 96,
-                Height = 32,
-                Margin = new Thickness(0, 0, 8, 0),
-                IsDefault = true
-            };
-            importButton.Click += (sender, e) =>
-            {
-                Window dialog = Window.GetWindow((DependencyObject)sender);
-                if (dialog == null || validateClose(true) == false)
-                {
-                    return;
-                }
-
-                dialog.DialogResult = true;
-            };
-
-            Button cancelButton = new Button
-            {
-                Content = "Cancel",
-                Width = 96,
-                Height = 32,
-                IsCancel = true
-            };
-            cancelButton.Click += (sender, e) =>
-            {
-                Window dialog = Window.GetWindow((DependencyObject)sender);
-                if (dialog == null || validateClose(false) == false)
-                {
-                    return;
-                }
-
-                dialog.DialogResult = false;
-            };
-
-            buttonBar.Children.Add(importButton);
-            buttonBar.Children.Add(cancelButton);
-            Grid.SetRow(buttonBar, 1);
-            layoutRoot.Children.Add(buttonBar);
-
-            return layoutRoot;
-        }
-
-        private void ImportGeneratedWaveformToSignal(int signalIndex, SerialWaveformBuildResult buildResult)
-        {
-            if (_chart == null
-                || buildResult == null
-                || buildResult.WaveData == null
-                || buildResult.WaveData.Length == 0
-                || signalIndex < 0
-                || signalIndex >= _chartSignals.Count
-                || buildResult.SampleRate == 0)
-            {
-                return;
-            }
-
-            ChartSignal signal = _chartSignals[signalIndex];
-            double sampleInterval = MicrosecondsPerSecond / buildResult.SampleRate;
-            BinaryWaveformImportResult importResult = BinaryWaveformImporter.ImportBytes(signal.Name, buildResult.WaveData, sampleInterval);
-            if (importResult == null || importResult.Points == null || importResult.Points.Length == 0)
-            {
-                MessageBox.Show(this, "Generated waveform is empty.", "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            Stop();
-            _isStreaming = false;
-
-            _chart.BeginUpdate();
-            try
-            {
-                ConfigureChartDataSourceBehavior(_chart.ViewXY, true);
-                _decodeCache.Remove(signal);
-
-                signal.ClearPendingChunks();
-                signal.ClearRecentPoints();
-                signal.Series.Clear();
-
-                ApplyDecodeSettings(signal, buildResult);
-
-                SeriesPoint[] points = importResult.Points;
-                signal.AxisY.Title.Text = signal.Name;
-                signal.Series.AddPoints(points, false);
-                signal.AppendRecentPoints(points);
-
-                _lastConsumedX = points[points.Length - 1].X;
-                _hasConsumedData = true;
-
-                double rangeMax = Math.Max(sampleInterval, _lastConsumedX);
-                _chart.ViewXY.XAxes[0].SetRange(0, rangeMax);
-            }
-            finally
-            {
-                _chart.EndUpdate();
-            }
-
-            CompositionTarget.Rendering -= CompositionTarget_Rendering;
-            CompositionTarget.Rendering += CompositionTarget_Rendering;
-            UpdateDecodeOverlay();
-            UpdateCursorVisual();
-        }
-
-        private static void ApplyDecodeSettings(ChartSignal signal, SerialWaveformBuildResult buildResult)
-        {
-            if (signal == null || signal.DecodeSettings == null || buildResult == null)
-            {
-                return;
-            }
-
-            signal.DecodeSettings.Mode = SignalDecodeMode.UartFrame;
-            signal.DecodeSettings.BaudRate = buildResult.BaudRate;
-            signal.DecodeSettings.DataBits = buildResult.DataBits;
-            signal.DecodeSettings.StopBits = buildResult.StopBits;
-            signal.DecodeSettings.ParityMode = ConvertParityMode(buildResult.Parity);
-            signal.DecodeSettings.IdleBits = buildResult.IdleBits;
         }
 
         private static void ApplyImportedProtocolDecodeSettings(ChartSignal signal)
@@ -1082,24 +568,7 @@ namespace InteractiveExamples
                 case SerialProtocolType.FourWireSerial:
                     return "4-wire";
                 default:
-                    return "UART";
-            }
-        }
-
-        private static UartParityMode ConvertParityMode(ParityMode parityMode)
-        {
-            switch (parityMode)
-            {
-                case ParityMode.Odd:
-                    return UartParityMode.Odd;
-                case ParityMode.Even:
-                    return UartParityMode.Even;
-                case ParityMode.Mark:
-                    return UartParityMode.Mark;
-                case ParityMode.Space:
-                    return UartParityMode.Space;
-                default:
-                    return UartParityMode.None;
+                    return "Single channel";
             }
         }
 
@@ -1117,115 +586,14 @@ namespace InteractiveExamples
                 list.RemoveAt(lastIndex);
                 if (item != null)
                 {
-                    (item as IDisposable).Dispose();
+                    item.Dispose();
                 }
             }
-        }
-
-        private void ProducerTimerCallback(object state)
-        {
-            if (_isStreaming == false)
-            {
-                return;
-            }
-
-            lock (_signalProducer.SyncRoot)
-            {
-                if (_isStreaming == false)
-                {
-                    return;
-                }
-
-                _signalProducer.EnqueueSignalData(_chartSignals);
-            }
-        }
-
-        private void PrefillChartWithData()
-        {
-            int pointsToPrefill = (int)(0.9 * _xLen);
-            int batchCount = pointsToPrefill / _appendCountPerRound;
-            for (int i = 0; i < batchCount; i++)
-            {
-                _signalProducer.EnqueueSignalData(_chartSignals);
-                ConsumePendingSignalBatch();
-            }
-
-            if (_hasConsumedData)
-            {
-                UpdateXAxisView(_lastConsumedX);
-                UpdateSweepBands(_lastConsumedX);
-            }
-        }
-
-        private bool ConsumePendingSignalData()
-        {
-            if (_chart == null)
-            {
-                return false;
-            }
-
-            _chart.BeginUpdate();
-            try
-            {
-                return ConsumePendingSignalBatch();
-            }
-            finally
-            {
-                _chart.EndUpdate();
-            }
-        }
-
-        private bool ConsumePendingSignalBatch()
-        {
-            double maxX = double.MinValue;
-            bool hasConsumedPoint = false;
-
-            foreach (ChartSignal signal in _chartSignals)
-            {
-                SeriesPoint[] points;
-                if (signal.TryDequeuePoints(out points) == false)
-                {
-                    continue;
-                }
-
-                if (points != null && points.Length > 0)
-                {
-                    signal.Series.AddPoints(points, false);
-                    signal.AppendRecentPoints(points);
-
-                    for (int i = 0; i < points.Length; i++)
-                    {
-                        if (hasConsumedPoint == false || points[i].X > maxX)
-                        {
-                            maxX = points[i].X;
-                            hasConsumedPoint = true;
-                        }
-                    }
-                }
-            }
-
-            if (hasConsumedPoint)
-            {
-                _lastConsumedX = maxX;
-                _hasConsumedData = true;
-                MarkDecodeOverlayDirty();
-                MarkCursorVisualDirty();
-                UpdateXAxisView(_lastConsumedX);
-                UpdateSweepBands(_lastConsumedX);
-            }
-
-            return hasConsumedPoint;
         }
 
         public void Dispose()
         {
             Stop();
-            if (_producerTimer != null)
-            {
-                _producerTimer.Dispose();
-                _producerTimer = null;
-            }
-
             CompositionTarget.Rendering -= CompositionTarget_Rendering;
             if (_chart != null)
             {
@@ -1236,26 +604,10 @@ namespace InteractiveExamples
 
         public void Stop()
         {
-            _isStreaming = false;
-
-            if (_producerTimer != null)
-            {
-                _producerTimer.Change(Timeout.Infinite, Timeout.Infinite);
-            }
-
             CompositionTarget.Rendering -= CompositionTarget_Rendering;
-            _signalProducer.ClearPendingData(_chartSignals);
             _isCursorHovering = false;
             _hoverMeasurementXValue = 0;
             _cursorMeasurementSignal = null;
-        }
-
-        internal bool IsRunning
-        {
-            get
-            {
-                return _isStreaming;
-            }
         }
     }
 }
