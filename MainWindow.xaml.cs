@@ -205,5 +205,14 @@ namespace InteractiveExamples
 
             Start();
         }
+
+        private void UpdateImportButtons()
+        {
+            if (buttonImport != null)
+            {
+                buttonImport.Content = "Import";
+                buttonImport.Visibility = Visibility.Visible;
+            }
+        }
     }
 }

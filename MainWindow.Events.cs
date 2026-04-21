@@ -62,27 +62,10 @@ namespace InteractiveExamples
             ShowDataProducerDialog();
         }
 
-        private void buttonSignal1_Click(object sender, RoutedEventArgs e)
+        private void buttonImport_Click(object sender, RoutedEventArgs e)
         {
             ShowSignalImportDialogForSignal(0);
         }
-
-        private void buttonSignal2_Click(object sender, RoutedEventArgs e)
-        {
-            ShowSignalImportDialogForSignal(1);
-        }
-
-        private void buttonSignal3_Click(object sender, RoutedEventArgs e)
-        {
-            ShowSignalImportDialogForSignal(2);
-        }
-
-        private void buttonSignal4_Click(object sender, RoutedEventArgs e)
-        {
-            ShowSignalImportDialogForSignal(3);
-        }
-
-
 
         private void Chart_PreviewMouseMove(object sender, MouseEventArgs e)
         {

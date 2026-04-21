@@ -48,6 +48,7 @@ namespace InteractiveExamples
                 _chartSignals.Add(CreateChartSignal(view, seriesIndex));
             }
 
+            UpdateImportButtons();
             ConfigureChartDataSourceBehavior(view, true);
             view.XAxes[0].SetRange(0, 100);
 
@@ -55,6 +56,12 @@ namespace InteractiveExamples
 
             CompositionTarget.Rendering -= CompositionTarget_Rendering;
             CompositionTarget.Rendering += CompositionTarget_Rendering;
+        }
+
+        private void RebuildChartForImportedSignalCount(int signalCount)
+        {
+            _seriesCount = Math.Max(1, signalCount);
+            Start();
         }
 
         private static void ConfigureChartDataSourceBehavior(ViewXY view, bool useStaticImportedData)
@@ -135,13 +142,11 @@ namespace InteractiveExamples
             {
                 return;
             }
-
-            string signalName = _chartSignals[signalIndex].Name;
             SignalImportSelection selection = null;
 
             Window dialog = new Window
             {
-                Title = string.Format("{0} Import", signalName),
+                Title = "Import",
                 Owner = this,
                 Width = 560,
                 Height = 310,
@@ -377,11 +382,13 @@ namespace InteractiveExamples
                 return;
             }
 
+            RebuildChartForImportedSignalCount(1);
+
             _chart.BeginUpdate();
             try
             {
                 ConfigureChartDataSourceBehavior(_chart.ViewXY, true);
-                ImportWaveformToSignal(signalIndex, importResult, importResult.SignalName);
+                ImportWaveformToSignal(0, importResult, importResult.SignalName);
 
                 _lastConsumedX = importResult.Points[importResult.Points.Length - 1].X;
                 _chart.ViewXY.XAxes[0].SetRange(0, Math.Max(sampleInterval, _lastConsumedX));
@@ -426,20 +433,6 @@ namespace InteractiveExamples
                 return;
             }
 
-            if (signalIndex < 0 || signalIndex + channelNames.Length - 1 >= _chartSignals.Count)
-            {
-                MessageBox.Show(
-                    this,
-                    string.Format(
-                        "Importing {0} needs {1} consecutive signals starting from the selected channel.",
-                        GetImportProtocolDisplayName(selection.ProtocolType),
-                        channelNames.Length),
-                    "Import failed",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
-                return;
-            }
-
             byte[] protocolBytes = File.ReadAllBytes(selection.FilePath);
             if (protocolBytes == null || protocolBytes.Length < channelNames.Length)
             {
@@ -458,7 +451,7 @@ namespace InteractiveExamples
             BinaryWaveformImportResult[] importResults = new BinaryWaveformImportResult[channelNames.Length];
             for (int i = 0; i < channelNames.Length; i++)
             {
-                importResults[i] = BinaryWaveformImporter.ImportBytes(_chartSignals[signalIndex + i].Name, splitBytes[i], sampleInterval);
+                importResults[i] = BinaryWaveformImporter.ImportBytes(channelNames[i], splitBytes[i], sampleInterval);
             }
 
             if (importResults.Any(result => result == null || result.Points == null || result.Points.Length == 0))
@@ -467,14 +460,16 @@ namespace InteractiveExamples
                 return;
             }
 
+            RebuildChartForImportedSignalCount(channelNames.Length);
+
             _chart.BeginUpdate();
             try
             {
                 ConfigureChartDataSourceBehavior(_chart.ViewXY, true);
                 for (int i = 0; i < channelNames.Length; i++)
                 {
-                    ImportWaveformToSignal(signalIndex + i, importResults[i], channelNames[i]);
-                    ApplyImportedProtocolDecodeSettings(_chartSignals[signalIndex + i]);
+                    ImportWaveformToSignal(i, importResults[i], channelNames[i]);
+                    ApplyImportedProtocolDecodeSettings(_chartSignals[i]);
                 }
 
                 _lastConsumedX = importResults.Max(result => result.Points[result.Points.Length - 1].X);
