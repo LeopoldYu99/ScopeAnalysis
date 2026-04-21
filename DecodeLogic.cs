@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Windows.Media;
-using Arction.Wpf.Charting;
 
 namespace InteractiveExamples
 {
@@ -18,7 +17,9 @@ namespace InteractiveExamples
         }
 
         public static List<ProtocolSegment> BuildProtocolSegments(
-            SeriesPoint[] history,
+            uint[] digitalWords,
+            int sampleCount,
+            double sampleIntervalUs,
             int uartBaudRate,
             int uartDataBits,
             double uartStopBits,
@@ -26,40 +27,33 @@ namespace InteractiveExamples
             int uartIdleBits)
         {
             List<ProtocolSegment> segments = new List<ProtocolSegment>();
-            if (history == null || history.Length == 0 || uartBaudRate <= 0 || uartDataBits <= 0 || uartStopBits <= 0)
+            if (digitalWords == null || sampleCount <= 0 || sampleIntervalUs <= 0 || uartBaudRate <= 0 || uartDataBits <= 0 || uartStopBits <= 0)
             {
                 return segments;
             }
 
             double bitDurationUs = 1000000.0 / uartBaudRate;
             double minimumIdleDurationUs = Math.Max(0, uartIdleBits) * bitDurationUs;
-
-            bool[] sampleValues;
-            double[] sampleTimes;
-            CollapseToSamples(history, out sampleTimes, out sampleValues);
-            if (sampleTimes.Length < 2)
-            {
-                return segments;
-            }
-
-            double sampleIntervalUs = EstimateSampleInterval(sampleTimes);
             double previousFrameEndX = double.NaN;
-            for (int sampleIndex = 1; sampleIndex < sampleTimes.Length; sampleIndex++)
+            for (int sampleIndex = 1; sampleIndex < sampleCount; sampleIndex++)
             {
-                if (sampleValues[sampleIndex - 1] == false || sampleValues[sampleIndex])
+                bool previousHigh = GetSampleValue(digitalWords, sampleCount, sampleIndex - 1);
+                bool currentHigh = GetSampleValue(digitalWords, sampleCount, sampleIndex);
+                if (previousHigh == false || currentHigh)
                 {
                     continue;
                 }
 
-                double frameStartX = sampleTimes[sampleIndex];
-                if (HasRequiredIdleBeforeStart(sampleTimes, sampleValues, sampleIndex - 1, frameStartX, minimumIdleDurationUs, sampleIntervalUs) == false)
+                double frameStartX = sampleIndex * sampleIntervalUs;
+                if (HasRequiredIdleBeforeStart(digitalWords, sampleCount, sampleIndex - 1, frameStartX, minimumIdleDurationUs, sampleIntervalUs) == false)
                 {
                     continue;
                 }
 
                 if (TryDecodeFrame(
-                    sampleTimes,
-                    sampleValues,
+                    digitalWords,
+                    sampleCount,
+                    sampleIntervalUs,
                     frameStartX,
                     bitDurationUs,
                     uartDataBits,
@@ -84,40 +78,27 @@ namespace InteractiveExamples
                 previousFrameEndX = frameEndX;
                 // Resume scanning from the latter half of the stop bit so a back-to-back
                 // frame transition at the stop/start boundary is still seen on the next pass.
-                sampleIndex = FindLastSampleBefore(sampleTimes, frameEndX - 0.5 * bitDurationUs);
+                sampleIndex = FindLastSampleBefore(sampleCount, sampleIntervalUs, frameEndX - 0.5 * bitDurationUs);
             }
 
             return segments;
         }
 
         public static List<ProtocolSegment> BuildFixedWidthSegments(
-            SeriesPoint[] history,
+            uint[] digitalWords,
+            int sampleCount,
+            double sampleInterval,
             int bitsPerSegment,
             int emptyDataRunSegmentThreshold)
         {
             List<ProtocolSegment> segments = new List<ProtocolSegment>();
-            if (history == null || history.Length == 0 || bitsPerSegment <= 0 || bitsPerSegment > 8)
+            if (digitalWords == null || sampleCount <= 0 || sampleInterval <= 0 || bitsPerSegment <= 0 || bitsPerSegment > 8)
             {
                 return segments;
             }
 
-            bool[] sampleValues;
-            double[] sampleTimes;
-            CollapseToSamples(history, out sampleTimes, out sampleValues);
-            if (sampleTimes.Length < 2)
-            {
-                return segments;
-            }
-
-            double sampleInterval = EstimateSampleInterval(sampleTimes);
-            if (sampleInterval <= 0)
-            {
-                return segments;
-            }
-
-            double startX = sampleTimes[0];
-            double endX = sampleTimes[sampleTimes.Length - 1];
-            int bitCount = (int)Math.Round((endX - startX) / sampleInterval, MidpointRounding.AwayFromZero);
+            double startX = 0;
+            int bitCount = sampleCount;
             int segmentCount = bitCount / bitsPerSegment;
             List<FixedWidthSegmentCandidate> candidates = new List<FixedWidthSegmentCandidate>(segmentCount);
             for (int segmentIndex = 0; segmentIndex < segmentCount; segmentIndex++)
@@ -132,7 +113,7 @@ namespace InteractiveExamples
                 for (int bitIndex = 0; bitIndex < bitsPerSegment; bitIndex++)
                 {
                     double sampleX = segmentStartX + (bitIndex + 0.5) * sampleInterval;
-                    if (SampleAt(sampleTimes, sampleValues, sampleX, out bool bitHigh) == false)
+                    if (SampleAt(digitalWords, sampleCount, sampleInterval, sampleX, out bool bitHigh) == false)
                     {
                         hasCompleteSegment = false;
                         break;
@@ -175,39 +156,21 @@ namespace InteractiveExamples
             return segments;
         }
 
-        private static void CollapseToSamples(SeriesPoint[] history, out double[] sampleTimes, out bool[] sampleValues)
-        {
-            const double epsilon = 1e-12;
-            List<double> times = new List<double>(history.Length);
-            List<bool> values = new List<bool>(history.Length);
-
-            for (int i = 0; i < history.Length; i++)
-            {
-                double x = history[i].X;
-                bool isHigh = history[i].Y >= 0.5f;
-                if (times.Count == 0 || Math.Abs(times[times.Count - 1] - x) > epsilon)
-                {
-                    times.Add(x);
-                    values.Add(isHigh);
-                }
-                else
-                {
-                    values[values.Count - 1] = isHigh;
-                }
-            }
-
-            sampleTimes = times.ToArray();
-            sampleValues = values.ToArray();
-        }
-
-        private static bool TryDecodeFrame(  double[] sampleTimes, bool[] sampleValues, double frameStartX, double bitDurationUs, int uartDataBits, double uartStopBits,  
+        private static bool TryDecodeFrame(
+            uint[] digitalWords,
+            int sampleCount,
+            double sampleIntervalUs,
+            double frameStartX,
+            double bitDurationUs,
+            int uartDataBits,
+            double uartStopBits,
             UartParityMode uartParityMode, out byte decodedValue, out double frameEndX)
         {
             decodedValue = 0;
             frameEndX = frameStartX;
             int parityBitCount = uartParityMode == UartParityMode.None ? 0 : 1;
 
-            if (SampleAt(sampleTimes, sampleValues, frameStartX + 0.5 * bitDurationUs, out bool startBitHigh) == false
+            if (SampleAt(digitalWords, sampleCount, sampleIntervalUs, frameStartX + 0.5 * bitDurationUs, out bool startBitHigh) == false
                 || startBitHigh)
             {
                 return false;
@@ -216,7 +179,7 @@ namespace InteractiveExamples
             for (int bitIndex = 0; bitIndex < uartDataBits; bitIndex++)
             {
                 double sampleX = frameStartX + (1.5 + bitIndex) * bitDurationUs;
-                if (SampleAt(sampleTimes, sampleValues, sampleX, out bool bitHigh) == false)
+                if (SampleAt(digitalWords, sampleCount, sampleIntervalUs, sampleX, out bool bitHigh) == false)
                 {
                     return false;
                 }
@@ -230,7 +193,7 @@ namespace InteractiveExamples
             if (parityBitCount > 0)
             {
                 double paritySampleX = frameStartX + (1.5 + uartDataBits) * bitDurationUs;
-                if (SampleAt(sampleTimes, sampleValues, paritySampleX, out bool parityBitHigh) == false)
+                if (SampleAt(digitalWords, sampleCount, sampleIntervalUs, paritySampleX, out bool parityBitHigh) == false)
                 {
                     return false;
                 }
@@ -241,7 +204,7 @@ namespace InteractiveExamples
                 }
             }
 
-            if (ValidateStopBits(sampleTimes, sampleValues, frameStartX, bitDurationUs, uartDataBits, parityBitCount, uartStopBits) == false)
+            if (ValidateStopBits(digitalWords, sampleCount, sampleIntervalUs, frameStartX, bitDurationUs, uartDataBits, parityBitCount, uartStopBits) == false)
             {
                 return false;
             }
@@ -250,50 +213,54 @@ namespace InteractiveExamples
             return true;
         }
 
-        private static bool SampleAt(double[] sampleTimes, bool[] sampleValues, double targetX, out bool value)
+        private static bool SampleAt(uint[] digitalWords, int sampleCount, double sampleInterval, double targetX, out bool value)
         {
             value = false;
-            if (sampleTimes.Length == 0 || targetX < sampleTimes[0] || targetX > sampleTimes[sampleTimes.Length - 1])
+            if (digitalWords == null || sampleCount <= 0 || sampleInterval <= 0 || targetX < 0)
             {
                 return false;
             }
 
-            int index = Array.BinarySearch(sampleTimes, targetX);
-            if (index >= 0)
+            double totalDuration = sampleCount * sampleInterval;
+            if (targetX > totalDuration)
             {
-                value = sampleValues[index];
-                return true;
+                return false;
             }
 
-            index = ~index;
-            if (index <= 0)
+            double scaledIndex = targetX / sampleInterval;
+            int lowerBoundaryIndex = (int)Math.Floor(scaledIndex);
+            if (lowerBoundaryIndex < 0)
             {
-                value = sampleValues[0];
-                return true;
+                lowerBoundaryIndex = 0;
             }
 
-            if (index >= sampleTimes.Length)
+            if (lowerBoundaryIndex >= sampleCount)
             {
-                value = sampleValues[sampleValues.Length - 1];
-                return true;
+                lowerBoundaryIndex = sampleCount;
             }
 
-            double previousDistance = Math.Abs(targetX - sampleTimes[index - 1]);
-            double nextDistance = Math.Abs(sampleTimes[index] - targetX);
-            value = previousDistance <= nextDistance ? sampleValues[index - 1] : sampleValues[index];
+            double lowerBoundaryX = lowerBoundaryIndex * sampleInterval;
+            double upperBoundaryX = Math.Min(totalDuration, (lowerBoundaryIndex + 1) * sampleInterval);
+            int boundaryIndex = targetX - lowerBoundaryX <= upperBoundaryX - targetX
+                ? lowerBoundaryIndex
+                : Math.Min(sampleCount, lowerBoundaryIndex + 1);
+            value = GetBoundaryValue(digitalWords, sampleCount, boundaryIndex);
             return true;
         }
 
-        private static int FindLastSampleBefore(double[] sampleTimes, double targetX)
+        private static int FindLastSampleBefore(int sampleCount, double sampleInterval, double targetX)
         {
-            int index = Array.BinarySearch(sampleTimes, targetX);
-            if (index >= 0)
+            if (sampleCount <= 0 || sampleInterval <= 0)
             {
-                return index;
+                return 0;
             }
 
-            index = ~index;
-            return Math.Max(0, index - 1);
+            if (targetX <= 0)
+            {
+                return 0;
+            }
+
+            return Math.Max(0, Math.Min(sampleCount - 1, (int)Math.Floor(targetX / sampleInterval)));
         }
 
         private static void AddUartSegments(
@@ -340,8 +307,8 @@ namespace InteractiveExamples
         }
 
         private static bool HasRequiredIdleBeforeStart(
-            double[] sampleTimes,
-            bool[] sampleValues,
+            uint[] digitalWords,
+            int sampleCount,
             int highSampleIndex,
             double frameStartX,
             double minimumIdleDurationUs,
@@ -352,18 +319,18 @@ namespace InteractiveExamples
                 return true;
             }
 
-            if (highSampleIndex < 0 || highSampleIndex >= sampleTimes.Length || sampleValues[highSampleIndex] == false)
+            if (highSampleIndex < 0 || highSampleIndex >= sampleCount || GetSampleValue(digitalWords, sampleCount, highSampleIndex) == false)
             {
                 return false;
             }
 
             int runStartIndex = highSampleIndex;
-            while (runStartIndex > 0 && sampleValues[runStartIndex - 1])
+            while (runStartIndex > 0 && GetSampleValue(digitalWords, sampleCount, runStartIndex - 1))
             {
                 runStartIndex--;
             }
 
-            double idleStartX = sampleTimes[runStartIndex];
+            double idleStartX = runStartIndex * sampleIntervalUs;
             double actualIdleDurationUs = frameStartX - idleStartX;
             if (sampleIntervalUs <= 0)
             {
@@ -375,8 +342,9 @@ namespace InteractiveExamples
         }
 
         private static bool ValidateStopBits(
-            double[] sampleTimes,
-            bool[] sampleValues,
+            uint[] digitalWords,
+            int sampleCount,
+            double sampleIntervalUs,
             double frameStartX,
             double bitDurationUs,
             int uartDataBits,
@@ -388,7 +356,7 @@ namespace InteractiveExamples
             for (int stopIndex = 0; stopIndex < wholeStopBits; stopIndex++)
             {
                 double sampleX = frameStartX + (stopStartBitOffset + stopIndex + 0.5) * bitDurationUs;
-                if (SampleAt(sampleTimes, sampleValues, sampleX, out bool stopBitHigh) == false || stopBitHigh == false)
+                if (SampleAt(digitalWords, sampleCount, sampleIntervalUs, sampleX, out bool stopBitHigh) == false || stopBitHigh == false)
                 {
                     return false;
                 }
@@ -398,7 +366,7 @@ namespace InteractiveExamples
             if (fractionalStopBits > 1e-9)
             {
                 double sampleX = frameStartX + (stopStartBitOffset + wholeStopBits + fractionalStopBits / 2.0) * bitDurationUs;
-                if (SampleAt(sampleTimes, sampleValues, sampleX, out bool stopBitHigh) == false || stopBitHigh == false)
+                if (SampleAt(digitalWords, sampleCount, sampleIntervalUs, sampleX, out bool stopBitHigh) == false || stopBitHigh == false)
                 {
                     return false;
                 }
@@ -438,19 +406,27 @@ namespace InteractiveExamples
             return ones;
         }
 
-        private static double EstimateSampleInterval(double[] sampleTimes)
+        private static bool GetBoundaryValue(uint[] digitalWords, int sampleCount, int boundaryIndex)
         {
-            double minimumDelta = double.MaxValue;
-            for (int i = 1; i < sampleTimes.Length; i++)
+            if (sampleCount <= 0)
             {
-                double delta = sampleTimes[i] - sampleTimes[i - 1];
-                if (delta > 0 && delta < minimumDelta)
-                {
-                    minimumDelta = delta;
-                }
+                return false;
             }
 
-            return minimumDelta == double.MaxValue ? 0 : minimumDelta;
+            int sampleIndex = boundaryIndex >= sampleCount ? sampleCount - 1 : boundaryIndex;
+            return GetSampleValue(digitalWords, sampleCount, sampleIndex);
+        }
+
+        private static bool GetSampleValue(uint[] digitalWords, int sampleCount, int sampleIndex)
+        {
+            if (digitalWords == null || sampleIndex < 0 || sampleIndex >= sampleCount)
+            {
+                return false;
+            }
+
+            int wordIndex = sampleIndex / 32;
+            int bitOffset = sampleIndex % 32;
+            return (digitalWords[wordIndex] & (1u << bitOffset)) != 0;
         }
 
         private static string[] BuildBitLabels(byte value, int bitCount)

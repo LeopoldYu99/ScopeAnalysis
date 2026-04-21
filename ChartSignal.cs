@@ -1,14 +1,29 @@
 using Arction.Wpf.Charting;
 using Arction.Wpf.Charting.Axes;
 using Arction.Wpf.Charting.SeriesXY;
-using System;
 
 namespace InteractiveExamples
 {
+    internal sealed class DigitalHistorySnapshot
+    {
+        public static readonly DigitalHistorySnapshot Empty = new DigitalHistorySnapshot(new uint[0], 0, 0);
+
+        public DigitalHistorySnapshot(uint[] digitalWords, int sampleCount, double sampleInterval)
+        {
+            DigitalWords = digitalWords ?? new uint[0];
+            SampleCount = sampleCount;
+            SampleInterval = sampleInterval;
+        }
+
+        public uint[] DigitalWords { get; private set; }
+        public int SampleCount { get; private set; }
+        public double SampleInterval { get; private set; }
+    }
+
     internal sealed class ChartSignal
     {
         private readonly object _historySync = new object();
-        private SeriesPoint[] _recentPoints = new SeriesPoint[0];
+        private DigitalHistorySnapshot _history = DigitalHistorySnapshot.Empty;
         private int _historyVersion;
 
         public ChartSignal(string name)
@@ -17,7 +32,7 @@ namespace InteractiveExamples
             DecodeSettings = new UartDecodeSettings();
         }
 
-        public string Name { get;  set; }
+        public string Name { get; set; }
         public AxisY AxisY { get; set; }
         public DigitalLineSeries Series { get; set; }
         public System.Windows.Media.Color SeriesColor { get; set; }
@@ -33,56 +48,39 @@ namespace InteractiveExamples
             }
         }
 
-
-        public void AppendRecentPoints(SeriesPoint[] points)
+        public void SetDigitalHistory(uint[] digitalWords, int sampleCount, double sampleInterval)
         {
-            if (points == null || points.Length == 0)
+            if (digitalWords == null || sampleCount <= 0 || sampleInterval <= 0)
             {
                 return;
             }
 
             lock (_historySync)
             {
-                if (_recentPoints.Length == 0)
-                {
-                    _recentPoints = points;
-                }
-                else
-                {
-                    SeriesPoint[] merged = new SeriesPoint[_recentPoints.Length + points.Length];
-                    Array.Copy(_recentPoints, 0, merged, 0, _recentPoints.Length);
-                    Array.Copy(points, 0, merged, _recentPoints.Length, points.Length);
-                    _recentPoints = merged;
-                }
-
+                _history = new DigitalHistorySnapshot(digitalWords, sampleCount, sampleInterval);
                 _historyVersion++;
             }
         }
 
-
-
-        public SeriesPoint[] GetAllRecentPointsSnapshot()
+        public DigitalHistorySnapshot GetDigitalHistorySnapshot()
         {
             lock (_historySync)
             {
-                return _recentPoints;
+                return _history;
             }
         }
 
-
-        public void ClearRecentPoints()
+        public void ClearDigitalHistory()
         {
             lock (_historySync)
             {
-                if (_recentPoints.Length > 0)
+                if (_history.SampleCount > 0)
                 {
                     _historyVersion++;
                 }
 
-                _recentPoints = new SeriesPoint[0];
+                _history = DigitalHistorySnapshot.Empty;
             }
         }
-
-
     }
 }

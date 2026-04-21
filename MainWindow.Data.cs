@@ -378,7 +378,7 @@ namespace InteractiveExamples
 
             double sampleInterval = MicrosecondsPerSecond / selection.SampleRate;
             BinaryWaveformImportResult importResult = BinaryWaveformImporter.ImportFile(selection.FilePath, sampleInterval);
-            if (importResult == null || importResult.Points == null || importResult.Points.Length == 0)
+            if (importResult == null || importResult.SampleCount <= 0)
             {
                 MessageBox.Show(this, "Failed to import waveform from the selected file.", "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
@@ -392,7 +392,7 @@ namespace InteractiveExamples
                 ConfigureChartDataSourceBehavior(_chart.ViewXY, true);
                 ImportWaveformToSignal(0, importResult, importResult.SignalName);
 
-                _lastConsumedX = importResult.Points[importResult.Points.Length - 1].X;
+                _lastConsumedX = importResult.SampleCount * importResult.SampleInterval;
                 _chart.ViewXY.XAxes[0].SetRange(0, Math.Max(sampleInterval, _lastConsumedX));
             }
             finally
@@ -410,10 +410,8 @@ namespace InteractiveExamples
             if (signalIndex < 0
                 || signalIndex >= _chartSignals.Count
                 || importResult == null
-                || importResult.Points == null
-                || importResult.Points.Length == 0
+                || importResult.SampleCount <= 0
                 || importResult.DigitalWords == null
-                || importResult.DigitalWords.Length == 0
                 || importResult.SampleInterval <= 0)
             {
                 return;
@@ -422,14 +420,14 @@ namespace InteractiveExamples
             ChartSignal signal = _chartSignals[signalIndex];
             _decodeCache.Remove(signal);
             _measurementCache.Remove(signal);
-            signal.ClearRecentPoints();
+            signal.ClearDigitalHistory();
             signal.Series.Clear();
             signal.Name = displayName;
             signal.AxisY.Title.Text = displayName;
-            signal.Series.FirstSampleTimeStamp = importResult.Points[0].X;
+            signal.Series.FirstSampleTimeStamp = 0;
             signal.Series.SamplingFrequency = 1.0 / importResult.SampleInterval;
             signal.Series.AddBits(importResult.DigitalWords, false);
-            signal.AppendRecentPoints(importResult.Points);
+            signal.SetDigitalHistory(importResult.DigitalWords, importResult.SampleCount, importResult.SampleInterval);
         }
 
         private void ImportProtocolToSignals(int signalIndex, SignalImportSelection selection)
@@ -467,7 +465,7 @@ namespace InteractiveExamples
                 importResults[i] = BinaryWaveformImporter.ImportBytes(channelNames[i], splitBytes[i], sampleInterval);
             }
 
-            if (importResults.Any(result => result == null || result.Points == null || result.Points.Length == 0))
+            if (importResults.Any(result => result == null || result.SampleCount <= 0))
             {
                 MessageBox.Show(this, "Failed to convert imported protocol data into waveforms.", "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
@@ -485,7 +483,7 @@ namespace InteractiveExamples
                     ApplyImportedProtocolDecodeSettings(_chartSignals[i]);
                 }
 
-                _lastConsumedX = importResults.Max(result => result.Points[result.Points.Length - 1].X);
+                _lastConsumedX = importResults.Max(result => result.SampleCount * result.SampleInterval);
                 _chart.ViewXY.XAxes[0].SetRange(0, Math.Max(sampleInterval, _lastConsumedX));
             }
             finally

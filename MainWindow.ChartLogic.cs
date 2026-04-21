@@ -259,7 +259,7 @@ namespace InteractiveExamples
                 return edges != null && edges.Length >= 3;
             }
 
-            edges = BuildDigitalEdges(signal.GetAllRecentPointsSnapshot());
+            edges = BuildDigitalEdges(signal.GetDigitalHistorySnapshot());
             _measurementCache[signal] = new MeasurementCacheEntry
             {
                 HistoryVersion = historyVersion,
@@ -406,33 +406,44 @@ namespace InteractiveExamples
             }
         }
 
-        private static DigitalEdge[] BuildDigitalEdges(SeriesPoint[] points)
+        private static DigitalEdge[] BuildDigitalEdges(DigitalHistorySnapshot history)
         {
-            if (points == null || points.Length < 2)
+            if (history == null || history.DigitalWords == null || history.SampleCount < 2 || history.SampleInterval <= 0)
             {
                 return new DigitalEdge[0];
             }
 
             List<DigitalEdge> edges = new List<DigitalEdge>();
-            for (int i = 1; i < points.Length; i++)
+            bool previousHigh = GetHistorySampleValue(history.DigitalWords, history.SampleCount, 0);
+            for (int sampleIndex = 1; sampleIndex < history.SampleCount; sampleIndex++)
             {
-                double previousValue = points[i - 1].Y;
-                double currentValue = points[i].Y;
-                bool previousHigh = previousValue >= 0.5;
-                bool currentHigh = currentValue >= 0.5;
+                bool currentHigh = GetHistorySampleValue(history.DigitalWords, history.SampleCount, sampleIndex);
                 if (previousHigh == currentHigh)
                 {
                     continue;
                 }
 
                 DigitalEdge edge;
-                edge.X = points[i].X;
+                edge.X = sampleIndex * history.SampleInterval;
                 edge.ValueAfter = currentHigh ? 1.0 : 0.0;
                 edge.Direction = currentHigh ? DigitalEdgeDirection.Rising : DigitalEdgeDirection.Falling;
                 edges.Add(edge);
+                previousHigh = currentHigh;
             }
 
             return edges.ToArray();
+        }
+
+        private static bool GetHistorySampleValue(uint[] digitalWords, int sampleCount, int sampleIndex)
+        {
+            if (digitalWords == null || sampleIndex < 0 || sampleIndex >= sampleCount)
+            {
+                return false;
+            }
+
+            int wordIndex = sampleIndex / 32;
+            int bitOffset = sampleIndex % 32;
+            return (digitalWords[wordIndex] & (1u << bitOffset)) != 0;
         }
 
         private string BuildMeasurementText(MeasurementResult measurement)
@@ -1136,7 +1147,7 @@ namespace InteractiveExamples
                 || cacheEntry.HistoryVersion != historyVersion
                 || cacheEntry.DecodeSettingsVersion != decodeSettingsVersion)
             {
-                SeriesPoint[] history = signal.GetAllRecentPointsSnapshot();
+                DigitalHistorySnapshot history = signal.GetDigitalHistorySnapshot();
                 List<ProtocolSegment> segments;
                 switch (decodeSettings.Mode)
                 {
@@ -1145,13 +1156,17 @@ namespace InteractiveExamples
                         break;
                     case SignalDecodeMode.FixedWidth8Bit:
                         segments = DecodeLogic.BuildFixedWidthSegments(
-                            history,
+                            history.DigitalWords,
+                            history.SampleCount,
+                            history.SampleInterval,
                             8,
                             decodeSettings.EmptyDataRunSegmentThreshold);
                         break;
                     default:
                         segments = DecodeLogic.BuildProtocolSegments(
-                            history,
+                            history.DigitalWords,
+                            history.SampleCount,
+                            history.SampleInterval,
                             decodeSettings.BaudRate,
                             decodeSettings.DataBits,
                             decodeSettings.StopBits,
