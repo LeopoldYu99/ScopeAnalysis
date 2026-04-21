@@ -37,6 +37,7 @@ namespace InteractiveExamples
             _chart.BeginUpdate();
             _chart.ViewXY.AxisLayout.AutoShrinkSegmentsGap = false;
             _decodeCache.Clear();
+            _measurementCache.Clear();
             InvalidateOverlayCaches();
 
             DisposeAllAndClear(view.DigitalLineSeries);
@@ -420,6 +421,7 @@ namespace InteractiveExamples
 
             ChartSignal signal = _chartSignals[signalIndex];
             _decodeCache.Remove(signal);
+            _measurementCache.Remove(signal);
             signal.ClearRecentPoints();
             signal.Series.Clear();
             signal.AxisY.Title.Text = displayName;

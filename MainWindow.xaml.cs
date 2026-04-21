@@ -22,6 +22,7 @@ namespace InteractiveExamples
         private System.Windows.Controls.Border _measurementValueBorder;
         private TextBlock _measurementValueText;
         private readonly Dictionary<ChartSignal, DecodeCacheEntry> _decodeCache = new Dictionary<ChartSignal, DecodeCacheEntry>();
+        private readonly Dictionary<ChartSignal, MeasurementCacheEntry> _measurementCache = new Dictionary<ChartSignal, MeasurementCacheEntry>();
 
         private readonly List<ChartSignal> _chartSignals = new List<ChartSignal>();
         private double _lastConsumedX;

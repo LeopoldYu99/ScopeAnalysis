@@ -1,16 +1,14 @@
 using Arction.Wpf.Charting;
 using Arction.Wpf.Charting.Axes;
 using Arction.Wpf.Charting.SeriesXY;
-using System.Collections.Generic;
+using System;
 
 namespace InteractiveExamples
 {
     internal sealed class ChartSignal
     {
-        private readonly LinkedList<SeriesPoint[]> _pendingChunks = new LinkedList<SeriesPoint[]>();
-        private readonly object _pendingSync = new object();
-        private readonly LinkedList<SeriesPoint> _recentPoints = new LinkedList<SeriesPoint>();
         private readonly object _historySync = new object();
+        private SeriesPoint[] _recentPoints = new SeriesPoint[0];
         private int _historyVersion;
 
         public ChartSignal(string name)
@@ -45,9 +43,16 @@ namespace InteractiveExamples
 
             lock (_historySync)
             {
-                for (int i = 0; i < points.Length; i++)
+                if (_recentPoints.Length == 0)
                 {
-                    _recentPoints.AddLast(points[i]);
+                    _recentPoints = points;
+                }
+                else
+                {
+                    SeriesPoint[] merged = new SeriesPoint[_recentPoints.Length + points.Length];
+                    Array.Copy(_recentPoints, 0, merged, 0, _recentPoints.Length);
+                    Array.Copy(points, 0, merged, _recentPoints.Length, points.Length);
+                    _recentPoints = merged;
                 }
 
                 _historyVersion++;
@@ -60,9 +65,7 @@ namespace InteractiveExamples
         {
             lock (_historySync)
             {
-                SeriesPoint[] snapshot = new SeriesPoint[_recentPoints.Count];
-                _recentPoints.CopyTo(snapshot, 0);
-                return snapshot;
+                return _recentPoints;
             }
         }
 
@@ -71,12 +74,12 @@ namespace InteractiveExamples
         {
             lock (_historySync)
             {
-                if (_recentPoints.Count > 0)
+                if (_recentPoints.Length > 0)
                 {
                     _historyVersion++;
                 }
 
-                _recentPoints.Clear();
+                _recentPoints = new SeriesPoint[0];
             }
         }
 

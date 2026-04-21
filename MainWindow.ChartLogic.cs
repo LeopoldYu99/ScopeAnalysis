@@ -165,11 +165,11 @@ namespace InteractiveExamples
             Falling
         }
 
-        private sealed class DigitalEdge
+        private struct DigitalEdge
         {
-            public double X { get; set; }
-            public double ValueAfter { get; set; }
-            public DigitalEdgeDirection Direction { get; set; }
+            public double X;
+            public double ValueAfter;
+            public DigitalEdgeDirection Direction;
         }
 
         private sealed class MeasurementResult
@@ -213,7 +213,7 @@ namespace InteractiveExamples
             return measurement != null;
         }
 
-        private static bool TryBuildMeasurement(ChartSignal signal, double measurementXValue, out MeasurementResult measurement)
+        private bool TryBuildMeasurement(ChartSignal signal, double measurementXValue, out MeasurementResult measurement)
         {
             measurement = null;
             if (signal == null)
@@ -221,109 +221,199 @@ namespace InteractiveExamples
                 return false;
             }
 
-            SeriesPoint[] points = signal.GetAllRecentPointsSnapshot();
-            List<DigitalEdge> edges = BuildDigitalEdges(points);
-            if (edges.Count < 3)
+            DigitalEdge[] edges;
+            if (TryGetMeasurementEdges(signal, out edges) == false || edges.Length < 3)
             {
                 return false;
             }
 
             MeasurementResult bestMeasurement = null;
-            for (int i = 0; i <= edges.Count - 3; i++)
-            {
-                DigitalEdge firstEdge = edges[i];
-                DigitalEdge middleEdge = edges[i + 1];
-                DigitalEdge lastEdge = edges[i + 2];
+            int edgeIndex = FindFirstEdgeIndexAtOrAfter(edges, measurementXValue);
+            EvaluateMeasurementCandidate(signal, edges, edgeIndex - 2, measurementXValue, ref bestMeasurement);
+            EvaluateMeasurementCandidate(signal, edges, edgeIndex - 1, measurementXValue, ref bestMeasurement);
+            EvaluateMeasurementCandidate(signal, edges, edgeIndex, measurementXValue, ref bestMeasurement);
 
-                if (firstEdge.Direction == middleEdge.Direction || firstEdge.Direction != lastEdge.Direction)
-                {
-                    continue;
-                }
-
-                double width = middleEdge.X - firstEdge.X;
-                double measuredPeriod = lastEdge.X - firstEdge.X;
-                if (width <= 0 || measuredPeriod <= 0 || width > measuredPeriod)
-                {
-                    continue;
-                }
-
-                bool isHighPulseWidth = firstEdge.Direction == DigitalEdgeDirection.Rising;
-                double highDutyRatio = isHighPulseWidth
-                    ? width / measuredPeriod
-                    : (measuredPeriod - width) / measuredPeriod;
-                highDutyRatio = Math.Max(0.0, Math.Min(1.0, highDutyRatio));
-
-                double derivedPeriod = measuredPeriod;
-                if (isHighPulseWidth)
-                {
-                    if (highDutyRatio > 1e-9)
-                    {
-                        derivedPeriod = width / highDutyRatio;
-                    }
-                }
-                else
-                {
-                    double lowDutyRatio = 1.0 - highDutyRatio;
-                    if (lowDutyRatio > 1e-9)
-                    {
-                        derivedPeriod = width / lowDutyRatio;
-                    }
-                }
-
-                if (derivedPeriod <= 0 || double.IsNaN(derivedPeriod) || double.IsInfinity(derivedPeriod))
-                {
-                    continue;
-                }
-
-                int matchRank = 2;
-                double distanceToMeasurementX = Math.Abs(measurementXValue - (firstEdge.X + lastEdge.X) / 2.0);
-                if (measurementXValue >= firstEdge.X && measurementXValue <= middleEdge.X)
-                {
-                    matchRank = 0;
-                    distanceToMeasurementX = 0;
-                }
-                else if (measurementXValue >= firstEdge.X && measurementXValue <= lastEdge.X)
-                {
-                    matchRank = 1;
-                    distanceToMeasurementX = Math.Abs(measurementXValue - (firstEdge.X + lastEdge.X) / 2.0);
-                }
-
-                MeasurementResult candidate = new MeasurementResult
-                {
-                    Signal = signal,
-                    Direction = firstEdge.Direction,
-                    Width = width,
-                    Period = derivedPeriod,
-                    FrequencyHz = 1.0 / derivedPeriod,
-                    DutyCyclePercent = highDutyRatio * 100.0,
-                    DisplayYValue = firstEdge.ValueAfter,
-                    IsHighPulseWidth = isHighPulseWidth,
-                    PeriodStartX = firstEdge.X,
-                    PeriodEndX = lastEdge.X,
-                    MatchRank = matchRank,
-                    DistanceToMeasurementX = distanceToMeasurementX
-                };
-
-                if (bestMeasurement == null
-                    || candidate.MatchRank < bestMeasurement.MatchRank
-                    || (candidate.MatchRank == bestMeasurement.MatchRank && candidate.DistanceToMeasurementX < bestMeasurement.DistanceToMeasurementX))
-                {
-                    bestMeasurement = candidate;
-                }
-            }
+            int centerIndex = FindFirstMeasurementWindowCenterAtOrAfter(edges, measurementXValue);
+            EvaluateMeasurementCandidate(signal, edges, centerIndex - 1, measurementXValue, ref bestMeasurement);
+            EvaluateMeasurementCandidate(signal, edges, centerIndex, measurementXValue, ref bestMeasurement);
 
             measurement = bestMeasurement;
             return measurement != null;
         }
 
-        private static List<DigitalEdge> BuildDigitalEdges(SeriesPoint[] points)
+        private bool TryGetMeasurementEdges(ChartSignal signal, out DigitalEdge[] edges)
         {
-            List<DigitalEdge> edges = new List<DigitalEdge>();
-            if (points == null || points.Length < 2)
+            edges = null;
+            if (signal == null)
             {
-                return edges;
+                return false;
             }
 
+            int historyVersion = signal.HistoryVersion;
+            MeasurementCacheEntry cacheEntry;
+            if (_measurementCache.TryGetValue(signal, out cacheEntry)
+                && cacheEntry != null
+                && cacheEntry.HistoryVersion == historyVersion)
+            {
+                edges = cacheEntry.Edges;
+                return edges != null && edges.Length >= 3;
+            }
+
+            edges = BuildDigitalEdges(signal.GetAllRecentPointsSnapshot());
+            _measurementCache[signal] = new MeasurementCacheEntry
+            {
+                HistoryVersion = historyVersion,
+                Edges = edges
+            };
+
+            return edges != null && edges.Length >= 3;
+        }
+
+        private static int FindFirstEdgeIndexAtOrAfter(DigitalEdge[] edges, double measurementXValue)
+        {
+            int left = 0;
+            int right = edges.Length;
+            while (left < right)
+            {
+                int middle = left + ((right - left) / 2);
+                if (edges[middle].X < measurementXValue)
+                {
+                    left = middle + 1;
+                }
+                else
+                {
+                    right = middle;
+                }
+            }
+
+            return left;
+        }
+
+        private static int FindFirstMeasurementWindowCenterAtOrAfter(DigitalEdge[] edges, double measurementXValue)
+        {
+            int left = 0;
+            int right = Math.Max(0, edges.Length - 2);
+            while (left < right)
+            {
+                int middle = left + ((right - left) / 2);
+                double centerX = (edges[middle].X + edges[middle + 2].X) / 2.0;
+                if (centerX < measurementXValue)
+                {
+                    left = middle + 1;
+                }
+                else
+                {
+                    right = middle;
+                }
+            }
+
+            return left;
+        }
+
+        private static void EvaluateMeasurementCandidate(
+            ChartSignal signal,
+            DigitalEdge[] edges,
+            int startIndex,
+            double measurementXValue,
+            ref MeasurementResult bestMeasurement)
+        {
+            if (signal == null
+                || edges == null
+                || startIndex < 0
+                || startIndex + 2 >= edges.Length)
+            {
+                return;
+            }
+
+            DigitalEdge firstEdge = edges[startIndex];
+            DigitalEdge middleEdge = edges[startIndex + 1];
+            DigitalEdge lastEdge = edges[startIndex + 2];
+
+            if (firstEdge.Direction == middleEdge.Direction || firstEdge.Direction != lastEdge.Direction)
+            {
+                return;
+            }
+
+            double width = middleEdge.X - firstEdge.X;
+            double measuredPeriod = lastEdge.X - firstEdge.X;
+            if (width <= 0 || measuredPeriod <= 0 || width > measuredPeriod)
+            {
+                return;
+            }
+
+            bool isHighPulseWidth = firstEdge.Direction == DigitalEdgeDirection.Rising;
+            double highDutyRatio = isHighPulseWidth
+                ? width / measuredPeriod
+                : (measuredPeriod - width) / measuredPeriod;
+            highDutyRatio = Math.Max(0.0, Math.Min(1.0, highDutyRatio));
+
+            double derivedPeriod = measuredPeriod;
+            if (isHighPulseWidth)
+            {
+                if (highDutyRatio > 1e-9)
+                {
+                    derivedPeriod = width / highDutyRatio;
+                }
+            }
+            else
+            {
+                double lowDutyRatio = 1.0 - highDutyRatio;
+                if (lowDutyRatio > 1e-9)
+                {
+                    derivedPeriod = width / lowDutyRatio;
+                }
+            }
+
+            if (derivedPeriod <= 0 || double.IsNaN(derivedPeriod) || double.IsInfinity(derivedPeriod))
+            {
+                return;
+            }
+
+            int matchRank = 2;
+            double periodMidpoint = (firstEdge.X + lastEdge.X) / 2.0;
+            double distanceToMeasurementX = Math.Abs(measurementXValue - periodMidpoint);
+            if (measurementXValue >= firstEdge.X && measurementXValue <= middleEdge.X)
+            {
+                matchRank = 0;
+                distanceToMeasurementX = 0;
+            }
+            else if (measurementXValue >= firstEdge.X && measurementXValue <= lastEdge.X)
+            {
+                matchRank = 1;
+            }
+
+            MeasurementResult candidate = new MeasurementResult
+            {
+                Signal = signal,
+                Direction = firstEdge.Direction,
+                Width = width,
+                Period = derivedPeriod,
+                FrequencyHz = 1.0 / derivedPeriod,
+                DutyCyclePercent = highDutyRatio * 100.0,
+                DisplayYValue = firstEdge.ValueAfter,
+                IsHighPulseWidth = isHighPulseWidth,
+                PeriodStartX = firstEdge.X,
+                PeriodEndX = lastEdge.X,
+                MatchRank = matchRank,
+                DistanceToMeasurementX = distanceToMeasurementX
+            };
+
+            if (bestMeasurement == null
+                || candidate.MatchRank < bestMeasurement.MatchRank
+                || (candidate.MatchRank == bestMeasurement.MatchRank && candidate.DistanceToMeasurementX < bestMeasurement.DistanceToMeasurementX))
+            {
+                bestMeasurement = candidate;
+            }
+        }
+
+        private static DigitalEdge[] BuildDigitalEdges(SeriesPoint[] points)
+        {
+            if (points == null || points.Length < 2)
+            {
+                return new DigitalEdge[0];
+            }
+
+            List<DigitalEdge> edges = new List<DigitalEdge>();
             for (int i = 1; i < points.Length; i++)
             {
                 double previousValue = points[i - 1].Y;
@@ -335,15 +425,14 @@ namespace InteractiveExamples
                     continue;
                 }
 
-                edges.Add(new DigitalEdge
-                {
-                    X = points[i].X,
-                    ValueAfter = currentHigh ? 1.0 : 0.0,
-                    Direction = currentHigh ? DigitalEdgeDirection.Rising : DigitalEdgeDirection.Falling
-                });
+                DigitalEdge edge;
+                edge.X = points[i].X;
+                edge.ValueAfter = currentHigh ? 1.0 : 0.0;
+                edge.Direction = currentHigh ? DigitalEdgeDirection.Rising : DigitalEdgeDirection.Falling;
+                edges.Add(edge);
             }
 
-            return edges;
+            return edges.ToArray();
         }
 
         private string BuildMeasurementText(MeasurementResult measurement)
@@ -718,6 +807,12 @@ namespace InteractiveExamples
             public int HistoryVersion { get; set; }
             public int DecodeSettingsVersion { get; set; }
             public List<ProtocolSegment> Segments { get; set; }
+        }
+
+        private sealed class MeasurementCacheEntry
+        {
+            public int HistoryVersion { get; set; }
+            public DigitalEdge[] Edges { get; set; }
         }
 
         private const double DecodeVerticalOffset = -30.0;
