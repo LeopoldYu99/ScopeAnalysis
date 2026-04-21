@@ -1277,17 +1277,31 @@ namespace InteractiveExamples
                 || cacheEntry.DecodeSettingsVersion != decodeSettingsVersion)
             {
                 SeriesPoint[] history = signal.GetAllRecentPointsSnapshot();
+                List<ProtocolSegment> segments;
+                switch (decodeSettings.Mode)
+                {
+                    case SignalDecodeMode.None:
+                        segments = new List<ProtocolSegment>();
+                        break;
+                    case SignalDecodeMode.FixedWidth8Bit:
+                        segments = DecodeLogic.BuildFixedWidthSegments(history, 8);
+                        break;
+                    default:
+                        segments = DecodeLogic.BuildProtocolSegments(
+                            history,
+                            decodeSettings.BaudRate,
+                            decodeSettings.DataBits,
+                            decodeSettings.StopBits,
+                            decodeSettings.ParityMode,
+                            decodeSettings.IdleBits);
+                        break;
+                }
+
                 cacheEntry = new DecodeCacheEntry
                 {
                     HistoryVersion = historyVersion,
                     DecodeSettingsVersion = decodeSettingsVersion,
-                    Segments = DecodeLogic.BuildProtocolSegments(
-                        history,
-                        decodeSettings.BaudRate,
-                        decodeSettings.DataBits,
-                        decodeSettings.StopBits,
-                        decodeSettings.ParityMode,
-                        decodeSettings.IdleBits)
+                    Segments = segments
                 };
 
                 _decodeCache[signal] = cacheEntry;

@@ -10,6 +10,7 @@ namespace InteractiveExamples
         private double _stopBits = 1;
         private UartParityMode _parityMode = UartParityMode.None;
         private int _idleBits = 1;
+        private SignalDecodeMode _mode = SignalDecodeMode.UartFrame;
 
         public int Version
         {
@@ -98,6 +99,22 @@ namespace InteractiveExamples
                 if (_idleBits != normalizedValue)
                 {
                     _idleBits = normalizedValue;
+                    _version++;
+                }
+            }
+        }
+
+        public SignalDecodeMode Mode
+        {
+            get
+            {
+                return _mode;
+            }
+            set
+            {
+                if (_mode != value)
+                {
+                    _mode = value;
                     _version++;
                 }
             }

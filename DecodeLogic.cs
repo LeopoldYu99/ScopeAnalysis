@@ -80,6 +80,73 @@ namespace InteractiveExamples
             return segments;
         }
 
+        public static List<ProtocolSegment> BuildFixedWidthSegments(SeriesPoint[] history, int bitsPerSegment)
+        {
+            List<ProtocolSegment> segments = new List<ProtocolSegment>();
+            if (history == null || history.Length == 0 || bitsPerSegment <= 0 || bitsPerSegment > 8)
+            {
+                return segments;
+            }
+
+            bool[] sampleValues;
+            double[] sampleTimes;
+            CollapseToSamples(history, out sampleTimes, out sampleValues);
+            if (sampleTimes.Length < 2)
+            {
+                return segments;
+            }
+
+            double sampleInterval = EstimateSampleInterval(sampleTimes);
+            if (sampleInterval <= 0)
+            {
+                return segments;
+            }
+
+            double startX = sampleTimes[0];
+            double endX = sampleTimes[sampleTimes.Length - 1];
+            int bitCount = (int)Math.Round((endX - startX) / sampleInterval, MidpointRounding.AwayFromZero);
+            int segmentCount = bitCount / bitsPerSegment;
+            for (int segmentIndex = 0; segmentIndex < segmentCount; segmentIndex++)
+            {
+                double segmentStartX = startX + segmentIndex * bitsPerSegment * sampleInterval;
+                byte decodedValue = 0;
+                string[] bitLabels = new string[bitsPerSegment];
+                bool hasCompleteSegment = true;
+
+                for (int bitIndex = 0; bitIndex < bitsPerSegment; bitIndex++)
+                {
+                    double sampleX = segmentStartX + (bitIndex + 0.5) * sampleInterval;
+                    if (SampleAt(sampleTimes, sampleValues, sampleX, out bool bitHigh) == false)
+                    {
+                        hasCompleteSegment = false;
+                        break;
+                    }
+
+                    if (bitHigh)
+                    {
+                        decodedValue |= (byte)(1 << (bitsPerSegment - bitIndex - 1));
+                    }
+
+                    bitLabels[bitIndex] = bitHigh ? "1" : "0";
+                }
+
+                if (hasCompleteSegment == false)
+                {
+                    break;
+                }
+
+                AddSegment(
+                    segments,
+                    segmentStartX,
+                    segmentStartX + bitsPerSegment * sampleInterval,
+                    FormatLabel(decodedValue),
+                    false,
+                    bitLabels);
+            }
+
+            return segments;
+        }
+
         private static void CollapseToSamples(SeriesPoint[] history, out double[] sampleTimes, out bool[] sampleValues)
         {
             const double epsilon = 1e-12;

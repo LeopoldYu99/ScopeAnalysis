@@ -3,6 +3,7 @@ using Arction.Wpf.Charting.SeriesXY;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
@@ -17,6 +18,7 @@ namespace InteractiveExamples
     {
         private sealed class SignalImportSelection
         {
+            public SerialProtocolType ProtocolType { get; set; }
             public string ProtocolName { get; set; }
             public string FilePath { get; set; }
             public uint SampleRate { get; set; }
@@ -588,10 +590,11 @@ namespace InteractiveExamples
             importButton.Click += (sender, e) =>
             {
                 string selectedProtocol = protocolComboBox.SelectedItem as string;
+                SerialProtocolType protocolType = GetSelectedImportProtocolType(protocolComboBox.SelectedIndex);
                 string filePath = filePathTextBox.Text == null ? string.Empty : filePathTextBox.Text.Trim();
                 uint sampleRate;
 
-                if (string.IsNullOrEmpty(selectedProtocol))
+                if (protocolType == SerialProtocolType.Uart || string.IsNullOrEmpty(selectedProtocol))
                 {
                     MessageBox.Show(dialog, "Please select a protocol.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
@@ -617,7 +620,9 @@ namespace InteractiveExamples
 
                 selection = new SignalImportSelection
                 {
-                    ProtocolName = selectedProtocol,
+                    ProtocolType = protocolType,
+                    // Keep using the legacy dialog dispatch path, then branch by ProtocolType later.
+                    ProtocolName = protocolType == SerialProtocolType.Uart ? selectedProtocol : protocolComboBox.Items[1] as string,
                     FilePath = filePath,
                     SampleRate = sampleRate
                 };
@@ -672,6 +677,12 @@ namespace InteractiveExamples
 
         private void ImportTwoWireProtocolToSignals(int signalIndex, SignalImportSelection selection)
         {
+            if (selection != null && selection.ProtocolType != SerialProtocolType.Uart)
+            {
+                ImportProtocolToSignals(signalIndex, selection);
+                return;
+            }
+
             if (_chart == null || selection == null)
             {
                 return;
@@ -751,6 +762,89 @@ namespace InteractiveExamples
             signal.AppendRecentPoints(importResult.Points);
         }
 
+        private void ImportProtocolToSignals(int signalIndex, SignalImportSelection selection)
+        {
+            if (_chart == null || selection == null)
+            {
+                return;
+            }
+
+            string[] channelNames = GetProtocolChannelNames(selection.ProtocolType);
+            if (channelNames == null || channelNames.Length == 0)
+            {
+                MessageBox.Show(this, "Unsupported import protocol.", "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (signalIndex < 0 || signalIndex + channelNames.Length - 1 >= _chartSignals.Count)
+            {
+                MessageBox.Show(
+                    this,
+                    string.Format(
+                        "Importing {0} needs {1} consecutive signals starting from the selected channel.",
+                        GetImportProtocolDisplayName(selection.ProtocolType),
+                        channelNames.Length),
+                    "Import failed",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            byte[] protocolBytes = File.ReadAllBytes(selection.FilePath);
+            if (protocolBytes == null || protocolBytes.Length < channelNames.Length)
+            {
+                MessageBox.Show(this, "The import file does not contain enough data for the selected protocol.", "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            byte[][] splitBytes = SplitProtocolBytes(protocolBytes, channelNames.Length);
+            if (splitBytes == null || splitBytes.Length != channelNames.Length || splitBytes.Any(bytes => bytes == null || bytes.Length == 0))
+            {
+                MessageBox.Show(this, "Failed to split the import data into protocol channels.", "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            double sampleInterval = MicrosecondsPerSecond / selection.SampleRate;
+            BinaryWaveformImportResult[] importResults = new BinaryWaveformImportResult[channelNames.Length];
+            for (int i = 0; i < channelNames.Length; i++)
+            {
+                importResults[i] = BinaryWaveformImporter.ImportBytes(_chartSignals[signalIndex + i].Name, splitBytes[i], sampleInterval);
+            }
+
+            if (importResults.Any(result => result == null || result.Points == null || result.Points.Length == 0))
+            {
+                MessageBox.Show(this, "Failed to convert imported protocol data into waveforms.", "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            Stop();
+            _isStreaming = false;
+
+            _chart.BeginUpdate();
+            try
+            {
+                ConfigureChartDataSourceBehavior(_chart.ViewXY, true);
+                for (int i = 0; i < channelNames.Length; i++)
+                {
+                    ImportWaveformToSignal(signalIndex + i, importResults[i], channelNames[i]);
+                    ApplyImportedProtocolDecodeSettings(_chartSignals[signalIndex + i]);
+                }
+
+                _lastConsumedX = importResults.Max(result => result.Points[result.Points.Length - 1].X);
+                _hasConsumedData = true;
+                _chart.ViewXY.XAxes[0].SetRange(0, Math.Max(sampleInterval, _lastConsumedX));
+            }
+            finally
+            {
+                _chart.EndUpdate();
+            }
+
+            CompositionTarget.Rendering -= CompositionTarget_Rendering;
+            CompositionTarget.Rendering += CompositionTarget_Rendering;
+            UpdateDecodeOverlay();
+            UpdateCursorVisual();
+        }
+
         private static byte[][] SplitTwoWireProtocolBytes(byte[] protocolBytes)
         {
             if (protocolBytes == null || protocolBytes.Length < 2)
@@ -770,6 +864,32 @@ namespace InteractiveExamples
             }
 
             return new[] { clkBytes, dataBytes };
+        }
+
+        private static byte[][] SplitProtocolBytes(byte[] protocolBytes, int channelCount)
+        {
+            if (protocolBytes == null || protocolBytes.Length < channelCount || channelCount <= 0)
+            {
+                return null;
+            }
+
+            int frameCount = protocolBytes.Length / channelCount;
+            byte[][] channels = new byte[channelCount][];
+            for (int channelIndex = 0; channelIndex < channelCount; channelIndex++)
+            {
+                channels[channelIndex] = new byte[frameCount];
+            }
+
+            for (int frameIndex = 0; frameIndex < frameCount; frameIndex++)
+            {
+                int sourceIndex = frameIndex * channelCount;
+                for (int channelIndex = 0; channelIndex < channelCount; channelIndex++)
+                {
+                    channels[channelIndex][frameIndex] = protocolBytes[sourceIndex + channelIndex];
+                }
+            }
+
+            return channels;
         }
 
         private UIElement BuildSignalGeneratorDialogContent(SerialPortDataProducer producer, Func<bool, bool> validateClose)
@@ -902,11 +1022,68 @@ namespace InteractiveExamples
                 return;
             }
 
+            signal.DecodeSettings.Mode = SignalDecodeMode.UartFrame;
             signal.DecodeSettings.BaudRate = buildResult.BaudRate;
             signal.DecodeSettings.DataBits = buildResult.DataBits;
             signal.DecodeSettings.StopBits = buildResult.StopBits;
             signal.DecodeSettings.ParityMode = ConvertParityMode(buildResult.Parity);
             signal.DecodeSettings.IdleBits = buildResult.IdleBits;
+        }
+
+        private static void ApplyImportedProtocolDecodeSettings(ChartSignal signal)
+        {
+            if (signal == null || signal.DecodeSettings == null)
+            {
+                return;
+            }
+
+            signal.DecodeSettings.Mode = SignalDecodeMode.FixedWidth8Bit;
+            signal.DecodeSettings.DataBits = 8;
+        }
+
+        private static SerialProtocolType GetSelectedImportProtocolType(int selectedIndex)
+        {
+            switch (selectedIndex)
+            {
+                case 1:
+                    return SerialProtocolType.TwoWireSerial;
+                case 2:
+                    return SerialProtocolType.ThreeWireSerial;
+                case 3:
+                    return SerialProtocolType.FourWireSerial;
+                default:
+                    return SerialProtocolType.Uart;
+            }
+        }
+
+        private static string[] GetProtocolChannelNames(SerialProtocolType protocolType)
+        {
+            switch (protocolType)
+            {
+                case SerialProtocolType.TwoWireSerial:
+                    return new[] { "CLK", "DATA" };
+                case SerialProtocolType.ThreeWireSerial:
+                    return new[] { "CLK", "EN", "DATA" };
+                case SerialProtocolType.FourWireSerial:
+                    return new[] { "CLK", "EN", "DATA0", "DATA1" };
+                default:
+                    return null;
+            }
+        }
+
+        private static string GetImportProtocolDisplayName(SerialProtocolType protocolType)
+        {
+            switch (protocolType)
+            {
+                case SerialProtocolType.TwoWireSerial:
+                    return "2-wire";
+                case SerialProtocolType.ThreeWireSerial:
+                    return "3-wire";
+                case SerialProtocolType.FourWireSerial:
+                    return "4-wire";
+                default:
+                    return "UART";
+            }
         }
 
         private static UartParityMode ConvertParityMode(ParityMode parityMode)
