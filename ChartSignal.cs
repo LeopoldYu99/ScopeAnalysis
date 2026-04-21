@@ -17,7 +17,7 @@ namespace InteractiveExamples
             DecodeSettings = new UartDecodeSettings();
         }
 
-        public string Name { get; private set; }
+        public string Name { get;  set; }
         public AxisY AxisY { get; set; }
         public DigitalLineSeries Series { get; set; }
         public System.Windows.Media.Color SeriesColor { get; set; }

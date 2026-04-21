@@ -1117,6 +1117,11 @@ namespace InteractiveExamples
                 return new List<ProtocolSegment>();
             }
 
+            if (ShouldSkipDecode(signal))
+            {
+                return new List<ProtocolSegment>();
+            }
+
             UartDecodeSettings decodeSettings = signal.DecodeSettings;
             if (decodeSettings == null)
             {
@@ -1139,7 +1144,10 @@ namespace InteractiveExamples
                         segments = new List<ProtocolSegment>();
                         break;
                     case SignalDecodeMode.FixedWidth8Bit:
-                        segments = DecodeLogic.BuildFixedWidthSegments(history, 8);
+                        segments = DecodeLogic.BuildFixedWidthSegments(
+                            history,
+                            8,
+                            decodeSettings.EmptyDataRunSegmentThreshold);
                         break;
                     default:
                         segments = DecodeLogic.BuildProtocolSegments(
@@ -1163,6 +1171,18 @@ namespace InteractiveExamples
             }
 
             return ClipProtocolSegments(cacheEntry.Segments, visibleMin, visibleMax);
+        }
+
+        private static bool ShouldSkipDecode(ChartSignal signal)
+        {
+            if (signal == null || string.IsNullOrWhiteSpace(signal.Name))
+            {
+                return false;
+            }
+
+            string signalName = signal.Name.Trim();
+            return string.Equals(signalName, "CLK", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(signalName, "EN", StringComparison.OrdinalIgnoreCase);
         }
 
         private static List<ProtocolSegment> ClipProtocolSegments(List<ProtocolSegment> segments, double visibleMin, double visibleMax)

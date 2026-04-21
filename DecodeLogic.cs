@@ -7,6 +7,16 @@ namespace InteractiveExamples
 {
     internal static class DecodeLogic
     {
+        private struct FixedWidthSegmentCandidate
+        {
+            public double StartX;
+            public double EndX;
+            public byte DecodedValue;
+            public string[] BitLabels;
+            public bool IsUniform;
+            public bool UniformHigh;
+        }
+
         public static List<ProtocolSegment> BuildProtocolSegments(
             SeriesPoint[] history,
             int uartBaudRate,
@@ -80,7 +90,10 @@ namespace InteractiveExamples
             return segments;
         }
 
-        public static List<ProtocolSegment> BuildFixedWidthSegments(SeriesPoint[] history, int bitsPerSegment)
+        public static List<ProtocolSegment> BuildFixedWidthSegments(
+            SeriesPoint[] history,
+            int bitsPerSegment,
+            int emptyDataRunSegmentThreshold)
         {
             List<ProtocolSegment> segments = new List<ProtocolSegment>();
             if (history == null || history.Length == 0 || bitsPerSegment <= 0 || bitsPerSegment > 8)
@@ -106,12 +119,15 @@ namespace InteractiveExamples
             double endX = sampleTimes[sampleTimes.Length - 1];
             int bitCount = (int)Math.Round((endX - startX) / sampleInterval, MidpointRounding.AwayFromZero);
             int segmentCount = bitCount / bitsPerSegment;
+            List<FixedWidthSegmentCandidate> candidates = new List<FixedWidthSegmentCandidate>(segmentCount);
             for (int segmentIndex = 0; segmentIndex < segmentCount; segmentIndex++)
             {
                 double segmentStartX = startX + segmentIndex * bitsPerSegment * sampleInterval;
                 byte decodedValue = 0;
                 string[] bitLabels = new string[bitsPerSegment];
                 bool hasCompleteSegment = true;
+                bool? firstBitHigh = null;
+                bool isUniform = true;
 
                 for (int bitIndex = 0; bitIndex < bitsPerSegment; bitIndex++)
                 {
@@ -127,6 +143,15 @@ namespace InteractiveExamples
                         decodedValue |= (byte)(1 << (bitsPerSegment - bitIndex - 1));
                     }
 
+                    if (firstBitHigh.HasValue == false)
+                    {
+                        firstBitHigh = bitHigh;
+                    }
+                    else if (firstBitHigh.Value != bitHigh)
+                    {
+                        isUniform = false;
+                    }
+
                     bitLabels[bitIndex] = bitHigh ? "1" : "0";
                 }
 
@@ -135,15 +160,18 @@ namespace InteractiveExamples
                     break;
                 }
 
-                AddSegment(
-                    segments,
-                    segmentStartX,
-                    segmentStartX + bitsPerSegment * sampleInterval,
-                    FormatLabel(decodedValue),
-                    false,
-                    bitLabels);
+                candidates.Add(new FixedWidthSegmentCandidate
+                {
+                    StartX = segmentStartX,
+                    EndX = segmentStartX + bitsPerSegment * sampleInterval,
+                    DecodedValue = decodedValue,
+                    BitLabels = bitLabels,
+                    IsUniform = isUniform,
+                    UniformHigh = firstBitHigh.HasValue && firstBitHigh.Value
+                });
             }
 
+            AddFilteredFixedWidthSegments(segments, candidates, emptyDataRunSegmentThreshold);
             return segments;
         }
 
@@ -439,6 +467,64 @@ namespace InteractiveExamples
             }
 
             return labels;
+        }
+
+        private static void AddFilteredFixedWidthSegments(
+            List<ProtocolSegment> segments,
+            List<FixedWidthSegmentCandidate> candidates,
+            int emptyDataRunSegmentThreshold)
+        {
+            if (segments == null || candidates == null || candidates.Count == 0)
+            {
+                return;
+            }
+
+            int minimumEmptyRunSegments = Math.Max(1, emptyDataRunSegmentThreshold);
+
+            int segmentIndex = 0;
+            while (segmentIndex < candidates.Count)
+            {
+                FixedWidthSegmentCandidate candidate = candidates[segmentIndex];
+                if (candidate.IsUniform == false)
+                {
+                    AddFixedWidthSegment(segments, candidate);
+                    segmentIndex++;
+                    continue;
+                }
+
+                int runEndIndex = segmentIndex;
+                while (runEndIndex + 1 < candidates.Count
+                    && candidates[runEndIndex + 1].IsUniform
+                    && candidates[runEndIndex + 1].UniformHigh == candidate.UniformHigh)
+                {
+                    runEndIndex++;
+                }
+
+                int runLength = runEndIndex - segmentIndex + 1;
+                if (runLength >= minimumEmptyRunSegments)
+                {
+                    segmentIndex = runEndIndex + 1;
+                    continue;
+                }
+
+                for (int index = segmentIndex; index <= runEndIndex; index++)
+                {
+                    AddFixedWidthSegment(segments, candidates[index]);
+                }
+
+                segmentIndex = runEndIndex + 1;
+            }
+        }
+
+        private static void AddFixedWidthSegment(List<ProtocolSegment> segments, FixedWidthSegmentCandidate candidate)
+        {
+            AddSegment(
+                segments,
+                candidate.StartX,
+                candidate.EndX,
+                FormatLabel(candidate.DecodedValue),
+                false,
+                candidate.BitLabels);
         }
 
         private static void AddSegment(

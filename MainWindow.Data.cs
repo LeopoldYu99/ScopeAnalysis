@@ -424,6 +424,7 @@ namespace InteractiveExamples
             _measurementCache.Remove(signal);
             signal.ClearRecentPoints();
             signal.Series.Clear();
+            signal.Name = displayName;
             signal.AxisY.Title.Text = displayName;
             signal.Series.FirstSampleTimeStamp = importResult.Points[0].X;
             signal.Series.SamplingFrequency = 1.0 / importResult.SampleInterval;

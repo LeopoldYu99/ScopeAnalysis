@@ -86,7 +86,6 @@ namespace InteractiveExamples
             {
                 return null;
             }
-            //List<SeriesPoint> aa = new List<SeriesPoint>(bytes.Length * 8 + 1);
             List<SeriesPoint> points = new List<SeriesPoint>(bytes.Length * 8 + 1);
             double time = 0;
             bool hasPreviousValue = false;
