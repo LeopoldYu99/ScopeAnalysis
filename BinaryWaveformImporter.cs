@@ -10,6 +10,8 @@ namespace InteractiveExamples
     {
         public string SignalName { get; set; }
         public SeriesPoint[] Points { get; set; }
+        public uint[] DigitalWords { get; set; }
+        public double SampleInterval { get; set; }
     }
 
     internal static class BinaryWaveformImporter
@@ -33,6 +35,7 @@ namespace InteractiveExamples
             }
 
             SeriesPoint[] points = ImportBinaryWaveformAsZeroOne(bytes, sampleIntervalSeconds);
+            uint[] digitalWords = PackBits(bytes);
             if (points == null || points.Length == 0)
             {
                 return null;
@@ -41,8 +44,40 @@ namespace InteractiveExamples
             return new BinaryWaveformImportResult
             {
                 SignalName = string.IsNullOrWhiteSpace(signalName) ? "Signal" : signalName,
-                Points = points
+                Points = points,
+                DigitalWords = digitalWords,
+                SampleInterval = sampleIntervalSeconds
             };
+        }
+
+        private static uint[] PackBits(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length == 0)
+            {
+                return null;
+            }
+
+            int bitCount = bytes.Length * 8;
+            uint[] words = new uint[(bitCount + 31) / 32];
+            int sampleIndex = 0;
+
+            for (int byteIndex = 0; byteIndex < bytes.Length; byteIndex++)
+            {
+                byte valueByte = bytes[byteIndex];
+                for (int bitIndex = 7; bitIndex >= 0; bitIndex--)
+                {
+                    if (((valueByte >> bitIndex) & 0x1) == 0x1)
+                    {
+                        int wordIndex = sampleIndex / 32;
+                        int bitOffset = sampleIndex % 32;
+                        words[wordIndex] |= (uint)(1u << bitOffset);
+                    }
+
+                    sampleIndex++;
+                }
+            }
+
+            return words;
         }
 
         private static SeriesPoint[] ImportBinaryWaveformAsZeroOne(byte[] bytes, double sampleIntervalSeconds)

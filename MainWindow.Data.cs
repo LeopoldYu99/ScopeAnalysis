@@ -39,7 +39,7 @@ namespace InteractiveExamples
             _decodeCache.Clear();
             InvalidateOverlayCaches();
 
-            DisposeAllAndClear(view.PointLineSeries);
+            DisposeAllAndClear(view.DigitalLineSeries);
             DisposeAllAndClear(view.YAxes);
             _chartSignals.Clear();
 
@@ -406,7 +406,14 @@ namespace InteractiveExamples
 
         private void ImportWaveformToSignal(int signalIndex, BinaryWaveformImportResult importResult, string displayName)
         {
-            if (signalIndex < 0 || signalIndex >= _chartSignals.Count || importResult == null || importResult.Points == null || importResult.Points.Length == 0)
+            if (signalIndex < 0
+                || signalIndex >= _chartSignals.Count
+                || importResult == null
+                || importResult.Points == null
+                || importResult.Points.Length == 0
+                || importResult.DigitalWords == null
+                || importResult.DigitalWords.Length == 0
+                || importResult.SampleInterval <= 0)
             {
                 return;
             }
@@ -416,7 +423,9 @@ namespace InteractiveExamples
             signal.ClearRecentPoints();
             signal.Series.Clear();
             signal.AxisY.Title.Text = displayName;
-            signal.Series.AddPoints(importResult.Points, false);
+            signal.Series.FirstSampleTimeStamp = importResult.Points[0].X;
+            signal.Series.SamplingFrequency = 1.0 / importResult.SampleInterval;
+            signal.Series.AddBits(importResult.DigitalWords, false);
             signal.AppendRecentPoints(importResult.Points);
         }
 

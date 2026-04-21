@@ -85,27 +85,7 @@ namespace InteractiveExamples
         {
             _arePointsVisible = visible;
             UpdatePointsButton();
-
-            if (_chart == null)
-            {
-                return;
-            }
-
-            _chart.BeginUpdate();
-            try
-            {
-                foreach (ChartSignal signal in _chartSignals)
-                {
-                    if (signal.Series != null)
-                    {
-                        signal.Series.PointsVisible = _arePointsVisible;
-                    }
-                }
-            }
-            finally
-            {
-                _chart.EndUpdate();
-            }
+            // DigitalLineSeries renders only the digital trace, so there are no point markers to toggle.
         }
 
         private void SetDecodeVisible(bool visible)
@@ -688,9 +668,9 @@ namespace InteractiveExamples
             _measurementValueText.Text = BuildMeasurementText(measurement);
             _measurementValueBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(
                 235,
-                measurement.Signal.Series.LineStyle.Color.R,
-                measurement.Signal.Series.LineStyle.Color.G,
-                measurement.Signal.Series.LineStyle.Color.B));
+                measurement.Signal.SeriesColor.R,
+                measurement.Signal.SeriesColor.G,
+                measurement.Signal.SeriesColor.B));
             UpdateMeasurementMarkers(measurement, plotLeft, plotRight);
 
             _measurementValueBorder.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
@@ -1368,24 +1348,19 @@ namespace InteractiveExamples
 
             view.YAxes.Add(axisY);
 
-            PointLineSeries series = new PointLineSeries(view, view.XAxes[0], axisY);
-            view.PointLineSeries.Add(series);
+            DigitalLineSeries series = new DigitalLineSeries(view, view.XAxes[0], axisY);
+            view.DigitalLineSeries.Add(series);
             Color seriesColor = ChartTools.CalcGradient(lineBaseColor, Colors.White, 50);
-            series.LineStyle.Color = seriesColor;
-            series.LineStyle.Width = LineWidth;
-            series.PointStyle.Color1 = seriesColor;
-            series.PointStyle.Color2 = seriesColor;
-            series.PointStyle.Color3 = seriesColor;
-            series.PointStyle.BorderColor = seriesColor;
-            series.PointStyle.Width = 4;
-            series.PointStyle.Height = 4;
-            series.PointStyle.BorderWidth = 0.5;
+            series.Color = seriesColor;
+            series.Width = LineWidth;
+            series.DigitalLow = 0;
+            series.DigitalHigh = 1;
             series.LimitYToStackSegment = true;
             series.AllowUserInteraction = false;
-            series.PointsVisible = _arePointsVisible;
 
             signal.AxisY = axisY;
             signal.Series = series;
+            signal.SeriesColor = seriesColor;
             return signal;
         }
 
