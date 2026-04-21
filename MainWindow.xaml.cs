@@ -16,14 +16,11 @@ namespace InteractiveExamples
         private LightningChart _chart;
         private Canvas _decodeOverlay;
         private Canvas _cursorOverlay;
-        private Line _cursorLine;
         private Line _cursorMeasurementStartLine;
         private Line _cursorMeasurementEndLine;
         private Line _cursorMeasurementSpanLine;
         private System.Windows.Controls.Border _cursorValueBorder;
         private TextBlock _cursorValueText;
-        private readonly List<System.Windows.Controls.Border> _cursorAxisValueBorders = new List<System.Windows.Controls.Border>();
-        private readonly List<TextBlock> _cursorAxisValueTexts = new List<TextBlock>();
         private readonly Dictionary<ChartSignal, DecodeCacheEntry> _decodeCache = new Dictionary<ChartSignal, DecodeCacheEntry>();
 
         private readonly List<ChartSignal> _chartSignals = new List<ChartSignal>();
@@ -34,10 +31,7 @@ namespace InteractiveExamples
         private const double YMin = 0;
         private const double YMax = 1.2;
 
-        private bool _isCursorEnabled;
         private bool _isCursorHovering;
-        private bool _isCursorDragging;
-        private double _cursorXValue;
         private double _hoverMeasurementXValue;
         private ChartSignal _cursorMeasurementSignal;
         private bool _arePointsVisible;
@@ -55,7 +49,6 @@ namespace InteractiveExamples
         public Example8BillionPoints()
         {
             InitializeComponent();
-            UpdateCursorButton();
             UpdatePointsButton();
             UpdateDecodeButton();
             CreateChart();
@@ -145,15 +138,6 @@ namespace InteractiveExamples
                 Visibility = _isDecodeVisible ? Visibility.Visible : Visibility.Collapsed
             };
 
-            _cursorLine = new Line
-            {
-                Stroke = new SolidColorBrush(Color.FromArgb(190, 255, 196, 64)),
-                StrokeThickness = 1.5,
-                StrokeDashArray = new DoubleCollection(new[] { 4.0, 3.0 }),
-                SnapsToDevicePixels = true,
-                Visibility = Visibility.Collapsed
-            };
-
             _cursorMeasurementStartLine = new Line
             {
                 Stroke = new SolidColorBrush(Color.FromArgb(230, 255, 214, 96)),
@@ -200,7 +184,6 @@ namespace InteractiveExamples
                 Visibility = Visibility.Collapsed
             };
 
-            _cursorOverlay.Children.Add(_cursorLine);
             _cursorOverlay.Children.Add(_cursorMeasurementStartLine);
             _cursorOverlay.Children.Add(_cursorMeasurementEndLine);
             _cursorOverlay.Children.Add(_cursorMeasurementSpanLine);

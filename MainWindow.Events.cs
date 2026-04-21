@@ -47,11 +47,6 @@ namespace InteractiveExamples
             }
         }
 
-        private void buttonCursor_Click(object sender, RoutedEventArgs e)
-        {
-            SetCursorEnabled(_isCursorEnabled == false);
-        }
-
         private void buttonPoints_Click(object sender, RoutedEventArgs e)
         {
             SetPointsVisible(_arePointsVisible == false);
@@ -100,20 +95,12 @@ namespace InteractiveExamples
             if (IsPointInsidePlotArea(position) == false)
             {
                 _isCursorHovering = false;
-                if (_isCursorDragging == false)
-                {
-                    UpdateCursorVisual();
-                }
-
+                UpdateCursorVisual();
                 return;
             }
 
             _isCursorHovering = true;
-            SetCursorFromControlPosition(position.X, position.Y);
-            if (_isCursorDragging)
-            {
-                e.Handled = true;
-            }
+            UpdateMeasurementFromControlPosition(position.X, position.Y);
         }
 
     
