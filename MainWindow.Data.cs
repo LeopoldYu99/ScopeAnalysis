@@ -19,6 +19,7 @@ namespace InteractiveExamples
         {
             public string ProtocolName { get; set; }
             public string FilePath { get; set; }
+            public uint SampleRate { get; set; }
         }
 
         public void Start()
@@ -424,6 +425,351 @@ namespace InteractiveExamples
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
             }
+        }
+
+        private void ShowSignalImportDialogForSignalV2(int signalIndex)
+        {
+            if (_chart == null || signalIndex < 0 || signalIndex >= _chartSignals.Count)
+            {
+                return;
+            }
+
+            string signalName = _chartSignals[signalIndex].Name;
+            SignalImportSelection selection = null;
+
+            Window dialog = new Window
+            {
+                Title = string.Format("{0} Import", signalName),
+                Owner = this,
+                Width = 560,
+                Height = 310,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                ResizeMode = ResizeMode.NoResize,
+                Background = Brushes.White
+            };
+
+            Grid layoutRoot = new Grid
+            {
+                Margin = new Thickness(16)
+            };
+            layoutRoot.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            layoutRoot.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            layoutRoot.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            layoutRoot.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            layoutRoot.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            layoutRoot.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            layoutRoot.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            layoutRoot.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            TextBlock protocolLabel = new TextBlock
+            {
+                Text = "Protocol:",
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 10, 0)
+            };
+            Grid.SetRow(protocolLabel, 0);
+            Grid.SetColumn(protocolLabel, 0);
+            layoutRoot.Children.Add(protocolLabel);
+
+            ComboBox protocolComboBox = new ComboBox
+            {
+                MinWidth = 220,
+                SelectedIndex = 1
+            };
+            protocolComboBox.Items.Add("串口");
+            protocolComboBox.Items.Add("2线串口");
+            protocolComboBox.Items.Add("3线串口");
+            protocolComboBox.Items.Add("4线串口");
+            Grid.SetRow(protocolComboBox, 0);
+            Grid.SetColumn(protocolComboBox, 1);
+            Grid.SetColumnSpan(protocolComboBox, 2);
+            layoutRoot.Children.Add(protocolComboBox);
+
+            TextBlock fileLabel = new TextBlock
+            {
+                Text = "File:",
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 12, 10, 0)
+            };
+            Grid.SetRow(fileLabel, 1);
+            Grid.SetColumn(fileLabel, 0);
+            layoutRoot.Children.Add(fileLabel);
+
+            TextBox filePathTextBox = new TextBox
+            {
+                Margin = new Thickness(0, 12, 10, 0),
+                MinWidth = 220
+            };
+            Grid.SetRow(filePathTextBox, 1);
+            Grid.SetColumn(filePathTextBox, 1);
+            layoutRoot.Children.Add(filePathTextBox);
+
+            Button browseButton = new Button
+            {
+                Content = "Browse...",
+                Width = 96,
+                Height = 28,
+                Margin = new Thickness(0, 12, 0, 0)
+            };
+            browseButton.Click += (sender, e) =>
+            {
+                OpenFileDialog openFileDialog = new OpenFileDialog
+                {
+                    Filter = "BIN files (*.bin)|*.bin|All files (*.*)|*.*",
+                    CheckFileExists = true,
+                    Multiselect = false
+                };
+
+                if (openFileDialog.ShowDialog(dialog) == true)
+                {
+                    filePathTextBox.Text = openFileDialog.FileName;
+                }
+            };
+            Grid.SetRow(browseButton, 1);
+            Grid.SetColumn(browseButton, 2);
+            layoutRoot.Children.Add(browseButton);
+
+            TextBlock sampleRateLabel = new TextBlock
+            {
+                Text = "Sample Rate:",
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 12, 10, 0)
+            };
+            Grid.SetRow(sampleRateLabel, 2);
+            Grid.SetColumn(sampleRateLabel, 0);
+            layoutRoot.Children.Add(sampleRateLabel);
+
+            TextBox sampleRateTextBox = new TextBox
+            {
+                Margin = new Thickness(0, 12, 10, 0),
+                MinWidth = 220,
+                Text = "50000000"
+            };
+            Grid.SetRow(sampleRateTextBox, 2);
+            Grid.SetColumn(sampleRateTextBox, 1);
+            layoutRoot.Children.Add(sampleRateTextBox);
+
+            TextBlock sampleRateUnitTextBlock = new TextBlock
+            {
+                Text = "Hz",
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 12, 0, 0)
+            };
+            Grid.SetRow(sampleRateUnitTextBlock, 2);
+            Grid.SetColumn(sampleRateUnitTextBlock, 2);
+            layoutRoot.Children.Add(sampleRateUnitTextBlock);
+
+            TextBlock hintTextBlock = new TextBlock
+            {
+                Text = "当前先实现 2 线串口导入。导入后会拆成两条线显示，并按 1 / 采样率 的时间间隔对齐。",
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 16, 0, 0),
+                Foreground = Brushes.DimGray
+            };
+            Grid.SetRow(hintTextBlock, 3);
+            Grid.SetColumnSpan(hintTextBlock, 3);
+            layoutRoot.Children.Add(hintTextBlock);
+
+            StackPanel buttonBar = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Margin = new Thickness(0, 16, 0, 0)
+            };
+
+            Button importButton = new Button
+            {
+                Content = "Import",
+                Width = 96,
+                Height = 32,
+                Margin = new Thickness(0, 0, 8, 0),
+                IsDefault = true
+            };
+            importButton.Click += (sender, e) =>
+            {
+                string selectedProtocol = protocolComboBox.SelectedItem as string;
+                string filePath = filePathTextBox.Text == null ? string.Empty : filePathTextBox.Text.Trim();
+                uint sampleRate;
+
+                if (string.IsNullOrEmpty(selectedProtocol))
+                {
+                    MessageBox.Show(dialog, "Please select a protocol.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (string.IsNullOrEmpty(filePath))
+                {
+                    MessageBox.Show(dialog, "Please select a file.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (File.Exists(filePath) == false)
+                {
+                    MessageBox.Show(dialog, "Selected file does not exist.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (uint.TryParse(sampleRateTextBox.Text, out sampleRate) == false || sampleRate == 0)
+                {
+                    MessageBox.Show(dialog, "Sample rate must be a positive integer.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                selection = new SignalImportSelection
+                {
+                    ProtocolName = selectedProtocol,
+                    FilePath = filePath,
+                    SampleRate = sampleRate
+                };
+                dialog.DialogResult = true;
+            };
+
+            Button cancelButton = new Button
+            {
+                Content = "Cancel",
+                Width = 96,
+                Height = 32,
+                IsCancel = true
+            };
+            cancelButton.Click += (sender, e) =>
+            {
+                dialog.DialogResult = false;
+            };
+
+            buttonBar.Children.Add(importButton);
+            buttonBar.Children.Add(cancelButton);
+            Grid.SetRow(buttonBar, 4);
+            Grid.SetColumnSpan(buttonBar, 3);
+            layoutRoot.Children.Add(buttonBar);
+
+            dialog.Content = layoutRoot;
+
+            bool? result = dialog.ShowDialog();
+            if (result != true || selection == null)
+            {
+                return;
+            }
+
+            if (string.Equals(selection.ProtocolName, "2线串口", StringComparison.Ordinal))
+            {
+                ImportTwoWireProtocolToSignals(signalIndex, selection);
+                return;
+            }
+
+            MessageBox.Show(
+                this,
+                string.Format(
+                    "已为 {0} 选择导入配置。{1}{1}协议: {2}{1}文件: {3}{1}采样率: {4:N0} Hz{1}{1}当前仅 2 线串口已接入导入逻辑，其他协议稍后再实现。",
+                    signalName,
+                    Environment.NewLine,
+                    selection.ProtocolName,
+                    selection.FilePath,
+                    selection.SampleRate),
+                "Import Placeholder",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+
+        private void ImportTwoWireProtocolToSignals(int signalIndex, SignalImportSelection selection)
+        {
+            if (_chart == null || selection == null)
+            {
+                return;
+            }
+
+            if (signalIndex < 0 || signalIndex + 1 >= _chartSignals.Count)
+            {
+                MessageBox.Show(this, "2线串口导入至少需要连续两路信号显示。", "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            byte[] protocolBytes = File.ReadAllBytes(selection.FilePath);
+            if (protocolBytes == null || protocolBytes.Length < 2)
+            {
+                MessageBox.Show(this, "导入文件内容不足，无法拆分为 CLK 和 DATA 两路。", "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            byte[][] splitBytes = SplitTwoWireProtocolBytes(protocolBytes);
+            if (splitBytes == null || splitBytes.Length != 2 || splitBytes[0].Length == 0 || splitBytes[1].Length == 0)
+            {
+                MessageBox.Show(this, "2线串口数据拆分失败。", "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            double sampleInterval = MicrosecondsPerSecond / selection.SampleRate;
+            BinaryWaveformImportResult clkImportResult = BinaryWaveformImporter.ImportBytes(_chartSignals[signalIndex].Name, splitBytes[0], sampleInterval);
+            BinaryWaveformImportResult dataImportResult = BinaryWaveformImporter.ImportBytes(_chartSignals[signalIndex + 1].Name, splitBytes[1], sampleInterval);
+            if (clkImportResult == null || clkImportResult.Points == null || clkImportResult.Points.Length == 0
+                || dataImportResult == null || dataImportResult.Points == null || dataImportResult.Points.Length == 0)
+            {
+                MessageBox.Show(this, "2线串口波形转换失败。", "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            Stop();
+            _isStreaming = false;
+
+            _chart.BeginUpdate();
+            try
+            {
+                ConfigureChartDataSourceBehavior(_chart.ViewXY, true);
+                ImportWaveformToSignal(signalIndex, clkImportResult, "CLK");
+                ImportWaveformToSignal(signalIndex + 1, dataImportResult, "DATA");
+
+                double clkMaxX = clkImportResult.Points[clkImportResult.Points.Length - 1].X;
+                double dataMaxX = dataImportResult.Points[dataImportResult.Points.Length - 1].X;
+                _lastConsumedX = Math.Max(clkMaxX, dataMaxX);
+                _hasConsumedData = true;
+                _chart.ViewXY.XAxes[0].SetRange(0, Math.Max(sampleInterval, _lastConsumedX));
+            }
+            finally
+            {
+                _chart.EndUpdate();
+            }
+
+            CompositionTarget.Rendering -= CompositionTarget_Rendering;
+            CompositionTarget.Rendering += CompositionTarget_Rendering;
+            UpdateDecodeOverlay();
+            UpdateCursorVisual();
+        }
+
+        private void ImportWaveformToSignal(int signalIndex, BinaryWaveformImportResult importResult, string displayName)
+        {
+            if (signalIndex < 0 || signalIndex >= _chartSignals.Count || importResult == null || importResult.Points == null || importResult.Points.Length == 0)
+            {
+                return;
+            }
+
+            ChartSignal signal = _chartSignals[signalIndex];
+            _decodeCache.Remove(signal);
+            signal.ClearPendingChunks();
+            signal.ClearRecentPoints();
+            signal.Series.Clear();
+            signal.AxisY.Title.Text = displayName;
+            signal.Series.AddPoints(importResult.Points, false);
+            signal.AppendRecentPoints(importResult.Points);
+        }
+
+        private static byte[][] SplitTwoWireProtocolBytes(byte[] protocolBytes)
+        {
+            if (protocolBytes == null || protocolBytes.Length < 2)
+            {
+                return null;
+            }
+
+            int pairCount = protocolBytes.Length / 2;
+            byte[] clkBytes = new byte[pairCount];
+            byte[] dataBytes = new byte[pairCount];
+
+            for (int i = 0; i < pairCount; i++)
+            {
+                int sourceIndex = i * 2;
+                clkBytes[i] = protocolBytes[sourceIndex];
+                dataBytes[i] = protocolBytes[sourceIndex + 1];
+            }
+
+            return new[] { clkBytes, dataBytes };
         }
 
         private UIElement BuildSignalGeneratorDialogContent(SerialPortDataProducer producer, Func<bool, bool> validateClose)
