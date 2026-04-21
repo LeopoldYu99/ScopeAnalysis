@@ -267,7 +267,7 @@ namespace LCWpf
                     ? Encoding.ASCII.GetBytes(DefaultPayloadSeedText)
                     : payloadSeedBytes;
             byte[] generatedBytes = new byte[byteCount];
-            bool[] defaultMask = BuildRandomDefaultMask(byteCount, emptyDataRatio, randomSeed);
+            bool[] defaultMask = BuildBalancedDefaultMask(byteCount, emptyDataRatio, randomSeed);
             int payloadIndex = 0;
 
             for (int i = 0; i < generatedBytes.Length; i++)
@@ -285,7 +285,7 @@ namespace LCWpf
             return generatedBytes;
         }
 
-        private static bool[] BuildRandomDefaultMask(int byteCount, int emptyDataRatio, int randomSeed)
+        private static bool[] BuildBalancedDefaultMask(int byteCount, int emptyDataRatio, int randomSeed)
         {
             bool[] defaultMask = new bool[byteCount];
             if (byteCount <= 0 || emptyDataRatio <= 0)
@@ -300,51 +300,31 @@ namespace LCWpf
                 return defaultMask;
             }
 
-            Random random = new Random(randomSeed);
-            int maxClusterLength = Math.Max(8, byteCount / 8);
-            int remainingDefaultBytes = defaultByteCount;
-            int attempts = 0;
-            int maxAttempts = Math.Max(byteCount * 6, 64);
-
-            while (remainingDefaultBytes > 0 && attempts < maxAttempts)
+            if (defaultByteCount >= byteCount)
             {
-                int startIndex = random.Next(byteCount);
-                int clusterLength = 1 + (int)(Math.Pow(random.NextDouble(), 0.35) * maxClusterLength);
-                if (clusterLength <= 0)
+                for (int i = 0; i < defaultMask.Length; i++)
                 {
-                    clusterLength = 1;
+                    defaultMask[i] = true;
                 }
 
-                for (int i = 0; i < clusterLength && remainingDefaultBytes > 0; i++)
-                {
-                    int index = startIndex + i;
-                    if (index >= byteCount)
-                    {
-                        break;
-                    }
-
-                    if (defaultMask[index])
-                    {
-                        continue;
-                    }
-
-                    defaultMask[index] = true;
-                    remainingDefaultBytes--;
-                }
-
-                attempts++;
+                return defaultMask;
             }
 
-            while (remainingDefaultBytes > 0)
+            Random random = new Random(randomSeed);
+            int startOffset = random.Next(byteCount);
+            int accumulator = 0;
+
+            for (int i = 0; i < byteCount; i++)
             {
-                int index = random.Next(byteCount);
-                if (defaultMask[index])
+                accumulator += defaultByteCount;
+                if (accumulator < byteCount)
                 {
                     continue;
                 }
 
+                int index = (startOffset + i) % byteCount;
                 defaultMask[index] = true;
-                remainingDefaultBytes--;
+                accumulator -= byteCount;
             }
 
             return defaultMask;
