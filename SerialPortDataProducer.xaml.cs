@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Controls;
 using InteractiveExamples;
 using Microsoft.Win32;
+using Forms = System.Windows.Forms;
 
 namespace LCWpf
 {
@@ -34,9 +35,18 @@ namespace LCWpf
         public string DataPreviewHex { get; set; }
     }
 
+    internal sealed class ProtocolExportChunk
+    {
+        public int Index { get; set; }
+        public byte[] ExportBytes { get; set; }
+        public string FileName { get; set; }
+        public int PayloadByteCount { get; set; }
+    }
+
     public partial class SerialPortDataProducer : UserControl
     {
         private const uint FixedSampleRate = 50000000;
+        private const int ProtocolExportChunkSeconds = 10;
         private const int PreviewByteCount = 80;
         private const string DefaultPayloadSeedText = "0123456789";
         private int _previewSeed;
@@ -202,6 +212,58 @@ namespace LCWpf
                 byte[] payloadBytes = BuildPrimaryGeneratedPayloadBytes();
                 byte[] payloadBytes2 = BuildSecondaryGeneratedPayloadBytes(payloadBytes.Length);
                 SerialProtocolType protocolType = GetSelectedProtocolType();
+                long frameCount = GetProtocolFrameCount(payloadBytes.Length, payloadBytes2.Length, protocolType);
+
+                if (protocolType == SerialProtocolType.TwoWireSerial
+                    || protocolType == SerialProtocolType.ThreeWireSerial
+                    || protocolType == SerialProtocolType.FourWireSerial)
+                {
+                    string exportDirectory = SelectProtocolExportDirectory();
+                    if (string.IsNullOrWhiteSpace(exportDirectory))
+                    {
+                        return;
+                    }
+
+                    DateTime exportTimestamp = DateTime.Now;
+                    ProtocolExportChunk[] chunks = BuildProtocolExportChunks(
+                        payloadBytes,
+                        payloadBytes2,
+                        protocolType,
+                        GetClockValue(),
+                        GetEnableValue(),
+                        defaultByteValue,
+                        GetSampleRate(),
+                        GetDurationSeconds(),
+                        exportTimestamp);
+
+                    if (chunks.Length == 0)
+                    {
+                        throw new InvalidOperationException("No protocol data was generated for export.");
+                    }
+
+                    for (int i = 0; i < chunks.Length; i++)
+                    {
+                        string outputPath = Path.Combine(exportDirectory, chunks[i].FileName);
+                        File.WriteAllBytes(outputPath, chunks[i].ExportBytes);
+                    }
+
+                    MessageBox.Show(
+                        string.Format(
+                            CultureInfo.InvariantCulture,
+                            "Protocol BIN files generated.{0}{0}Protocol: {1}{0}Directory: {2}{0}Files: {3:N0}{0}Payload bytes: {4:N0}{0}Frames: {5:N0}",
+                            Environment.NewLine,
+                            GetProtocolDisplayName(protocolType),
+                            exportDirectory,
+                            chunks.Length,
+                            protocolType == SerialProtocolType.FourWireSerial ? Math.Max(payloadBytes.Length, payloadBytes2.Length) : payloadBytes.Length,
+                            frameCount),
+                        "Success",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+
+                    return;
+                }
+
                 byte[] protocolBytes = BuildProtocolExportBytes(
                     payloadBytes,
                     payloadBytes2,
@@ -209,7 +271,6 @@ namespace LCWpf
                     GetClockValue(),
                     GetEnableValue(),
                     defaultByteValue);
-                long frameCount = GetProtocolFrameCount(payloadBytes.Length, payloadBytes2.Length, protocolType);
 
                 SaveFileDialog saveDialog = new SaveFileDialog
                 {
@@ -389,9 +450,7 @@ namespace LCWpf
 
         private long GetGeneratedByteCount()
         {
-            uint sampleRate = GetSampleRate();
-            double durationSeconds = GetDurationSeconds();
-            long byteCount = (long)Math.Round((sampleRate * durationSeconds) / 8.0, MidpointRounding.AwayFromZero);
+            long byteCount = GetGeneratedByteCount(GetSampleRate(), GetDurationSeconds());
             if (byteCount <= 0)
             {
                 return 1;
@@ -403,6 +462,11 @@ namespace LCWpf
             }
 
             return byteCount;
+        }
+
+        private static long GetGeneratedByteCount(uint sampleRate, double durationSeconds)
+        {
+            return (long)Math.Round((sampleRate * durationSeconds) / 8.0, MidpointRounding.AwayFromZero);
         }
 
         private byte[] BuildPrimaryGeneratedPayloadBytes()
@@ -536,6 +600,223 @@ namespace LCWpf
                 default:
                     return "uart_protocol_data.bin";
             }
+        }
+
+        private static string SelectProtocolExportDirectory()
+        {
+            using (Forms.FolderBrowserDialog folderDialog = new Forms.FolderBrowserDialog())
+            {
+                folderDialog.Description = "Select a folder to export protocol BIN files.";
+                folderDialog.ShowNewFolderButton = true;
+                return folderDialog.ShowDialog() == Forms.DialogResult.OK
+                    ? folderDialog.SelectedPath
+                    : null;
+            }
+        }
+
+        private static ProtocolExportChunk[] BuildProtocolExportChunks(
+            byte[] payloadBytes,
+            byte[] payloadBytes2,
+            SerialProtocolType protocolType,
+            byte clockValue,
+            byte enableValue,
+            byte defaultByteValue,
+            uint sampleRate,
+            double durationSeconds,
+            DateTime exportTimestamp)
+        {
+            int totalFrameCount = Math.Max(payloadBytes == null ? 0 : payloadBytes.Length, payloadBytes2 == null ? 0 : payloadBytes2.Length);
+            if (totalFrameCount <= 0)
+            {
+                return new ProtocolExportChunk[0];
+            }
+
+            int chunkCount = Math.Max(1, (int)Math.Ceiling(durationSeconds / ProtocolExportChunkSeconds));
+            ProtocolExportChunk[] chunks = new ProtocolExportChunk[chunkCount];
+            string timestampText = BuildExportTimestampText(exportTimestamp);
+            int lineCount = GetProtocolLineCount(protocolType);
+
+            for (int chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++)
+            {
+                double chunkStartSeconds = chunkIndex * ProtocolExportChunkSeconds;
+                double chunkEndSeconds = Math.Min(durationSeconds, (chunkIndex + 1) * ProtocolExportChunkSeconds);
+                int startFrameIndex = GetFrameIndexAtTime(sampleRate, durationSeconds, totalFrameCount, chunkStartSeconds);
+                int endFrameIndex = GetFrameIndexAtTime(sampleRate, durationSeconds, totalFrameCount, chunkEndSeconds);
+
+                if (chunkIndex == chunkCount - 1)
+                {
+                    endFrameIndex = totalFrameCount;
+                }
+
+                endFrameIndex = Math.Max(startFrameIndex, Math.Min(totalFrameCount, endFrameIndex));
+                byte[] chunkPayloadBytes = SliceChannelBytes(payloadBytes, startFrameIndex, endFrameIndex, defaultByteValue);
+                byte[] chunkPayloadBytes2 = SliceChannelBytes(payloadBytes2, startFrameIndex, endFrameIndex, defaultByteValue);
+                string activeSecondList = BuildActiveSecondList(
+                    chunkPayloadBytes,
+                    chunkPayloadBytes2,
+                    defaultByteValue,
+                    sampleRate,
+                    durationSeconds,
+                    chunkStartSeconds,
+                    chunkEndSeconds,
+                    totalFrameCount);
+
+                chunks[chunkIndex] = new ProtocolExportChunk
+                {
+                    Index = chunkIndex + 1,
+                    ExportBytes = BuildProtocolExportBytes(chunkPayloadBytes, chunkPayloadBytes2, protocolType, clockValue, enableValue, defaultByteValue),
+                    FileName = string.Format(
+                        CultureInfo.InvariantCulture,
+                        "{0};{1};{2};{3}-{4}.bin",
+                        lineCount,
+                        sampleRate,
+                        timestampText,
+                        activeSecondList,
+                        chunkIndex + 1),
+                    PayloadByteCount = Math.Max(chunkPayloadBytes.Length, chunkPayloadBytes2.Length)
+                };
+            }
+
+            return chunks;
+        }
+
+        private static int GetProtocolLineCount(SerialProtocolType protocolType)
+        {
+            switch (protocolType)
+            {
+                case SerialProtocolType.TwoWireSerial:
+                    return 2;
+                case SerialProtocolType.ThreeWireSerial:
+                    return 3;
+                case SerialProtocolType.FourWireSerial:
+                    return 4;
+                default:
+                    return 1;
+            }
+        }
+
+        private static string BuildExportTimestampText(DateTime exportTimestamp)
+        {
+            return string.Format(
+                CultureInfo.InvariantCulture,
+                "{0}_{1}_{2}_{3}_{4}_{5}_{6}",
+                exportTimestamp.Year,
+                exportTimestamp.Month,
+                exportTimestamp.Day,
+                exportTimestamp.Hour,
+                exportTimestamp.Minute,
+                exportTimestamp.Second,
+                exportTimestamp.Millisecond);
+        }
+
+        private static int GetFrameIndexAtTime(uint sampleRate, double totalDurationSeconds, int totalFrameCount, double timeSeconds)
+        {
+            if (totalFrameCount <= 0 || totalDurationSeconds <= 0)
+            {
+                return 0;
+            }
+
+            if (timeSeconds <= 0)
+            {
+                return 0;
+            }
+
+            if (timeSeconds >= totalDurationSeconds)
+            {
+                return totalFrameCount;
+            }
+
+            long boundaryBySampleRate = GetGeneratedByteCount(sampleRate, timeSeconds);
+            if (boundaryBySampleRate >= 0 && boundaryBySampleRate <= totalFrameCount)
+            {
+                return (int)boundaryBySampleRate;
+            }
+
+            return (int)Math.Round((totalFrameCount * timeSeconds) / totalDurationSeconds, MidpointRounding.AwayFromZero);
+        }
+
+        private static byte[] SliceChannelBytes(byte[] sourceBytes, int startFrameIndex, int endFrameIndex, byte defaultByteValue)
+        {
+            int length = Math.Max(0, endFrameIndex - startFrameIndex);
+            byte[] slice = new byte[length];
+            if (length == 0)
+            {
+                return slice;
+            }
+
+            if (sourceBytes == null || sourceBytes.Length == 0)
+            {
+                for (int i = 0; i < slice.Length; i++)
+                {
+                    slice[i] = defaultByteValue;
+                }
+
+                return slice;
+            }
+
+            for (int i = 0; i < length; i++)
+            {
+                int sourceIndex = startFrameIndex + i;
+                slice[i] = sourceIndex < sourceBytes.Length ? sourceBytes[sourceIndex] : defaultByteValue;
+            }
+
+            return slice;
+        }
+
+        private static string BuildActiveSecondList(
+            byte[] payloadBytes,
+            byte[] payloadBytes2,
+            byte defaultByteValue,
+            uint sampleRate,
+            double totalDurationSeconds,
+            double chunkStartSeconds,
+            double chunkEndSeconds,
+            int totalFrameCount)
+        {
+            int secondCount = Math.Max(1, (int)Math.Ceiling(chunkEndSeconds - chunkStartSeconds));
+            StringBuilder builder = new StringBuilder();
+
+            for (int secondIndex = 0; secondIndex < secondCount; secondIndex++)
+            {
+                double secondStartTime = chunkStartSeconds + secondIndex;
+                double secondEndTime = Math.Min(chunkEndSeconds, secondStartTime + 1);
+                int secondStartFrame = GetFrameIndexAtTime(sampleRate, totalDurationSeconds, totalFrameCount, secondStartTime);
+                int secondEndFrame = GetFrameIndexAtTime(sampleRate, totalDurationSeconds, totalFrameCount, secondEndTime);
+                int localStart = Math.Max(0, secondStartFrame - GetFrameIndexAtTime(sampleRate, totalDurationSeconds, totalFrameCount, chunkStartSeconds));
+                int localEnd = Math.Max(localStart, secondEndFrame - GetFrameIndexAtTime(sampleRate, totalDurationSeconds, totalFrameCount, chunkStartSeconds));
+
+                if (ContainsNonDefaultData(payloadBytes, payloadBytes2, localStart, localEnd, defaultByteValue) == false)
+                {
+                    continue;
+                }
+
+                if (builder.Length > 0)
+                {
+                    builder.Append(',');
+                }
+
+                builder.Append(secondIndex + 1);
+            }
+
+            return builder.ToString();
+        }
+
+        private static bool ContainsNonDefaultData(byte[] payloadBytes, byte[] payloadBytes2, int startIndex, int endIndex, byte defaultByteValue)
+        {
+            for (int i = startIndex; i < endIndex; i++)
+            {
+                if (payloadBytes != null && i < payloadBytes.Length && payloadBytes[i] != defaultByteValue)
+                {
+                    return true;
+                }
+
+                if (payloadBytes2 != null && i < payloadBytes2.Length && payloadBytes2[i] != defaultByteValue)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private SerialProtocolType GetSelectedProtocolType()
