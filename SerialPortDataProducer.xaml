@@ -160,7 +160,7 @@
                                            Margin="0,0,10,0"/>
                                 <TextBox Grid.Column="1"
                                          x:Name="TwoWireClkTextBox"
-                                         Text="00"/>
+                                         Text="F0"/>
                                 <TextBlock Grid.Column="2"
                                            Text="&#25903;&#25345;&#37197;&#32622; CLK &#23383;&#33410;&#20540;&#65292;&#21518;&#32493;&#29992;&#20110;&#25353; 2 &#32447;&#26684;&#24335;&#32452;&#35013;&#25968;&#25454;&#12290;"
                                            Margin="12,0,0,0"
@@ -191,13 +191,13 @@
                                            Margin="0,0,10,0"/>
                                 <TextBox Grid.Column="1"
                                          x:Name="ThreeWireClkTextBox"
-                                         Text="00"/>
+                                         Text="F0"/>
                                 <TextBlock Grid.Column="2"
                                            Text="EN:"
                                            Margin="12,0,10,0"/>
                                 <TextBox Grid.Column="3"
                                          x:Name="ThreeWireEnTextBox"
-                                         Text="00"/>
+                                         Text="0F"/>
                             </Grid>
                             <StackPanel Orientation="Horizontal"
                                         HorizontalAlignment="Right"

@@ -6,16 +6,6 @@ namespace InteractiveExamples
 {
     internal static class DecodeLogic
     {
-        private struct FixedWidthSegmentCandidate
-        {
-            public double StartX;
-            public double EndX;
-            public byte DecodedValue;
-            public string[] BitLabels;
-            public bool IsUniform;
-            public bool UniformHigh;
-        }
-
         public static List<ProtocolSegment> BuildProtocolSegments(
             uint[] digitalWords,
             int sampleCount,
@@ -97,62 +87,60 @@ namespace InteractiveExamples
                 return segments;
             }
 
-            double startX = 0;
-            int bitCount = sampleCount;
-            int segmentCount = bitCount / bitsPerSegment;
-            List<FixedWidthSegmentCandidate> candidates = new List<FixedWidthSegmentCandidate>(segmentCount);
-            for (int segmentIndex = 0; segmentIndex < segmentCount; segmentIndex++)
+            int minimumEmptyRunSamples = Math.Max(1, emptyDataRunSegmentThreshold) * bitsPerSegment;
+            int decodeStartSample = 0;
+            int runStartSample = 0;
+            bool currentValue = GetSampleValue(digitalWords, sampleCount, 0);
+
+            for (int sampleIndex = 1; sampleIndex <= sampleCount; sampleIndex++)
             {
-                double segmentStartX = startX + segmentIndex * bitsPerSegment * sampleInterval;
-                byte decodedValue = 0;
-                string[] bitLabels = new string[bitsPerSegment];
-                bool hasCompleteSegment = true;
-                bool? firstBitHigh = null;
-                bool isUniform = true;
-
-                for (int bitIndex = 0; bitIndex < bitsPerSegment; bitIndex++)
+                bool isRunEnd = sampleIndex == sampleCount;
+                if (isRunEnd == false)
                 {
-                    double sampleX = segmentStartX + (bitIndex + 0.5) * sampleInterval;
-                    if (SampleAt(digitalWords, sampleCount, sampleInterval, sampleX, out bool bitHigh) == false)
+                    bool nextValue = GetSampleValue(digitalWords, sampleCount, sampleIndex);
+                    if (nextValue == currentValue)
                     {
-                        hasCompleteSegment = false;
-                        break;
+                        continue;
                     }
-
-                    if (bitHigh)
-                    {
-                        decodedValue |= (byte)(1 << (bitsPerSegment - bitIndex - 1));
-                    }
-
-                    if (firstBitHigh.HasValue == false)
-                    {
-                        firstBitHigh = bitHigh;
-                    }
-                    else if (firstBitHigh.Value != bitHigh)
-                    {
-                        isUniform = false;
-                    }
-
-                    bitLabels[bitIndex] = bitHigh ? "1" : "0";
                 }
 
-                if (hasCompleteSegment == false)
+                int runLength = sampleIndex - runStartSample;
+                if (runLength >= minimumEmptyRunSamples)
                 {
-                    break;
+                    int decodeEndSample = AlignDownToMultiple(runStartSample, bitsPerSegment);
+                    int resumeSample = AlignUpToMultiple(sampleIndex, bitsPerSegment) - bitsPerSegment;
+                    if (resumeSample < 0)
+                    {
+                        resumeSample = 0;
+                    }
+
+                    AddFixedWidthSegmentsForRange(
+                        segments,
+                        digitalWords,
+                        sampleCount,
+                        sampleInterval,
+                        bitsPerSegment,
+                        decodeStartSample,
+                        decodeEndSample);
+
+                    decodeStartSample = Math.Max(decodeEndSample, resumeSample);
                 }
 
-                candidates.Add(new FixedWidthSegmentCandidate
+                if (sampleIndex < sampleCount)
                 {
-                    StartX = segmentStartX,
-                    EndX = segmentStartX + bitsPerSegment * sampleInterval,
-                    DecodedValue = decodedValue,
-                    BitLabels = bitLabels,
-                    IsUniform = isUniform,
-                    UniformHigh = firstBitHigh.HasValue && firstBitHigh.Value
-                });
+                    runStartSample = sampleIndex;
+                    currentValue = GetSampleValue(digitalWords, sampleCount, sampleIndex);
+                }
             }
 
-            AddFilteredFixedWidthSegments(segments, candidates, emptyDataRunSegmentThreshold);
+            AddFixedWidthSegmentsForRange(
+                segments,
+                digitalWords,
+                sampleCount,
+                sampleInterval,
+                bitsPerSegment,
+                decodeStartSample,
+                sampleCount);
             return segments;
         }
 
@@ -445,62 +433,73 @@ namespace InteractiveExamples
             return labels;
         }
 
-        private static void AddFilteredFixedWidthSegments(
+        private static void AddFixedWidthSegmentsForRange(
             List<ProtocolSegment> segments,
-            List<FixedWidthSegmentCandidate> candidates,
-            int emptyDataRunSegmentThreshold)
+            uint[] digitalWords,
+            int sampleCount,
+            double sampleInterval,
+            int bitsPerSegment,
+            int startSampleInclusive,
+            int endSampleExclusive)
         {
-            if (segments == null || candidates == null || candidates.Count == 0)
+            if (segments == null
+                || digitalWords == null
+                || sampleCount <= 0
+                || sampleInterval <= 0
+                || bitsPerSegment <= 0
+                || startSampleInclusive >= endSampleExclusive)
             {
                 return;
             }
 
-            int minimumEmptyRunSegments = Math.Max(1, emptyDataRunSegmentThreshold);
-
-            int segmentIndex = 0;
-            while (segmentIndex < candidates.Count)
+            int alignedStartSample = AlignUpToMultiple(startSampleInclusive, bitsPerSegment);
+            int alignedEndSample = AlignDownToMultiple(endSampleExclusive, bitsPerSegment);
+            for (int segmentStartSample = alignedStartSample;
+                segmentStartSample + bitsPerSegment <= alignedEndSample;
+                segmentStartSample += bitsPerSegment)
             {
-                FixedWidthSegmentCandidate candidate = candidates[segmentIndex];
-                if (candidate.IsUniform == false)
+                byte decodedValue = 0;
+                string[] bitLabels = new string[bitsPerSegment];
+                for (int bitIndex = 0; bitIndex < bitsPerSegment; bitIndex++)
                 {
-                    AddFixedWidthSegment(segments, candidate);
-                    segmentIndex++;
-                    continue;
+                    bool bitHigh = GetSampleValue(digitalWords, sampleCount, segmentStartSample + bitIndex);
+                    if (bitHigh)
+                    {
+                        decodedValue |= (byte)(1 << (bitsPerSegment - bitIndex - 1));
+                    }
+
+                    bitLabels[bitIndex] = bitHigh ? "1" : "0";
                 }
 
-                int runEndIndex = segmentIndex;
-                while (runEndIndex + 1 < candidates.Count
-                    && candidates[runEndIndex + 1].IsUniform
-                    && candidates[runEndIndex + 1].UniformHigh == candidate.UniformHigh)
-                {
-                    runEndIndex++;
-                }
-
-                int runLength = runEndIndex - segmentIndex + 1;
-                if (runLength >= minimumEmptyRunSegments)
-                {
-                    segmentIndex = runEndIndex + 1;
-                    continue;
-                }
-
-                for (int index = segmentIndex; index <= runEndIndex; index++)
-                {
-                    AddFixedWidthSegment(segments, candidates[index]);
-                }
-
-                segmentIndex = runEndIndex + 1;
+                AddSegment(
+                    segments,
+                    segmentStartSample * sampleInterval,
+                    (segmentStartSample + bitsPerSegment) * sampleInterval,
+                    FormatLabel(decodedValue),
+                    false,
+                    bitLabels);
             }
         }
 
-        private static void AddFixedWidthSegment(List<ProtocolSegment> segments, FixedWidthSegmentCandidate candidate)
+        private static int AlignUpToMultiple(int value, int multiple)
         {
-            AddSegment(
-                segments,
-                candidate.StartX,
-                candidate.EndX,
-                FormatLabel(candidate.DecodedValue),
-                false,
-                candidate.BitLabels);
+            if (multiple <= 0)
+            {
+                return value;
+            }
+
+            int remainder = value % multiple;
+            return remainder == 0 ? value : value + (multiple - remainder);
+        }
+
+        private static int AlignDownToMultiple(int value, int multiple)
+        {
+            if (multiple <= 0)
+            {
+                return value;
+            }
+
+            return value - (value % multiple);
         }
 
         private static void AddSegment(
