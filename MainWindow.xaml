@@ -96,8 +96,15 @@
                           Height="28"
                           VerticalAlignment="Center"
                           Visibility="Collapsed"
-                          SelectionChanged="comboBoxImportPage_SelectionChanged"
-                          DisplayMemberPath="DisplayName"/>
+                          SelectionChanged="comboBoxImportPage_SelectionChanged">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding DisplayName}"
+                                       Foreground="{Binding DisplayBrush}"
+                                       FontWeight="{Binding DisplayFontWeight}"/>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
             </StackPanel>
         </Border>
 

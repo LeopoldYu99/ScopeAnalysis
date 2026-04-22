@@ -39,6 +39,23 @@ namespace InteractiveExamples
             public long OffsetBytes { get; set; }
             public int ByteCount { get; set; }
             public uint SampleRate { get; set; }
+            public bool IsActivePartition { get; set; }
+
+            public Brush DisplayBrush
+            {
+                get
+                {
+                    return IsActivePartition ? Brushes.LimeGreen : Brushes.DimGray;
+                }
+            }
+
+            public FontWeight DisplayFontWeight
+            {
+                get
+                {
+                    return IsActivePartition ? FontWeights.SemiBold : FontWeights.Normal;
+                }
+            }
         }
 
         private sealed class ProtocolImportSession
@@ -55,6 +72,7 @@ namespace InteractiveExamples
             public int LineCount { get; set; }
             public uint SampleRate { get; set; }
             public int FilePageNumber { get; set; }
+            public HashSet<int> ActivePartitions { get; set; }
         }
 
         public void Start()
@@ -688,7 +706,8 @@ namespace InteractiveExamples
                         PartitionNumber = partitionNumber,
                         OffsetBytes = (long)(partitionNumber - 1) * bytesPerPartition,
                         ByteCount = bytesPerPartition,
-                        SampleRate = metadata.SampleRate
+                        SampleRate = metadata.SampleRate,
+                        IsActivePartition = metadata.ActivePartitions != null && metadata.ActivePartitions.Contains(partitionNumber)
                     });
                     globalPageNumber++;
                 }
@@ -802,9 +821,10 @@ namespace InteractiveExamples
             int lineCount;
             uint sampleRate;
             int filePageNumber;
+            HashSet<int> activePartitions;
             if (int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out lineCount) == false
                 || uint.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out sampleRate) == false
-                || TryExtractTrailingPageNumber(parts[parts.Length - 1], out filePageNumber) == false)
+                || TryParseProtocolPageSuffix(parts[parts.Length - 1], out activePartitions, out filePageNumber) == false)
             {
                 return false;
             }
@@ -813,13 +833,15 @@ namespace InteractiveExamples
             {
                 LineCount = lineCount,
                 SampleRate = sampleRate,
-                FilePageNumber = filePageNumber
+                FilePageNumber = filePageNumber,
+                ActivePartitions = activePartitions
             };
             return true;
         }
 
-        private static bool TryExtractTrailingPageNumber(string value, out int pageNumber)
+        private static bool TryParseProtocolPageSuffix(string value, out HashSet<int> activePartitions, out int pageNumber)
         {
+            activePartitions = new HashSet<int>();
             pageNumber = 0;
             if (string.IsNullOrWhiteSpace(value))
             {
@@ -832,8 +854,29 @@ namespace InteractiveExamples
                 return false;
             }
 
-            return int.TryParse(value.Substring(separatorIndex + 1), NumberStyles.Integer, CultureInfo.InvariantCulture, out pageNumber)
-                && pageNumber > 0;
+            if (int.TryParse(value.Substring(separatorIndex + 1), NumberStyles.Integer, CultureInfo.InvariantCulture, out pageNumber) == false
+                || pageNumber <= 0)
+            {
+                return false;
+            }
+
+            string activePartitionList = value.Substring(0, separatorIndex);
+            if (string.IsNullOrWhiteSpace(activePartitionList))
+            {
+                return true;
+            }
+
+            string[] partitionTokens = activePartitionList.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (string token in partitionTokens)
+            {
+                int partitionNumber;
+                if (int.TryParse(token.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out partitionNumber) && partitionNumber > 0)
+                {
+                    activePartitions.Add(partitionNumber);
+                }
+            }
+
+            return true;
         }
 
         private static int GetProtocolPartitionByteCount(int lineCount, uint sampleRate)
