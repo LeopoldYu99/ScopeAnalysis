@@ -50,6 +50,7 @@ namespace LCWpf
         private const double ProtocolExportPartitionDurationSeconds = 0.1;
         private const int ProtocolExportPartitionsPerChunk = (int)(ProtocolExportChunkSeconds / ProtocolExportPartitionDurationSeconds);
         private const int PreviewByteCount = 80;
+        private const int DefaultByteRepeatCount = 20;
         private const string DefaultPayloadSeedText = "0123456789";
         private int _previewSeed;
 
@@ -64,6 +65,7 @@ namespace LCWpf
             SelectComboBoxItemByText(StopBitsComboBox, "1");
             SampleRateTextBox.TextChanged += HandleSettingsChanged;
             DurationSecondsTextBox.TextChanged += HandleSettingsChanged;
+            ByteRepeatCountTextBox.TextChanged += HandleSettingsChanged;
             PayloadSeedTextBox.TextChanged += HandleSettingsChanged;
             EmptyDataRatioTextBox.TextChanged += HandleSettingsChanged;
             DefaultByteValueTextBox.TextChanged += HandleSettingsChanged;
@@ -96,6 +98,7 @@ namespace LCWpf
         {
             if (SampleRateTextBox == null
                 || DurationSecondsTextBox == null
+                || ByteRepeatCountTextBox == null
                 || PayloadSeedTextBox == null
                 || EmptyDataRatioTextBox == null
                 || DefaultByteValueTextBox == null
@@ -997,7 +1000,12 @@ namespace LCWpf
             string text = PayloadSeedTextBox == null ? null : PayloadSeedTextBox.Text;
             string normalizedText = string.IsNullOrEmpty(text) ? DefaultPayloadSeedText : text;
             byte[] bytes = Encoding.ASCII.GetBytes(normalizedText);
-            return bytes.Length == 0 ? Encoding.ASCII.GetBytes(DefaultPayloadSeedText) : bytes;
+            if (bytes.Length == 0)
+            {
+                bytes = Encoding.ASCII.GetBytes(DefaultPayloadSeedText);
+            }
+
+            return ExpandBytesByRepeatCount(bytes, GetByteRepeatCount());
         }
 
         private static string GetComboBoxText(ComboBox comboBox)
@@ -1063,6 +1071,64 @@ namespace LCWpf
             }
 
             comboBox.Text = expectedText;
+        }
+
+        private int GetByteRepeatCount()
+        {
+            string text = ByteRepeatCountTextBox == null ? null : ByteRepeatCountTextBox.Text;
+            string normalizedText = string.IsNullOrWhiteSpace(text)
+                ? DefaultByteRepeatCount.ToString(CultureInfo.InvariantCulture)
+                : text.Trim();
+            int value;
+            if (int.TryParse(normalizedText, NumberStyles.Integer, CultureInfo.InvariantCulture, out value) == false &&
+                int.TryParse(normalizedText, out value) == false)
+            {
+                throw new InvalidOperationException("Byte repeat count must be a positive integer.");
+            }
+
+            if (value <= 0)
+            {
+                throw new InvalidOperationException("Byte repeat count must be greater than zero.");
+            }
+
+            return value;
+        }
+
+        private static byte[] ExpandBytesByRepeatCount(byte[] sourceBytes, int repeatCount)
+        {
+            if (sourceBytes == null || sourceBytes.Length == 0)
+            {
+                return new byte[0];
+            }
+
+            if (repeatCount <= 1)
+            {
+                return (byte[])sourceBytes.Clone();
+            }
+
+            int expandedLength;
+            try
+            {
+                expandedLength = checked(sourceBytes.Length * repeatCount);
+            }
+            catch (OverflowException ex)
+            {
+                throw new InvalidOperationException("Expanded payload is too large.", ex);
+            }
+
+            byte[] expandedBytes = new byte[expandedLength];
+            int outputIndex = 0;
+
+            for (int i = 0; i < sourceBytes.Length; i++)
+            {
+                byte value = sourceBytes[i];
+                for (int j = 0; j < repeatCount; j++)
+                {
+                    expandedBytes[outputIndex++] = value;
+                }
+            }
+
+            return expandedBytes;
         }
 
         private static byte ParseHexByte(string text, string fieldName)
