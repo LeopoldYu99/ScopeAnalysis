@@ -226,13 +226,19 @@ namespace LCWpf
                     || protocolType == SerialProtocolType.ThreeWireSerial
                     || protocolType == SerialProtocolType.FourWireSerial)
                 {
-                    string exportDirectory = SelectProtocolExportDirectory();
-                    if (string.IsNullOrWhiteSpace(exportDirectory))
+                    string exportParentDirectory = SelectProtocolExportDirectory();
+                    if (string.IsNullOrWhiteSpace(exportParentDirectory))
                     {
                         return;
                     }
 
                     DateTime exportTimestamp = DateTime.Now;
+                    string exportDirectory = Path.Combine(
+                        exportParentDirectory,
+                        ProtocolBinNaming.BuildExportFolderName(
+                            GetProtocolLineCount(protocolType),
+                            GetSampleRate(),
+                            exportTimestamp));
                     ProtocolExportChunk[] chunks = BuildProtocolExportChunks(
                         payloadBytes,
                         payloadBytes2,
@@ -241,13 +247,14 @@ namespace LCWpf
                         GetEnableValue(),
                         defaultByteValue,
                         GetSampleRate(),
-                        GetDurationSeconds(),
-                        exportTimestamp);
+                        GetDurationSeconds());
 
                     if (chunks.Length == 0)
                     {
                         throw new InvalidOperationException("No protocol data was generated for export.");
                     }
+
+                    Directory.CreateDirectory(exportDirectory);
 
                     for (int i = 0; i < chunks.Length; i++)
                     {
@@ -780,8 +787,7 @@ namespace LCWpf
             byte enableValue,
             byte defaultByteValue,
             uint sampleRate,
-            double durationSeconds,
-            DateTime exportTimestamp)
+            double durationSeconds)
         {
             int totalFrameCount = Math.Max(payloadBytes == null ? 0 : payloadBytes.Length, payloadBytes2 == null ? 0 : payloadBytes2.Length);
             if (totalFrameCount <= 0)
@@ -791,8 +797,6 @@ namespace LCWpf
 
             int chunkCount = Math.Max(1, (int)Math.Ceiling(durationSeconds / ProtocolExportChunkSeconds));
             ProtocolExportChunk[] chunks = new ProtocolExportChunk[chunkCount];
-            string timestampText = BuildExportTimestampText(exportTimestamp);
-            int lineCount = GetProtocolLineCount(protocolType);
 
             for (int chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++)
             {
@@ -823,14 +827,9 @@ namespace LCWpf
                 {
                     Index = chunkIndex + 1,
                     ExportBytes = BuildProtocolExportBytes(chunkPayloadBytes, chunkPayloadBytes2, protocolType, clockValue, enableValue, defaultByteValue),
-                    FileName = string.Format(
-                        CultureInfo.InvariantCulture,
-                        "{0};{1};{2};{3}-{4}.bin",
-                        lineCount,
-                        sampleRate,
-                        timestampText,
-                        activePartitionList,
-                        chunkIndex + 1),
+                    FileName = ProtocolBinNaming.BuildExportChunkFileName(
+                        chunkIndex + 1,
+                        activePartitionList),
                     PayloadByteCount = Math.Max(chunkPayloadBytes.Length, chunkPayloadBytes2.Length)
                 };
             }
@@ -851,20 +850,6 @@ namespace LCWpf
                 default:
                     return 1;
             }
-        }
-
-        private static string BuildExportTimestampText(DateTime exportTimestamp)
-        {
-            return string.Format(
-                CultureInfo.InvariantCulture,
-                "{0}_{1}_{2}_{3}_{4}_{5}_{6}",
-                exportTimestamp.Year,
-                exportTimestamp.Month,
-                exportTimestamp.Day,
-                exportTimestamp.Hour,
-                exportTimestamp.Minute,
-                exportTimestamp.Second,
-                exportTimestamp.Millisecond);
         }
 
         private static int GetFrameIndexAtTime(uint sampleRate, double totalDurationSeconds, int totalFrameCount, double timeSeconds)

@@ -94,6 +94,9 @@
     <Compile Include="BinaryWaveformImporter.cs">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="ProtocolBinNaming.cs">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="DecodeLogic.cs" />
     <Compile Include="SignalDecodeMode.cs" />
     <Compile Include="SerialProtocolType.cs" />

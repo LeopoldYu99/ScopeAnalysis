@@ -660,6 +660,8 @@ namespace InteractiveExamples
 
             string[] channelNames = GetProtocolChannelNames(protocolType);
             int expectedLineCount = channelNames == null ? 0 : channelNames.Length;
+            ProtocolBinFolderMetadata folderMetadata;
+            bool hasFolderMetadata = ProtocolBinNaming.TryParseFolderMetadata(folderPath, out folderMetadata);
             List<ProtocolImportPageItem> pages = new List<ProtocolImportPageItem>();
             int globalPageNumber = 1;
 
@@ -667,7 +669,20 @@ namespace InteractiveExamples
             {
                 string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(filePath);
                 ProtocolFileMetadata metadata;
-                if (TryParseProtocolFileMetadata(fileNameWithoutExtension, out metadata) == false)
+
+                ProtocolBinChunkFileMetadata chunkMetadata;
+                if (hasFolderMetadata
+                    && ProtocolBinNaming.TryParseChunkFileMetadata(fileNameWithoutExtension, out chunkMetadata))
+                {
+                    metadata = new ProtocolFileMetadata
+                    {
+                        LineCount = folderMetadata.LineCount,
+                        SampleRate = folderMetadata.SampleRate,
+                        FilePageNumber = chunkMetadata.FilePageNumber,
+                        ActivePartitions = chunkMetadata.ActivePartitions
+                    };
+                }
+                else if (TryParseLegacyProtocolFileMetadata(fileNameWithoutExtension, out metadata) == false)
                 {
                     continue;
                 }
@@ -715,11 +730,21 @@ namespace InteractiveExamples
 
             if (pages.Count == 0)
             {
+                uint effectiveFallbackSampleRate = hasFolderMetadata ? folderMetadata.SampleRate : fallbackSampleRate;
                 int fallbackFilePageNumber = 1;
                 foreach (string filePath in filePaths.OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
                 {
                     long fileLength = new FileInfo(filePath).Length;
-                    int bytesPerPartition = GetProtocolPartitionByteCount(expectedLineCount, fallbackSampleRate);
+                    ProtocolBinChunkFileMetadata chunkMetadata;
+                    int parsedFilePageNumber = ProtocolBinNaming.TryParseChunkFileMetadata(
+                        Path.GetFileNameWithoutExtension(filePath),
+                        out chunkMetadata)
+                        ? chunkMetadata.FilePageNumber
+                        : fallbackFilePageNumber;
+                    int fallbackLineCount = hasFolderMetadata && folderMetadata.LineCount > 0
+                        ? folderMetadata.LineCount
+                        : expectedLineCount;
+                    int bytesPerPartition = GetProtocolPartitionByteCount(fallbackLineCount, effectiveFallbackSampleRate);
                     int partitionCount = bytesPerPartition <= 0 ? 0 : Math.Max(1, (int)(fileLength / bytesPerPartition));
 
                     for (int partitionNumber = 1; partitionNumber <= partitionCount; partitionNumber++)
@@ -731,14 +756,15 @@ namespace InteractiveExamples
                                 CultureInfo.InvariantCulture,
                                 "Page {0} (File {1}, Part {2})",
                                 globalPageNumber,
-                                fallbackFilePageNumber,
+                                parsedFilePageNumber,
                                 partitionNumber),
                             FilePath = filePath,
-                            FilePageNumber = fallbackFilePageNumber,
+                            FilePageNumber = parsedFilePageNumber,
                             PartitionNumber = partitionNumber,
                             OffsetBytes = (long)(partitionNumber - 1) * bytesPerPartition,
                             ByteCount = bytesPerPartition,
-                            SampleRate = fallbackSampleRate
+                            SampleRate = effectiveFallbackSampleRate,
+                            IsActivePartition = chunkMetadata != null && chunkMetadata.ActivePartitions != null && chunkMetadata.ActivePartitions.Contains(partitionNumber)
                         });
                         globalPageNumber++;
                     }
@@ -804,7 +830,7 @@ namespace InteractiveExamples
             return buffer;
         }
 
-        private static bool TryParseProtocolFileMetadata(string fileNameWithoutExtension, out ProtocolFileMetadata metadata)
+        private static bool TryParseLegacyProtocolFileMetadata(string fileNameWithoutExtension, out ProtocolFileMetadata metadata)
         {
             metadata = null;
             if (string.IsNullOrWhiteSpace(fileNameWithoutExtension))
