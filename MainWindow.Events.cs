@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 
 namespace InteractiveExamples
@@ -65,6 +66,22 @@ namespace InteractiveExamples
         private void buttonImport_Click(object sender, RoutedEventArgs e)
         {
             ShowSignalImportDialogForSignal(0);
+        }
+
+        private void comboBoxImportPage_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_isUpdatingImportPageSelection || _currentProtocolImportSession == null || comboBoxImportPage == null)
+            {
+                return;
+            }
+
+            ProtocolImportPageItem selectedPage = comboBoxImportPage.SelectedItem as ProtocolImportPageItem;
+            if (selectedPage == null)
+            {
+                return;
+            }
+
+            LoadProtocolImportPage(0, selectedPage);
         }
 
         private void Chart_PreviewMouseMove(object sender, MouseEventArgs e)

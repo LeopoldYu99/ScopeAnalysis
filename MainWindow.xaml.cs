@@ -26,6 +26,8 @@ namespace InteractiveExamples
 
         private readonly List<ChartSignal> _chartSignals = new List<ChartSignal>();
         private double _lastConsumedX;
+        private ProtocolImportSession _currentProtocolImportSession;
+        private bool _isUpdatingImportPageSelection;
 
         private int _seriesCount = 4;
 
@@ -217,6 +219,21 @@ namespace InteractiveExamples
             {
                 buttonImport.Content = "Import";
                 buttonImport.Visibility = Visibility.Visible;
+            }
+
+            bool hasPagedImport = _currentProtocolImportSession != null
+                && _currentProtocolImportSession.Pages != null
+                && _currentProtocolImportSession.Pages.Count > 0;
+
+            if (textBlockImportPage != null)
+            {
+                textBlockImportPage.Visibility = hasPagedImport ? Visibility.Visible : Visibility.Collapsed;
+            }
+
+            if (comboBoxImportPage != null)
+            {
+                comboBoxImportPage.Visibility = hasPagedImport ? Visibility.Visible : Visibility.Collapsed;
+                comboBoxImportPage.IsEnabled = hasPagedImport;
             }
         }
 

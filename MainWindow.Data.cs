@@ -5,22 +5,56 @@ using LCWpf;
 using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using Forms = System.Windows.Forms;
 
 namespace InteractiveExamples
 {
     public partial class Example8BillionPoints
     {
+        private const int ProtocolImportChunkSeconds = 5;
+        private const double ProtocolImportPartitionDurationSeconds = 0.1;
+        private const int ProtocolImportPartitionsPerChunk = (int)(ProtocolImportChunkSeconds / ProtocolImportPartitionDurationSeconds);
+
         private sealed class SignalImportSelection
         {
             public SerialProtocolType ProtocolType { get; set; }
             public string ProtocolName { get; set; }
-            public string FilePath { get; set; }
+            public string ImportPath { get; set; }
             public uint SampleRate { get; set; }
+        }
+
+        private sealed class ProtocolImportPageItem
+        {
+            public int PageNumber { get; set; }
+            public string DisplayName { get; set; }
+            public string FilePath { get; set; }
+            public int FilePageNumber { get; set; }
+            public int PartitionNumber { get; set; }
+            public long OffsetBytes { get; set; }
+            public int ByteCount { get; set; }
+            public uint SampleRate { get; set; }
+        }
+
+        private sealed class ProtocolImportSession
+        {
+            public SerialProtocolType ProtocolType { get; set; }
+            public string ProtocolName { get; set; }
+            public string FolderPath { get; set; }
+            public uint SampleRate { get; set; }
+            public List<ProtocolImportPageItem> Pages { get; set; }
+        }
+
+        private sealed class ProtocolFileMetadata
+        {
+            public int LineCount { get; set; }
+            public uint SampleRate { get; set; }
+            public int FilePageNumber { get; set; }
         }
 
         public void Start()
@@ -194,24 +228,24 @@ namespace InteractiveExamples
             Grid.SetColumnSpan(protocolComboBox, 2);
             layoutRoot.Children.Add(protocolComboBox);
 
-            TextBlock fileLabel = new TextBlock
+            TextBlock pathLabel = new TextBlock
             {
                 Text = "File:",
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(0, 12, 10, 0)
             };
-            Grid.SetRow(fileLabel, 1);
-            Grid.SetColumn(fileLabel, 0);
-            layoutRoot.Children.Add(fileLabel);
+            Grid.SetRow(pathLabel, 1);
+            Grid.SetColumn(pathLabel, 0);
+            layoutRoot.Children.Add(pathLabel);
 
-            TextBox filePathTextBox = new TextBox
+            TextBox importPathTextBox = new TextBox
             {
                 Margin = new Thickness(0, 12, 10, 0),
                 MinWidth = 220
             };
-            Grid.SetRow(filePathTextBox, 1);
-            Grid.SetColumn(filePathTextBox, 1);
-            layoutRoot.Children.Add(filePathTextBox);
+            Grid.SetRow(importPathTextBox, 1);
+            Grid.SetColumn(importPathTextBox, 1);
+            layoutRoot.Children.Add(importPathTextBox);
 
             Button browseButton = new Button
             {
@@ -222,21 +256,45 @@ namespace InteractiveExamples
             };
             browseButton.Click += (sender, e) =>
             {
-                OpenFileDialog openFileDialog = new OpenFileDialog
+                SerialProtocolType selectedProtocolType = GetSelectedImportProtocolType(protocolComboBox.SelectedIndex);
+                if (selectedProtocolType == SerialProtocolType.Uart)
                 {
-                    Filter = "BIN files (*.bin)|*.bin|All files (*.*)|*.*",
-                    CheckFileExists = true,
-                    Multiselect = false
-                };
+                    OpenFileDialog openFileDialog = new OpenFileDialog
+                    {
+                        Filter = "BIN files (*.bin)|*.bin|All files (*.*)|*.*",
+                        CheckFileExists = true,
+                        Multiselect = false
+                    };
 
-                if (openFileDialog.ShowDialog(dialog) == true)
+                    if (openFileDialog.ShowDialog(dialog) == true)
+                    {
+                        importPathTextBox.Text = openFileDialog.FileName;
+                    }
+                    return;
+                }
+
+                using (Forms.FolderBrowserDialog folderDialog = new Forms.FolderBrowserDialog())
                 {
-                    filePathTextBox.Text = openFileDialog.FileName;
+                    folderDialog.Description = "Select a folder that contains the paged BIN files.";
+                    folderDialog.ShowNewFolderButton = false;
+                    if (folderDialog.ShowDialog() == Forms.DialogResult.OK)
+                    {
+                        importPathTextBox.Text = folderDialog.SelectedPath;
+                    }
                 }
             };
             Grid.SetRow(browseButton, 1);
             Grid.SetColumn(browseButton, 2);
             layoutRoot.Children.Add(browseButton);
+
+            Action updateImportPathPrompt = () =>
+            {
+                SerialProtocolType selectedProtocolType = GetSelectedImportProtocolType(protocolComboBox.SelectedIndex);
+                bool useFolderImport = selectedProtocolType != SerialProtocolType.Uart;
+                pathLabel.Text = useFolderImport ? "Folder:" : "File:";
+            };
+            protocolComboBox.SelectionChanged += (sender, e) => updateImportPathPrompt();
+            updateImportPathPrompt();
 
             TextBlock sampleRateLabel = new TextBlock
             {
@@ -270,7 +328,7 @@ namespace InteractiveExamples
 
             TextBlock hintTextBlock = new TextBlock
             {
-                Text = "导入会根据协议拆分二进制数据，并按采样率换算到时间轴。Single channel 直接导入当前通道。",
+                Text = "Single channel imports one BIN file. 2-wire / 3-wire / 4-wire imports select a folder, and you can switch pages from the main toolbar after import.",
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 16, 0, 0),
                 Foreground = Brushes.DimGray
@@ -297,7 +355,9 @@ namespace InteractiveExamples
             importButton.Click += (sender, e) =>
             {
                 string selectedProtocol = protocolComboBox.SelectedItem as string;
-                string filePath = filePathTextBox.Text == null ? string.Empty : filePathTextBox.Text.Trim();
+                SerialProtocolType selectedProtocolType = GetSelectedImportProtocolType(protocolComboBox.SelectedIndex);
+                string importPath = importPathTextBox.Text == null ? string.Empty : importPathTextBox.Text.Trim();
+                bool useFolderImport = selectedProtocolType != SerialProtocolType.Uart;
                 uint sampleRate;
 
                 if (string.IsNullOrEmpty(selectedProtocol))
@@ -306,13 +366,21 @@ namespace InteractiveExamples
                     return;
                 }
 
-                if (string.IsNullOrEmpty(filePath))
+                if (string.IsNullOrEmpty(importPath))
                 {
-                    MessageBox.Show(dialog, "Please select a file.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(dialog, useFolderImport ? "Please select a folder." : "Please select a file.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
-                if (File.Exists(filePath) == false)
+                if (useFolderImport)
+                {
+                    if (Directory.Exists(importPath) == false)
+                    {
+                        MessageBox.Show(dialog, "Selected folder does not exist.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
+                }
+                else if (File.Exists(importPath) == false)
                 {
                     MessageBox.Show(dialog, "Selected file does not exist.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
@@ -326,9 +394,9 @@ namespace InteractiveExamples
 
                 selection = new SignalImportSelection
                 {
-                    ProtocolType = GetSelectedImportProtocolType(protocolComboBox.SelectedIndex),
+                    ProtocolType = selectedProtocolType,
                     ProtocolName = selectedProtocol,
-                    FilePath = filePath,
+                    ImportPath = importPath,
                     SampleRate = sampleRate
                 };
                 dialog.DialogResult = true;
@@ -362,11 +430,12 @@ namespace InteractiveExamples
 
             if (selection.ProtocolType == SerialProtocolType.Uart)
             {
+                ClearProtocolImportSession();
                 ImportBinaryWaveformToSignal(signalIndex, selection);
                 return;
             }
 
-            ImportProtocolToSignals(signalIndex, selection);
+            ImportProtocolFolderToSignals(signalIndex, selection);
         }
 
         private void ImportBinaryWaveformToSignal(int signalIndex, SignalImportSelection selection)
@@ -377,7 +446,7 @@ namespace InteractiveExamples
             }
 
             double sampleInterval = MicrosecondsPerSecond / selection.SampleRate;
-            BinaryWaveformImportResult importResult = BinaryWaveformImporter.ImportFile(selection.FilePath, sampleInterval);
+            BinaryWaveformImportResult importResult = BinaryWaveformImporter.ImportFile(selection.ImportPath, sampleInterval);
             if (importResult == null || importResult.SampleCount <= 0)
             {
                 MessageBox.Show(this, "Failed to import waveform from the selected file.", "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -430,21 +499,48 @@ namespace InteractiveExamples
             signal.SetDigitalHistory(importResult.DigitalWords, importResult.SampleCount, importResult.SampleInterval);
         }
 
-        private void ImportProtocolToSignals(int signalIndex, SignalImportSelection selection)
+        private void ImportProtocolFolderToSignals(int signalIndex, SignalImportSelection selection)
         {
             if (_chart == null || selection == null)
             {
                 return;
             }
 
-            string[] channelNames = GetProtocolChannelNames(selection.ProtocolType);
+            List<ProtocolImportPageItem> pages = GetProtocolImportPages(selection.ImportPath, selection.ProtocolType, selection.SampleRate);
+            if (pages == null || pages.Count == 0)
+            {
+                MessageBox.Show(this, "No paged BIN files were found in the selected folder.", "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            _currentProtocolImportSession = new ProtocolImportSession
+            {
+                ProtocolType = selection.ProtocolType,
+                ProtocolName = selection.ProtocolName,
+                FolderPath = selection.ImportPath,
+                SampleRate = selection.SampleRate,
+                Pages = pages
+            };
+
+            BindProtocolImportPages();
+            LoadProtocolImportPage(signalIndex, pages[0]);
+        }
+
+        private void LoadProtocolImportPage(int signalIndex, ProtocolImportPageItem page)
+        {
+            if (_chart == null || _currentProtocolImportSession == null || page == null || signalIndex < 0)
+            {
+                return;
+            }
+
+            string[] channelNames = GetProtocolChannelNames(_currentProtocolImportSession.ProtocolType);
             if (channelNames == null || channelNames.Length == 0)
             {
                 MessageBox.Show(this, "Unsupported import protocol.", "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
-            byte[] protocolBytes = File.ReadAllBytes(selection.FilePath);
+            byte[] protocolBytes = ReadProtocolPartitionBytes(page);
             if (protocolBytes == null || protocolBytes.Length < channelNames.Length)
             {
                 MessageBox.Show(this, "The import file does not contain enough data for the selected protocol.", "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -458,7 +554,7 @@ namespace InteractiveExamples
                 return;
             }
 
-            double sampleInterval = MicrosecondsPerSecond / selection.SampleRate;
+            double sampleInterval = MicrosecondsPerSecond / page.SampleRate;
             BinaryWaveformImportResult[] importResults = new BinaryWaveformImportResult[channelNames.Length];
             for (int i = 0; i < channelNames.Length; i++)
             {
@@ -494,6 +590,267 @@ namespace InteractiveExamples
             InvalidateOverlayCaches();
             UpdateDecodeOverlay();
             UpdateMeasurementVisual();
+        }
+
+        private void BindProtocolImportPages()
+        {
+            if (comboBoxImportPage == null)
+            {
+                return;
+            }
+
+            _isUpdatingImportPageSelection = true;
+            comboBoxImportPage.ItemsSource = null;
+            comboBoxImportPage.SelectedItem = null;
+
+            if (_currentProtocolImportSession != null && _currentProtocolImportSession.Pages != null)
+            {
+                comboBoxImportPage.ItemsSource = _currentProtocolImportSession.Pages;
+                comboBoxImportPage.SelectedIndex = _currentProtocolImportSession.Pages.Count > 0 ? 0 : -1;
+            }
+
+            _isUpdatingImportPageSelection = false;
+            UpdateImportButtons();
+        }
+
+        private void ClearProtocolImportSession()
+        {
+            _currentProtocolImportSession = null;
+            if (comboBoxImportPage != null)
+            {
+                _isUpdatingImportPageSelection = true;
+                comboBoxImportPage.ItemsSource = null;
+                comboBoxImportPage.SelectedItem = null;
+                _isUpdatingImportPageSelection = false;
+            }
+
+            UpdateImportButtons();
+        }
+
+        private static List<ProtocolImportPageItem> GetProtocolImportPages(string folderPath, SerialProtocolType protocolType, uint fallbackSampleRate)
+        {
+            if (string.IsNullOrWhiteSpace(folderPath) || Directory.Exists(folderPath) == false)
+            {
+                return null;
+            }
+
+            string[] filePaths = Directory.GetFiles(folderPath, "*.bin", SearchOption.TopDirectoryOnly);
+            if (filePaths == null || filePaths.Length == 0)
+            {
+                return new List<ProtocolImportPageItem>();
+            }
+
+            string[] channelNames = GetProtocolChannelNames(protocolType);
+            int expectedLineCount = channelNames == null ? 0 : channelNames.Length;
+            List<ProtocolImportPageItem> pages = new List<ProtocolImportPageItem>();
+            int globalPageNumber = 1;
+
+            foreach (string filePath in filePaths)
+            {
+                string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(filePath);
+                ProtocolFileMetadata metadata;
+                if (TryParseProtocolFileMetadata(fileNameWithoutExtension, out metadata) == false)
+                {
+                    continue;
+                }
+
+                if (expectedLineCount > 0 && metadata.LineCount != expectedLineCount)
+                {
+                    continue;
+                }
+
+                int bytesPerPartition = GetProtocolPartitionByteCount(metadata.LineCount, metadata.SampleRate);
+                if (bytesPerPartition <= 0)
+                {
+                    continue;
+                }
+
+                long fileLength = new FileInfo(filePath).Length;
+                int partitionCount = (int)(fileLength / bytesPerPartition);
+                if (partitionCount <= 0)
+                {
+                    continue;
+                }
+
+                for (int partitionNumber = 1; partitionNumber <= partitionCount; partitionNumber++)
+                {
+                    pages.Add(new ProtocolImportPageItem
+                    {
+                        PageNumber = globalPageNumber,
+                        DisplayName = string.Format(
+                            CultureInfo.InvariantCulture,
+                            "Page {0} (File {1}, Part {2})",
+                            globalPageNumber,
+                            metadata.FilePageNumber,
+                            partitionNumber),
+                        FilePath = filePath,
+                        FilePageNumber = metadata.FilePageNumber,
+                        PartitionNumber = partitionNumber,
+                        OffsetBytes = (long)(partitionNumber - 1) * bytesPerPartition,
+                        ByteCount = bytesPerPartition,
+                        SampleRate = metadata.SampleRate
+                    });
+                    globalPageNumber++;
+                }
+            }
+
+            if (pages.Count == 0)
+            {
+                int fallbackFilePageNumber = 1;
+                foreach (string filePath in filePaths.OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
+                {
+                    long fileLength = new FileInfo(filePath).Length;
+                    int bytesPerPartition = GetProtocolPartitionByteCount(expectedLineCount, fallbackSampleRate);
+                    int partitionCount = bytesPerPartition <= 0 ? 0 : Math.Max(1, (int)(fileLength / bytesPerPartition));
+
+                    for (int partitionNumber = 1; partitionNumber <= partitionCount; partitionNumber++)
+                    {
+                        pages.Add(new ProtocolImportPageItem
+                        {
+                            PageNumber = globalPageNumber,
+                            DisplayName = string.Format(
+                                CultureInfo.InvariantCulture,
+                                "Page {0} (File {1}, Part {2})",
+                                globalPageNumber,
+                                fallbackFilePageNumber,
+                                partitionNumber),
+                            FilePath = filePath,
+                            FilePageNumber = fallbackFilePageNumber,
+                            PartitionNumber = partitionNumber,
+                            OffsetBytes = (long)(partitionNumber - 1) * bytesPerPartition,
+                            ByteCount = bytesPerPartition,
+                            SampleRate = fallbackSampleRate
+                        });
+                        globalPageNumber++;
+                    }
+
+                    fallbackFilePageNumber++;
+                }
+            }
+
+            List<ProtocolImportPageItem> orderedPages = pages
+                .OrderBy(page => page.FilePageNumber)
+                .ThenBy(page => page.PartitionNumber)
+                .ThenBy(page => page.FilePath, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            for (int i = 0; i < orderedPages.Count; i++)
+            {
+                orderedPages[i].PageNumber = i + 1;
+                orderedPages[i].DisplayName = string.Format(
+                    CultureInfo.InvariantCulture,
+                    "Page {0} (File {1}, Part {2})",
+                    i + 1,
+                    orderedPages[i].FilePageNumber,
+                    orderedPages[i].PartitionNumber);
+            }
+
+            return orderedPages;
+        }
+
+        private static byte[] ReadProtocolPartitionBytes(ProtocolImportPageItem page)
+        {
+            if (page == null || string.IsNullOrWhiteSpace(page.FilePath) || File.Exists(page.FilePath) == false || page.ByteCount <= 0)
+            {
+                return null;
+            }
+
+            byte[] buffer = new byte[page.ByteCount];
+            using (FileStream stream = new FileStream(page.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                if (page.OffsetBytes < 0 || page.OffsetBytes >= stream.Length)
+                {
+                    return null;
+                }
+
+                stream.Seek(page.OffsetBytes, SeekOrigin.Begin);
+                int totalBytesRead = 0;
+                while (totalBytesRead < buffer.Length)
+                {
+                    int bytesRead = stream.Read(buffer, totalBytesRead, buffer.Length - totalBytesRead);
+                    if (bytesRead <= 0)
+                    {
+                        break;
+                    }
+
+                    totalBytesRead += bytesRead;
+                }
+
+                if (totalBytesRead != buffer.Length)
+                {
+                    return null;
+                }
+            }
+
+            return buffer;
+        }
+
+        private static bool TryParseProtocolFileMetadata(string fileNameWithoutExtension, out ProtocolFileMetadata metadata)
+        {
+            metadata = null;
+            if (string.IsNullOrWhiteSpace(fileNameWithoutExtension))
+            {
+                return false;
+            }
+
+            string[] parts = fileNameWithoutExtension.Split(';');
+            if (parts.Length < 4)
+            {
+                return false;
+            }
+
+            int lineCount;
+            uint sampleRate;
+            int filePageNumber;
+            if (int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out lineCount) == false
+                || uint.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out sampleRate) == false
+                || TryExtractTrailingPageNumber(parts[parts.Length - 1], out filePageNumber) == false)
+            {
+                return false;
+            }
+
+            metadata = new ProtocolFileMetadata
+            {
+                LineCount = lineCount,
+                SampleRate = sampleRate,
+                FilePageNumber = filePageNumber
+            };
+            return true;
+        }
+
+        private static bool TryExtractTrailingPageNumber(string value, out int pageNumber)
+        {
+            pageNumber = 0;
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return false;
+            }
+
+            int separatorIndex = value.LastIndexOf('-');
+            if (separatorIndex < 0 || separatorIndex >= value.Length - 1)
+            {
+                return false;
+            }
+
+            return int.TryParse(value.Substring(separatorIndex + 1), NumberStyles.Integer, CultureInfo.InvariantCulture, out pageNumber)
+                && pageNumber > 0;
+        }
+
+        private static int GetProtocolPartitionByteCount(int lineCount, uint sampleRate)
+        {
+            if (lineCount <= 0 || sampleRate == 0)
+            {
+                return 0;
+            }
+
+            long bytesPerSecond = (long)Math.Round((sampleRate * lineCount) / 8.0, MidpointRounding.AwayFromZero);
+            long totalBytes = (long)Math.Round(bytesPerSecond * ProtocolImportPartitionDurationSeconds, MidpointRounding.AwayFromZero);
+            if (totalBytes <= 0 || totalBytes > int.MaxValue)
+            {
+                return 0;
+            }
+
+            return (int)totalBytes;
         }
 
         private static byte[][] SplitProtocolBytes(byte[] protocolBytes, int channelCount)

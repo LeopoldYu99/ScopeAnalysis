@@ -85,6 +85,19 @@
                 <Button x:Name="buttonDecode" Width="90" Height="32" Click="buttonDecode_Click" Content="Decode" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
                 <Button x:Name="buttonGenerateBin" Width="110" Height="32" Click="buttonGenerateBin_Click" Content="GenerateBIN" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
                 <Button x:Name="buttonImport" Width="90" Height="32" Click="buttonImport_Click" Content="Import" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
+                <TextBlock x:Name="textBlockImportPage"
+                           Text="Page:"
+                           Foreground="White"
+                           VerticalAlignment="Center"
+                           Margin="18,0,8,0"
+                           Visibility="Collapsed"/>
+                <ComboBox x:Name="comboBoxImportPage"
+                          Width="140"
+                          Height="28"
+                          VerticalAlignment="Center"
+                          Visibility="Collapsed"
+                          SelectionChanged="comboBoxImportPage_SelectionChanged"
+                          DisplayMemberPath="DisplayName"/>
             </StackPanel>
         </Border>
 

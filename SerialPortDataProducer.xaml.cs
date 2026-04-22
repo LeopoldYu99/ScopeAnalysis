@@ -46,7 +46,9 @@ namespace LCWpf
     public partial class SerialPortDataProducer : UserControl
     {
         private const uint FixedSampleRate = 50000000;
-        private const int ProtocolExportChunkSeconds = 10;
+        private const int ProtocolExportChunkSeconds = 5;
+        private const double ProtocolExportPartitionDurationSeconds = 0.1;
+        private const int ProtocolExportPartitionsPerChunk = (int)(ProtocolExportChunkSeconds / ProtocolExportPartitionDurationSeconds);
         private const int PreviewByteCount = 80;
         private const string DefaultPayloadSeedText = "0123456789";
         private int _previewSeed;
@@ -651,7 +653,7 @@ namespace LCWpf
                 endFrameIndex = Math.Max(startFrameIndex, Math.Min(totalFrameCount, endFrameIndex));
                 byte[] chunkPayloadBytes = SliceChannelBytes(payloadBytes, startFrameIndex, endFrameIndex, defaultByteValue);
                 byte[] chunkPayloadBytes2 = SliceChannelBytes(payloadBytes2, startFrameIndex, endFrameIndex, defaultByteValue);
-                string activeSecondList = BuildActiveSecondList(
+                string activePartitionList = BuildActivePartitionList(
                     chunkPayloadBytes,
                     chunkPayloadBytes2,
                     defaultByteValue,
@@ -671,7 +673,7 @@ namespace LCWpf
                         lineCount,
                         sampleRate,
                         timestampText,
-                        activeSecondList,
+                        activePartitionList,
                         chunkIndex + 1),
                     PayloadByteCount = Math.Max(chunkPayloadBytes.Length, chunkPayloadBytes2.Length)
                 };
@@ -763,7 +765,7 @@ namespace LCWpf
             return slice;
         }
 
-        private static string BuildActiveSecondList(
+        private static string BuildActivePartitionList(
             byte[] payloadBytes,
             byte[] payloadBytes2,
             byte defaultByteValue,
@@ -773,17 +775,18 @@ namespace LCWpf
             double chunkEndSeconds,
             int totalFrameCount)
         {
-            int secondCount = Math.Max(1, (int)Math.Ceiling(chunkEndSeconds - chunkStartSeconds));
+            int partitionCount = GetPartitionCountForChunk(chunkStartSeconds, chunkEndSeconds);
             StringBuilder builder = new StringBuilder();
+            int chunkStartFrame = GetFrameIndexAtTime(sampleRate, totalDurationSeconds, totalFrameCount, chunkStartSeconds);
 
-            for (int secondIndex = 0; secondIndex < secondCount; secondIndex++)
+            for (int partitionIndex = 0; partitionIndex < partitionCount; partitionIndex++)
             {
-                double secondStartTime = chunkStartSeconds + secondIndex;
-                double secondEndTime = Math.Min(chunkEndSeconds, secondStartTime + 1);
-                int secondStartFrame = GetFrameIndexAtTime(sampleRate, totalDurationSeconds, totalFrameCount, secondStartTime);
-                int secondEndFrame = GetFrameIndexAtTime(sampleRate, totalDurationSeconds, totalFrameCount, secondEndTime);
-                int localStart = Math.Max(0, secondStartFrame - GetFrameIndexAtTime(sampleRate, totalDurationSeconds, totalFrameCount, chunkStartSeconds));
-                int localEnd = Math.Max(localStart, secondEndFrame - GetFrameIndexAtTime(sampleRate, totalDurationSeconds, totalFrameCount, chunkStartSeconds));
+                double partitionStartTime = chunkStartSeconds + (partitionIndex * ProtocolExportPartitionDurationSeconds);
+                double partitionEndTime = Math.Min(chunkEndSeconds, partitionStartTime + ProtocolExportPartitionDurationSeconds);
+                int partitionStartFrame = GetFrameIndexAtTime(sampleRate, totalDurationSeconds, totalFrameCount, partitionStartTime);
+                int partitionEndFrame = GetFrameIndexAtTime(sampleRate, totalDurationSeconds, totalFrameCount, partitionEndTime);
+                int localStart = Math.Max(0, partitionStartFrame - chunkStartFrame);
+                int localEnd = Math.Max(localStart, partitionEndFrame - chunkStartFrame);
 
                 if (ContainsNonDefaultData(payloadBytes, payloadBytes2, localStart, localEnd, defaultByteValue) == false)
                 {
@@ -795,10 +798,17 @@ namespace LCWpf
                     builder.Append(',');
                 }
 
-                builder.Append(secondIndex + 1);
+                builder.Append(partitionIndex + 1);
             }
 
             return builder.ToString();
+        }
+
+        private static int GetPartitionCountForChunk(double chunkStartSeconds, double chunkEndSeconds)
+        {
+            double chunkDuration = Math.Max(0, chunkEndSeconds - chunkStartSeconds);
+            int partitionCount = (int)Math.Ceiling(chunkDuration / ProtocolExportPartitionDurationSeconds);
+            return Math.Max(1, Math.Min(ProtocolExportPartitionsPerChunk, partitionCount));
         }
 
         private static bool ContainsNonDefaultData(byte[] payloadBytes, byte[] payloadBytes2, int startIndex, int endIndex, byte defaultByteValue)
