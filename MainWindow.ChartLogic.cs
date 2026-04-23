@@ -1160,7 +1160,8 @@ namespace InteractiveExamples
                             history.SampleCount,
                             history.SampleInterval,
                             8,
-                            decodeSettings.EmptyDataRunSegmentThreshold);
+                            decodeSettings.EmptyDataRunSegmentThreshold,
+                            decodeSettings.SamplesPerBit);
                         break;
                     default:
                         segments = DecodeLogic.BuildProtocolSegments(
@@ -1415,6 +1416,7 @@ namespace InteractiveExamples
             signal.DecodeSettings.StopBits = 1;
             signal.DecodeSettings.ParityMode = UartParityMode.None;
             signal.DecodeSettings.IdleBits = 4;
+            signal.DecodeSettings.SamplesPerBit = 1;
             Color lineBaseColor = DefaultColors.SeriesForBlackBackgroundWpf[seriesIndex % DefaultColors.SeriesForBlackBackgroundWpf.Length];
 
             AxisY axisY = new AxisY(view);

@@ -27,6 +27,7 @@ namespace InteractiveExamples
             public string ProtocolName { get; set; }
             public string ImportPath { get; set; }
             public uint SampleRate { get; set; }
+            public uint DataRate { get; set; }
         }
 
         private sealed class ProtocolImportPageItem
@@ -39,6 +40,7 @@ namespace InteractiveExamples
             public long OffsetBytes { get; set; }
             public int ByteCount { get; set; }
             public uint SampleRate { get; set; }
+            public uint DataRate { get; set; }
             public bool IsActivePartition { get; set; }
 
             public Brush DisplayBrush
@@ -64,6 +66,7 @@ namespace InteractiveExamples
             public string ProtocolName { get; set; }
             public string FolderPath { get; set; }
             public uint SampleRate { get; set; }
+            public uint DataRate { get; set; }
             public List<ProtocolImportPageItem> Pages { get; set; }
         }
 
@@ -203,7 +206,7 @@ namespace InteractiveExamples
                 Title = "Import",
                 Owner = this,
                 Width = 560,
-                Height = 310,
+                Height = 360,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 ResizeMode = ResizeMode.NoResize,
                 Background = Brushes.White
@@ -213,6 +216,7 @@ namespace InteractiveExamples
             {
                 Margin = new Thickness(16)
             };
+            layoutRoot.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             layoutRoot.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             layoutRoot.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             layoutRoot.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -344,14 +348,56 @@ namespace InteractiveExamples
             Grid.SetColumn(sampleRateUnitTextBlock, 2);
             layoutRoot.Children.Add(sampleRateUnitTextBlock);
 
+            TextBlock dataRateLabel = new TextBlock
+            {
+                Text = "Data Rate:",
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 12, 10, 0)
+            };
+            Grid.SetRow(dataRateLabel, 3);
+            Grid.SetColumn(dataRateLabel, 0);
+            layoutRoot.Children.Add(dataRateLabel);
+
+            TextBox dataRateTextBox = new TextBox
+            {
+                Margin = new Thickness(0, 12, 10, 0),
+                MinWidth = 220,
+                Text = "5M"
+            };
+            Grid.SetRow(dataRateTextBox, 3);
+            Grid.SetColumn(dataRateTextBox, 1);
+            layoutRoot.Children.Add(dataRateTextBox);
+
+            TextBlock dataRateUnitTextBlock = new TextBlock
+            {
+                Text = "bps",
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 12, 0, 0)
+            };
+            Grid.SetRow(dataRateUnitTextBlock, 3);
+            Grid.SetColumn(dataRateUnitTextBlock, 2);
+            layoutRoot.Children.Add(dataRateUnitTextBlock);
+
+            Action updateDataRateVisibility = () =>
+            {
+                Visibility visibility = GetSelectedImportProtocolType(protocolComboBox.SelectedIndex) == SerialProtocolType.Uart
+                    ? Visibility.Collapsed
+                    : Visibility.Visible;
+                dataRateLabel.Visibility = visibility;
+                dataRateTextBox.Visibility = visibility;
+                dataRateUnitTextBlock.Visibility = visibility;
+            };
+            protocolComboBox.SelectionChanged += (sender, e) => updateDataRateVisibility();
+            updateDataRateVisibility();
+
             TextBlock hintTextBlock = new TextBlock
             {
-                Text = "Single channel imports one BIN file. 2-wire / 3-wire / 4-wire imports select a folder, and you can switch pages from the main toolbar after import.",
+                Text = "Single channel imports one BIN file. 2-wire / 3-wire / 4-wire imports select a folder. Data Rate is used to collapse repeated samples into real bits for decode.",
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 16, 0, 0),
                 Foreground = Brushes.DimGray
             };
-            Grid.SetRow(hintTextBlock, 3);
+            Grid.SetRow(hintTextBlock, 4);
             Grid.SetColumnSpan(hintTextBlock, 3);
             layoutRoot.Children.Add(hintTextBlock);
 
@@ -377,6 +423,7 @@ namespace InteractiveExamples
                 string importPath = importPathTextBox.Text == null ? string.Empty : importPathTextBox.Text.Trim();
                 bool useFolderImport = selectedProtocolType != SerialProtocolType.Uart;
                 uint sampleRate;
+                uint dataRate = 0;
 
                 if (string.IsNullOrEmpty(selectedProtocol))
                 {
@@ -404,10 +451,25 @@ namespace InteractiveExamples
                     return;
                 }
 
-                if (uint.TryParse(sampleRateTextBox.Text, out sampleRate) == false || sampleRate == 0)
+                if (TryParseFrequency(sampleRateTextBox.Text, out sampleRate) == false || sampleRate == 0)
                 {
-                    MessageBox.Show(dialog, "Sample rate must be a positive integer.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(dialog, "Sample rate must be a positive value, for example 50M or 50000000.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
+                }
+
+                if (useFolderImport)
+                {
+                    if (TryParseFrequency(dataRateTextBox.Text, out dataRate) == false || dataRate == 0)
+                    {
+                        MessageBox.Show(dialog, "Data rate must be a positive value, for example 5M or 5000000.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
+
+                    if (sampleRate % dataRate != 0)
+                    {
+                        MessageBox.Show(dialog, "Sample rate must be an integer multiple of data rate.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
                 }
 
                 selection = new SignalImportSelection
@@ -415,7 +477,8 @@ namespace InteractiveExamples
                     ProtocolType = selectedProtocolType,
                     ProtocolName = selectedProtocol,
                     ImportPath = importPath,
-                    SampleRate = sampleRate
+                    SampleRate = sampleRate,
+                    DataRate = dataRate
                 };
                 dialog.DialogResult = true;
             };
@@ -434,7 +497,7 @@ namespace InteractiveExamples
 
             buttonBar.Children.Add(importButton);
             buttonBar.Children.Add(cancelButton);
-            Grid.SetRow(buttonBar, 4);
+            Grid.SetRow(buttonBar, 5);
             Grid.SetColumnSpan(buttonBar, 3);
             layoutRoot.Children.Add(buttonBar);
 
@@ -524,7 +587,7 @@ namespace InteractiveExamples
                 return;
             }
 
-            List<ProtocolImportPageItem> pages = GetProtocolImportPages(selection.ImportPath, selection.ProtocolType, selection.SampleRate);
+            List<ProtocolImportPageItem> pages = GetProtocolImportPages(selection.ImportPath, selection.ProtocolType, selection.SampleRate, selection.DataRate);
             if (pages == null || pages.Count == 0)
             {
                 MessageBox.Show(this, "No paged BIN files were found in the selected folder.", "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -537,6 +600,7 @@ namespace InteractiveExamples
                 ProtocolName = selection.ProtocolName,
                 FolderPath = selection.ImportPath,
                 SampleRate = selection.SampleRate,
+                DataRate = selection.DataRate,
                 Pages = pages
             };
 
@@ -585,6 +649,13 @@ namespace InteractiveExamples
                 return;
             }
 
+            int samplesPerBit = GetSamplesPerBit(page.SampleRate, page.DataRate);
+            if (samplesPerBit <= 0)
+            {
+                MessageBox.Show(this, "Sample rate must be an integer multiple of data rate.", "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
             RebuildChartForImportedSignalCount(channelNames.Length);
 
             _chart.BeginUpdate();
@@ -594,7 +665,7 @@ namespace InteractiveExamples
                 for (int i = 0; i < channelNames.Length; i++)
                 {
                     ImportWaveformToSignal(i, importResults[i], channelNames[i]);
-                    ApplyImportedProtocolDecodeSettings(_chartSignals[i]);
+                    ApplyImportedProtocolDecodeSettings(_chartSignals[i], samplesPerBit);
                 }
 
                 _lastConsumedX = importResults.Max(result => result.SampleCount * result.SampleInterval);
@@ -645,7 +716,7 @@ namespace InteractiveExamples
             UpdateImportButtons();
         }
 
-        private static List<ProtocolImportPageItem> GetProtocolImportPages(string folderPath, SerialProtocolType protocolType, uint fallbackSampleRate)
+        private static List<ProtocolImportPageItem> GetProtocolImportPages(string folderPath, SerialProtocolType protocolType, uint fallbackSampleRate, uint dataRate)
         {
             if (string.IsNullOrWhiteSpace(folderPath) || Directory.Exists(folderPath) == false)
             {
@@ -722,6 +793,7 @@ namespace InteractiveExamples
                         OffsetBytes = (long)(partitionNumber - 1) * bytesPerPartition,
                         ByteCount = bytesPerPartition,
                         SampleRate = metadata.SampleRate,
+                        DataRate = dataRate,
                         IsActivePartition = metadata.ActivePartitions != null && metadata.ActivePartitions.Contains(partitionNumber)
                     });
                     globalPageNumber++;
@@ -764,6 +836,7 @@ namespace InteractiveExamples
                             OffsetBytes = (long)(partitionNumber - 1) * bytesPerPartition,
                             ByteCount = bytesPerPartition,
                             SampleRate = effectiveFallbackSampleRate,
+                            DataRate = dataRate,
                             IsActivePartition = chunkMetadata != null && chunkMetadata.ActivePartitions != null && chunkMetadata.ActivePartitions.Contains(partitionNumber)
                         });
                         globalPageNumber++;
@@ -922,6 +995,62 @@ namespace InteractiveExamples
             return (int)totalBytes;
         }
 
+        private static int GetSamplesPerBit(uint sampleRate, uint dataRate)
+        {
+            if (sampleRate == 0 || dataRate == 0 || sampleRate % dataRate != 0)
+            {
+                return 0;
+            }
+
+            uint samplesPerBit = sampleRate / dataRate;
+            return samplesPerBit > int.MaxValue ? 0 : (int)samplesPerBit;
+        }
+
+        private static bool TryParseFrequency(string text, out uint frequency)
+        {
+            frequency = 0;
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return false;
+            }
+
+            string normalizedText = text.Trim().ToUpperInvariant();
+            double multiplier = 1;
+            char suffix = normalizedText[normalizedText.Length - 1];
+            if (suffix == 'K' || suffix == 'M' || suffix == 'G')
+            {
+                normalizedText = normalizedText.Substring(0, normalizedText.Length - 1);
+                switch (suffix)
+                {
+                    case 'K':
+                        multiplier = 1000;
+                        break;
+                    case 'M':
+                        multiplier = 1000000;
+                        break;
+                    case 'G':
+                        multiplier = 1000000000;
+                        break;
+                }
+            }
+
+            double baseValue;
+            if (double.TryParse(normalizedText, NumberStyles.Float, CultureInfo.InvariantCulture, out baseValue) == false
+                && double.TryParse(normalizedText, NumberStyles.Float, CultureInfo.CurrentCulture, out baseValue) == false)
+            {
+                return false;
+            }
+
+            double scaledValue = baseValue * multiplier;
+            if (scaledValue <= 0 || scaledValue > uint.MaxValue)
+            {
+                return false;
+            }
+
+            frequency = (uint)Math.Round(scaledValue, MidpointRounding.AwayFromZero);
+            return frequency > 0;
+        }
+
         private static byte[][] SplitProtocolBytes(byte[] protocolBytes, int channelCount)
         {
             if (protocolBytes == null || protocolBytes.Length < channelCount || channelCount <= 0)
@@ -948,7 +1077,7 @@ namespace InteractiveExamples
             return channels;
         }
 
-        private static void ApplyImportedProtocolDecodeSettings(ChartSignal signal)
+        private static void ApplyImportedProtocolDecodeSettings(ChartSignal signal, int samplesPerBit)
         {
             if (signal == null || signal.DecodeSettings == null)
             {
@@ -957,6 +1086,7 @@ namespace InteractiveExamples
 
             signal.DecodeSettings.Mode = SignalDecodeMode.FixedWidth8Bit;
             signal.DecodeSettings.DataBits = 8;
+            signal.DecodeSettings.SamplesPerBit = samplesPerBit;
         }
 
         private static SerialProtocolType GetSelectedImportProtocolType(int selectedIndex)

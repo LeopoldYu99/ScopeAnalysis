@@ -79,7 +79,8 @@ namespace InteractiveExamples
             int sampleCount,
             double sampleInterval,
             int bitsPerSegment,
-            int emptyDataRunSegmentThreshold)
+            int emptyDataRunSegmentThreshold,
+            int samplesPerBit)
         {
             List<ProtocolSegment> segments = new List<ProtocolSegment>();
             if (digitalWords == null || sampleCount <= 0 || sampleInterval <= 0 || bitsPerSegment <= 0 || bitsPerSegment > 8)
@@ -87,7 +88,9 @@ namespace InteractiveExamples
                 return segments;
             }
 
-            int minimumEmptyRunSamples = Math.Max(1, emptyDataRunSegmentThreshold) * bitsPerSegment;
+            int normalizedSamplesPerBit = Math.Max(1, samplesPerBit);
+            int samplesPerSegment = bitsPerSegment * normalizedSamplesPerBit;
+            int minimumEmptyRunSamples = Math.Max(1, emptyDataRunSegmentThreshold) * samplesPerSegment;
             int decodeStartSample = 0;
             int runStartSample = 0;
             bool currentValue = GetSampleValue(digitalWords, sampleCount, 0);
@@ -107,8 +110,8 @@ namespace InteractiveExamples
                 int runLength = sampleIndex - runStartSample;
                 if (runLength >= minimumEmptyRunSamples)
                 {
-                    int decodeEndSample = AlignDownToMultiple(runStartSample, bitsPerSegment);
-                    int resumeSample = AlignUpToMultiple(sampleIndex, bitsPerSegment) - bitsPerSegment;
+                    int decodeEndSample = AlignDownToMultiple(runStartSample, samplesPerSegment);
+                    int resumeSample = AlignUpToMultiple(sampleIndex, samplesPerSegment) - samplesPerSegment;
                     if (resumeSample < 0)
                     {
                         resumeSample = 0;
@@ -120,6 +123,7 @@ namespace InteractiveExamples
                         sampleCount,
                         sampleInterval,
                         bitsPerSegment,
+                        normalizedSamplesPerBit,
                         decodeStartSample,
                         decodeEndSample);
 
@@ -139,6 +143,7 @@ namespace InteractiveExamples
                 sampleCount,
                 sampleInterval,
                 bitsPerSegment,
+                normalizedSamplesPerBit,
                 decodeStartSample,
                 sampleCount);
             return segments;
@@ -439,6 +444,7 @@ namespace InteractiveExamples
             int sampleCount,
             double sampleInterval,
             int bitsPerSegment,
+            int samplesPerBit,
             int startSampleInclusive,
             int endSampleExclusive)
         {
@@ -447,22 +453,25 @@ namespace InteractiveExamples
                 || sampleCount <= 0
                 || sampleInterval <= 0
                 || bitsPerSegment <= 0
+                || samplesPerBit <= 0
                 || startSampleInclusive >= endSampleExclusive)
             {
                 return;
             }
 
-            int alignedStartSample = AlignUpToMultiple(startSampleInclusive, bitsPerSegment);
-            int alignedEndSample = AlignDownToMultiple(endSampleExclusive, bitsPerSegment);
+            int samplesPerSegment = bitsPerSegment * samplesPerBit;
+            int alignedStartSample = AlignUpToMultiple(startSampleInclusive, samplesPerSegment);
+            int alignedEndSample = AlignDownToMultiple(endSampleExclusive, samplesPerSegment);
             for (int segmentStartSample = alignedStartSample;
-                segmentStartSample + bitsPerSegment <= alignedEndSample;
-                segmentStartSample += bitsPerSegment)
+                segmentStartSample + samplesPerSegment <= alignedEndSample;
+                segmentStartSample += samplesPerSegment)
             {
                 byte decodedValue = 0;
                 string[] bitLabels = new string[bitsPerSegment];
                 for (int bitIndex = 0; bitIndex < bitsPerSegment; bitIndex++)
                 {
-                    bool bitHigh = GetSampleValue(digitalWords, sampleCount, segmentStartSample + bitIndex);
+                    int bitSampleIndex = segmentStartSample + (bitIndex * samplesPerBit) + (samplesPerBit / 2);
+                    bool bitHigh = GetSampleValue(digitalWords, sampleCount, bitSampleIndex);
                     if (bitHigh)
                     {
                         decodedValue |= (byte)(1 << (bitsPerSegment - bitIndex - 1));
@@ -474,7 +483,7 @@ namespace InteractiveExamples
                 AddSegment(
                     segments,
                     segmentStartSample * sampleInterval,
-                    (segmentStartSample + bitsPerSegment) * sampleInterval,
+                    (segmentStartSample + samplesPerSegment) * sampleInterval,
                     FormatLabel(decodedValue),
                     false,
                     bitLabels);
