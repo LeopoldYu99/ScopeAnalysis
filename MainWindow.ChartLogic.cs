@@ -100,21 +100,46 @@ namespace InteractiveExamples
             double? xValue = TryGetXAxisValueAt(controlX);
             if (xValue.HasValue == false)
             {
+                _isMeasurementHovering = false;
+                UpdateMeasurementVisual();
+                return;
+            }
+
+            ChartSignal targetSignal;
+            if (TryGetMeasurementSignalAtPosition(controlX, controlY, xValue.Value, out targetSignal) == false)
+            {
+                _isMeasurementHovering = false;
+                UpdateMeasurementVisual();
                 return;
             }
 
             _measurementHoverXValue = xValue.Value;
-            AxisY targetAxis = TryGetYAxisAt(controlY);
-            if (targetAxis != null)
-            {
-                ChartSignal targetSignal = TryGetSignalByAxis(targetAxis);
-                if (targetSignal != null)
-                {
-                    _measurementSignal = targetSignal;
-                }
-            }
+            _measurementSignal = targetSignal;
+            _isMeasurementHovering = true;
 
             UpdateMeasurementVisual();
+        }
+
+        private bool TryGetMeasurementSignalAtPosition(double controlX, double controlY, double measurementXValue, out ChartSignal signal)
+        {
+            signal = null;
+
+            if (IsPointInsideVisibleDecodeRow(controlY))
+            {
+                return false;
+            }
+
+            AxisY targetAxis = TryGetYAxisAt(controlY);
+            ChartSignal targetSignal = TryGetSignalByAxis(targetAxis);
+            if (targetSignal == null
+                || targetSignal.AxisY == null
+                || targetSignal.AxisY.Visible == false)
+            {
+                return false;
+            }
+
+            signal = targetSignal;
+            return true;
         }
 
         private ChartSignal TryGetSignalByAxis(AxisY axisY)
@@ -707,6 +732,48 @@ namespace InteractiveExamples
             _measurementSpanLine.Y1 = signalY;
             _measurementSpanLine.Y2 = signalY;
             _measurementSpanLine.Visibility = Visibility.Visible;
+        }
+
+        private bool IsPointInsideVisibleDecodeRow(double controlY)
+        {
+            if (_isDecodeVisible == false || _chart == null)
+            {
+                return false;
+            }
+
+            double plotLeft;
+            double plotTop;
+            double plotRight;
+            double plotBottom;
+            if (TryGetPlotAreaBounds(out plotLeft, out plotTop, out plotRight, out plotBottom) == false)
+            {
+                return false;
+            }
+
+            AxisX xAxis = _chart.ViewXY.XAxes[0];
+            double visibleMin = xAxis.Minimum;
+            double visibleMax = xAxis.Maximum;
+            if (visibleMax <= visibleMin)
+            {
+                return false;
+            }
+
+            List<DecodeRowLayout> decodeRows = BuildDecodeRows(plotTop, plotBottom);
+            for (int i = 0; i < decodeRows.Count; i++)
+            {
+                DecodeRowLayout row = decodeRows[i];
+                if (controlY < row.Top || controlY > row.Top + row.Height)
+                {
+                    continue;
+                }
+
+                if (BuildProtocolSegments(row.Signal, visibleMin, visibleMax).Count > 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private void UpdateMeasurementVisual()

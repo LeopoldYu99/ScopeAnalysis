@@ -99,7 +99,6 @@ namespace InteractiveExamples
                 return;
             }
 
-            _isMeasurementHovering = true;
             UpdateMeasurementFromControlPosition(position.X, position.Y);
         }
 
