@@ -131,7 +131,7 @@ namespace InteractiveExamples
 
         private void ShowDataProducerDialog()
         {
-            SerialPortDataProducer producer = new SerialPortDataProducer();
+            BinFileDataProducer producer = new BinFileDataProducer();
 
             Window dialog = new Window
             {
@@ -148,7 +148,7 @@ namespace InteractiveExamples
             dialog.ShowDialog();
         }
 
-        private static UIElement BuildDataProducerDialogContent(SerialPortDataProducer producer)
+        private static UIElement BuildDataProducerDialogContent(UIElement producer)
         {
             Grid layoutRoot = new Grid
             {
