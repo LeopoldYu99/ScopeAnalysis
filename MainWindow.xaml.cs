@@ -81,7 +81,7 @@ namespace InteractiveExamples
             view.XAxes[0].SweepingGap = 0;
             view.XAxes[0].ValueType = AxisValueType.Number;
             view.XAxes[0].AutoFormatLabels = false;
-            view.XAxes[0].LabelsNumberFormat = "0";
+            view.XAxes[0].LabelsNumberFormat = "0.000";
             view.XAxes[0].Title.Text = "";
             view.XAxes[0].AllowScrolling = true;
             view.XAxes[0].SetRange(0, 100);
