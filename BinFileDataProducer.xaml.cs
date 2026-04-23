@@ -117,7 +117,7 @@ namespace LCWpf
                 int lineCount = GetProtocolLineCount(protocolType);
                 string exportDirectory = Path.Combine(
                     exportParentDirectory,
-                    ProtocolBinNaming.BuildExportFolderName(lineCount, sampleRate, DateTime.Now));
+                    ProtocolBinNaming.BuildExportFolderName(lineCount, sampleRate, dataRate, DateTime.Now));
                 Directory.CreateDirectory(exportDirectory);
 
                 int chunkCount = WriteProtocolChunks(

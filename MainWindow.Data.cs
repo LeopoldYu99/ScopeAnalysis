@@ -28,6 +28,7 @@ namespace InteractiveExamples
             public string ImportPath { get; set; }
             public uint SampleRate { get; set; }
             public uint DataRate { get; set; }
+            public string TimestampText { get; set; }
         }
 
         private sealed class ProtocolImportPageItem
@@ -67,6 +68,7 @@ namespace InteractiveExamples
             public string FolderPath { get; set; }
             public uint SampleRate { get; set; }
             public uint DataRate { get; set; }
+            public string TimestampText { get; set; }
             public List<ProtocolImportPageItem> Pages { get; set; }
         }
 
@@ -206,7 +208,7 @@ namespace InteractiveExamples
                 Title = "Import",
                 Owner = this,
                 Width = 560,
-                Height = 360,
+                Height = 390,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 ResizeMode = ResizeMode.NoResize,
                 Background = Brushes.White
@@ -216,6 +218,7 @@ namespace InteractiveExamples
             {
                 Margin = new Thickness(16)
             };
+            layoutRoot.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             layoutRoot.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             layoutRoot.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             layoutRoot.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -378,6 +381,17 @@ namespace InteractiveExamples
             Grid.SetColumn(dataRateUnitTextBlock, 2);
             layoutRoot.Children.Add(dataRateUnitTextBlock);
 
+            TextBlock folderMetadataTextBlock = new TextBlock
+            {
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 12, 0, 0),
+                Foreground = Brushes.DimGray,
+                Visibility = Visibility.Collapsed
+            };
+            Grid.SetRow(folderMetadataTextBlock, 4);
+            Grid.SetColumnSpan(folderMetadataTextBlock, 3);
+            layoutRoot.Children.Add(folderMetadataTextBlock);
+
             Action updateDataRateVisibility = () =>
             {
                 Visibility visibility = GetSelectedImportProtocolType(protocolComboBox.SelectedIndex) == SerialProtocolType.Uart
@@ -387,17 +401,66 @@ namespace InteractiveExamples
                 dataRateTextBox.Visibility = visibility;
                 dataRateUnitTextBlock.Visibility = visibility;
             };
-            protocolComboBox.SelectionChanged += (sender, e) => updateDataRateVisibility();
+            Action updateProtocolFolderMetadata = () =>
+            {
+                SerialProtocolType selectedProtocolType = GetSelectedImportProtocolType(protocolComboBox.SelectedIndex);
+                bool useFolderImport = selectedProtocolType != SerialProtocolType.Uart;
+                sampleRateTextBox.IsEnabled = useFolderImport == false;
+                dataRateTextBox.IsEnabled = useFolderImport == false;
+                folderMetadataTextBlock.Visibility = useFolderImport ? Visibility.Visible : Visibility.Collapsed;
+
+                if (useFolderImport == false)
+                {
+                    if (string.IsNullOrWhiteSpace(sampleRateTextBox.Text))
+                    {
+                        sampleRateTextBox.Text = "50000000";
+                    }
+
+                    folderMetadataTextBlock.Text = string.Empty;
+                    return;
+                }
+
+                string folderPath = importPathTextBox.Text == null ? string.Empty : importPathTextBox.Text.Trim();
+                ProtocolBinFolderMetadata folderMetadata;
+                if (string.IsNullOrWhiteSpace(folderPath) == false
+                    && ProtocolBinNaming.TryParseFolderMetadata(folderPath, out folderMetadata)
+                    && folderMetadata.DataRate > 0)
+                {
+                    sampleRateTextBox.Text = folderMetadata.SampleRate.ToString(CultureInfo.InvariantCulture);
+                    dataRateTextBox.Text = folderMetadata.DataRate.ToString(CultureInfo.InvariantCulture);
+                    folderMetadataTextBlock.Foreground = Brushes.DimGray;
+                    folderMetadataTextBlock.Text = string.Format(
+                        CultureInfo.InvariantCulture,
+                        "Folder metadata: Sample Rate {0} Hz, Data Rate {1} bps, Time {2}",
+                        folderMetadata.SampleRate,
+                        folderMetadata.DataRate,
+                        folderMetadata.TimestampText);
+                }
+                else
+                {
+                    sampleRateTextBox.Text = string.Empty;
+                    dataRateTextBox.Text = string.Empty;
+                    folderMetadataTextBlock.Foreground = Brushes.DarkRed;
+                    folderMetadataTextBlock.Text = "Folder name must be: lineCount;sampleRate;dataRate;timestamp; for 2-wire / 3-wire / 4-wire imports.";
+                }
+            };
+            protocolComboBox.SelectionChanged += (sender, e) =>
+            {
+                updateDataRateVisibility();
+                updateProtocolFolderMetadata();
+            };
+            importPathTextBox.TextChanged += (sender, e) => updateProtocolFolderMetadata();
             updateDataRateVisibility();
+            updateProtocolFolderMetadata();
 
             TextBlock hintTextBlock = new TextBlock
             {
-                Text = "Single channel imports one BIN file. 2-wire / 3-wire / 4-wire imports select a folder. Data Rate is used to collapse repeated samples into real bits for decode.",
+                Text = "Single channel imports one BIN file. 2-wire / 3-wire / 4-wire imports select a folder named lineCount;sampleRate;dataRate;timestamp;.",
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 16, 0, 0),
                 Foreground = Brushes.DimGray
             };
-            Grid.SetRow(hintTextBlock, 4);
+            Grid.SetRow(hintTextBlock, 5);
             Grid.SetColumnSpan(hintTextBlock, 3);
             layoutRoot.Children.Add(hintTextBlock);
 
@@ -424,6 +487,7 @@ namespace InteractiveExamples
                 bool useFolderImport = selectedProtocolType != SerialProtocolType.Uart;
                 uint sampleRate;
                 uint dataRate = 0;
+                string timestampText = string.Empty;
 
                 if (string.IsNullOrEmpty(selectedProtocol))
                 {
@@ -451,17 +515,29 @@ namespace InteractiveExamples
                     return;
                 }
 
-                if (TryParseFrequency(sampleRateTextBox.Text, out sampleRate) == false || sampleRate == 0)
-                {
-                    MessageBox.Show(dialog, "Sample rate must be a positive value, for example 50M or 50000000.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
-
                 if (useFolderImport)
                 {
-                    if (TryParseFrequency(dataRateTextBox.Text, out dataRate) == false || dataRate == 0)
+                    ProtocolBinFolderMetadata folderMetadata;
+                    if (ProtocolBinNaming.TryParseFolderMetadata(importPath, out folderMetadata) == false || folderMetadata.DataRate == 0)
                     {
-                        MessageBox.Show(dialog, "Data rate must be a positive value, for example 5M or 5000000.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        MessageBox.Show(dialog, "Folder name must be: lineCount;sampleRate;dataRate;timestamp;.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
+
+                    string[] channelNames = GetProtocolChannelNames(selectedProtocolType);
+                    int expectedLineCount = channelNames == null ? 0 : channelNames.Length;
+                    if (expectedLineCount > 0 && folderMetadata.LineCount != expectedLineCount)
+                    {
+                        MessageBox.Show(dialog, "Folder line count does not match the selected protocol.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
+
+                    sampleRate = folderMetadata.SampleRate;
+                    dataRate = folderMetadata.DataRate;
+                    timestampText = folderMetadata.TimestampText;
+                    if (sampleRate == 0 || dataRate == 0)
+                    {
+                        MessageBox.Show(dialog, "Folder sample rate and data rate must be positive values.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
                         return;
                     }
 
@@ -471,6 +547,11 @@ namespace InteractiveExamples
                         return;
                     }
                 }
+                else if (TryParseFrequency(sampleRateTextBox.Text, out sampleRate) == false || sampleRate == 0)
+                {
+                    MessageBox.Show(dialog, "Sample rate must be a positive value, for example 50M or 50000000.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
 
                 selection = new SignalImportSelection
                 {
@@ -478,7 +559,8 @@ namespace InteractiveExamples
                     ProtocolName = selectedProtocol,
                     ImportPath = importPath,
                     SampleRate = sampleRate,
-                    DataRate = dataRate
+                    DataRate = dataRate,
+                    TimestampText = timestampText
                 };
                 dialog.DialogResult = true;
             };
@@ -497,7 +579,7 @@ namespace InteractiveExamples
 
             buttonBar.Children.Add(importButton);
             buttonBar.Children.Add(cancelButton);
-            Grid.SetRow(buttonBar, 5);
+            Grid.SetRow(buttonBar, 6);
             Grid.SetColumnSpan(buttonBar, 3);
             layoutRoot.Children.Add(buttonBar);
 
@@ -601,6 +683,7 @@ namespace InteractiveExamples
                 FolderPath = selection.ImportPath,
                 SampleRate = selection.SampleRate,
                 DataRate = selection.DataRate,
+                TimestampText = selection.TimestampText,
                 Pages = pages
             };
 

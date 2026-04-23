@@ -235,6 +235,58 @@ namespace InteractiveExamples
                 comboBoxImportPage.Visibility = hasPagedImport ? Visibility.Visible : Visibility.Collapsed;
                 comboBoxImportPage.IsEnabled = hasPagedImport;
             }
+
+            if (textBlockImportTimestamp != null)
+            {
+                bool hasTimestamp = hasPagedImport
+                    && string.IsNullOrWhiteSpace(_currentProtocolImportSession.TimestampText) == false;
+                textBlockImportTimestamp.Text = hasTimestamp
+                    ? "Time: " + FormatProtocolImportTimestamp(_currentProtocolImportSession.TimestampText)
+                    : string.Empty;
+                textBlockImportTimestamp.Visibility = hasTimestamp ? Visibility.Visible : Visibility.Collapsed;
+            }
+        }
+
+        private static string FormatProtocolImportTimestamp(string timestampText)
+        {
+            if (string.IsNullOrWhiteSpace(timestampText))
+            {
+                return string.Empty;
+            }
+
+            string[] parts = timestampText.Split('_');
+            if (parts.Length != 7)
+            {
+                return timestampText;
+            }
+
+            int year;
+            int month;
+            int day;
+            int hour;
+            int minute;
+            int second;
+            int millisecond;
+            if (int.TryParse(parts[0], out year) == false
+                || int.TryParse(parts[1], out month) == false
+                || int.TryParse(parts[2], out day) == false
+                || int.TryParse(parts[3], out hour) == false
+                || int.TryParse(parts[4], out minute) == false
+                || int.TryParse(parts[5], out second) == false
+                || int.TryParse(parts[6], out millisecond) == false)
+            {
+                return timestampText;
+            }
+
+            return string.Format(
+                "{0:0000}/{1:00}/{2:00}-{3:00}:{4:00}:{5:00}:{6:000}",
+                year,
+                month,
+                day,
+                hour,
+                minute,
+                second,
+                millisecond);
         }
 
         private void UpdateChartHostHeight()

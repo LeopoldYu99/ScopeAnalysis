@@ -105,6 +105,11 @@
                         </DataTemplate>
                     </ComboBox.ItemTemplate>
                 </ComboBox>
+                <TextBlock x:Name="textBlockImportTimestamp"
+                           Foreground="White"
+                           VerticalAlignment="Center"
+                           Margin="18,0,0,0"
+                           Visibility="Collapsed"/>
             </StackPanel>
         </Border>
 

@@ -238,6 +238,7 @@ namespace LCWpf
                         ProtocolBinNaming.BuildExportFolderName(
                             GetProtocolLineCount(protocolType),
                             GetSampleRate(),
+                            GetSampleRate(),
                             exportTimestamp));
                     ProtocolExportChunk[] chunks = BuildProtocolExportChunks(
                         payloadBytes,

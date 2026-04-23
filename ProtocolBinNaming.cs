@@ -8,6 +8,7 @@ namespace InteractiveExamples
     {
         public int LineCount { get; set; }
         public uint SampleRate { get; set; }
+        public uint DataRate { get; set; }
         public string TimestampText { get; set; }
     }
 
@@ -19,13 +20,14 @@ namespace InteractiveExamples
 
     internal static class ProtocolBinNaming
     {
-        public static string BuildExportFolderName(int lineCount, uint sampleRate, DateTime exportTimestamp)
+        public static string BuildExportFolderName(int lineCount, uint sampleRate, uint dataRate, DateTime exportTimestamp)
         {
             return string.Format(
                 CultureInfo.InvariantCulture,
-                "{0};{1};{2};",
+                "{0};{1};{2};{3};",
                 lineCount,
                 sampleRate,
+                dataRate,
                 BuildTimestampText(exportTimestamp));
         }
 
@@ -61,7 +63,7 @@ namespace InteractiveExamples
                 return false;
             }
 
-            string[] parts = folderName.Split(';');
+            string[] parts = folderName.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
             if (parts.Length < 3)
             {
                 return false;
@@ -69,7 +71,8 @@ namespace InteractiveExamples
 
             int lineCount;
             uint sampleRate;
-            string timestampText = parts[2];
+            uint dataRate = 0;
+            string timestampText = parts.Length >= 4 ? parts[3] : parts[2];
             if (int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out lineCount) == false
                 || lineCount <= 0
                 || uint.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out sampleRate) == false
@@ -79,10 +82,17 @@ namespace InteractiveExamples
                 return false;
             }
 
+            if (parts.Length >= 4
+                && (uint.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out dataRate) == false || dataRate == 0))
+            {
+                return false;
+            }
+
             metadata = new ProtocolBinFolderMetadata
             {
                 LineCount = lineCount,
                 SampleRate = sampleRate,
+                DataRate = dataRate,
                 TimestampText = timestampText
             };
             return true;
