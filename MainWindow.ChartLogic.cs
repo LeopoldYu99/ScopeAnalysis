@@ -827,6 +827,7 @@ namespace InteractiveExamples
         }
 
         private const double DecodeVerticalOffset = -30.0;
+        private const double DecodeSegmentEdgeTolerance = 1e-9;
 
         private void UpdateDecodeOverlay()
         {
@@ -977,8 +978,9 @@ namespace InteractiveExamples
                 return;
             }
 
+            bool isCompleteSegmentVisible = IsCompleteSegmentVisible(segment);
             System.Windows.Shapes.Shape shape;
-            if (width < rowHeight * 1.3)
+            if (isCompleteSegmentVisible == false || width < rowHeight * 1.3)
             {
                 shape = new Rectangle
                 {
@@ -1023,6 +1025,16 @@ namespace InteractiveExamples
                 return;
             }
 
+            if (isCompleteSegmentVisible == false)
+            {
+                if (segment.IsMarker == false && segment.BitLabels != null && segment.BitLabels.Length > 0)
+                {
+                    DrawVisibleDataBitLabels(segment, rowTop, rowHeight, visibleMin, visibleMax, plotLeft, plotWidth);
+                }
+
+                return;
+            }
+
             if (segment.IsMarker == false && segment.BitLabels != null && segment.BitLabels.Length > 0)
             {
                 DrawDataSegmentLabels(segment, left, rowTop, width, rowHeight);
@@ -1046,6 +1058,116 @@ namespace InteractiveExamples
             Canvas.SetLeft(label, left + (width - label.DesiredSize.Width) / 2.0);
             Canvas.SetTop(label, rowTop + (rowHeight - label.DesiredSize.Height) / 2.0 - 1.0);
             _decodeOverlay.Children.Add(label);
+        }
+
+        private static bool IsCompleteSegmentVisible(ProtocolSegment segment)
+        {
+            double originalStart = GetOriginalStartX(segment);
+            double originalEnd = GetOriginalEndX(segment);
+            double tolerance = Math.Max(1.0, Math.Max(Math.Abs(originalStart), Math.Abs(originalEnd))) * DecodeSegmentEdgeTolerance;
+            return Math.Abs(segment.StartX - originalStart) <= tolerance
+                && Math.Abs(segment.EndX - originalEnd) <= tolerance;
+        }
+
+        private static double GetOriginalStartX(ProtocolSegment segment)
+        {
+            if (segment == null)
+            {
+                return 0;
+            }
+
+            return segment.OriginalEndX > segment.OriginalStartX ? segment.OriginalStartX : segment.StartX;
+        }
+
+        private static double GetOriginalEndX(ProtocolSegment segment)
+        {
+            if (segment == null)
+            {
+                return 0;
+            }
+
+            return segment.OriginalEndX > segment.OriginalStartX ? segment.OriginalEndX : segment.EndX;
+        }
+
+        private void DrawVisibleDataBitLabels(
+            ProtocolSegment segment,
+            double rowTop,
+            double rowHeight,
+            double visibleMin,
+            double visibleMax,
+            double plotLeft,
+            double plotWidth)
+        {
+            int bitCount = segment.BitLabels == null ? 0 : segment.BitLabels.Length;
+            double originalStart = GetOriginalStartX(segment);
+            double originalEnd = GetOriginalEndX(segment);
+            if (bitCount <= 0 || originalEnd <= originalStart || visibleMax <= visibleMin)
+            {
+                return;
+            }
+
+            double bitBandTop = rowTop + rowHeight * 0.48;
+            double bitBandHeight = Math.Max(9.0, rowHeight - (bitBandTop - rowTop) - 1.0);
+            if (bitBandHeight < 8.0)
+            {
+                return;
+            }
+
+            double xRange = visibleMax - visibleMin;
+            double originalBitWidth = (originalEnd - originalStart) / bitCount;
+            for (int bitIndex = 0; bitIndex < bitCount; bitIndex++)
+            {
+                double bitStartX = originalStart + bitIndex * originalBitWidth;
+                double bitEndX = bitStartX + originalBitWidth;
+                double clippedBitStartX = Math.Max(bitStartX, visibleMin);
+                double clippedBitEndX = Math.Min(bitEndX, visibleMax);
+                if (clippedBitEndX <= clippedBitStartX)
+                {
+                    continue;
+                }
+
+                double bitLeft = plotLeft + (clippedBitStartX - visibleMin) / xRange * plotWidth;
+                double bitRight = plotLeft + (clippedBitEndX - visibleMin) / xRange * plotWidth;
+                double cellWidth = bitRight - bitLeft;
+                if (cellWidth < 4.0)
+                {
+                    continue;
+                }
+
+                Rectangle bitCell = new Rectangle
+                {
+                    Width = Math.Max(2.0, cellWidth - 1.0),
+                    Height = bitBandHeight,
+                    Fill = new SolidColorBrush(Color.FromArgb(220, 109, 204, 224)),
+                    Stroke = new SolidColorBrush(Color.FromArgb(230, 208, 245, 255)),
+                    StrokeThickness = 0.8,
+                    RadiusX = 1.5,
+                    RadiusY = 1.5
+                };
+
+                Canvas.SetLeft(bitCell, bitLeft + 0.5);
+                Canvas.SetTop(bitCell, bitBandTop);
+                _decodeOverlay.Children.Add(bitCell);
+
+                TextBlock bitLabel = new TextBlock
+                {
+                    Text = segment.BitLabels[bitIndex],
+                    Foreground = new SolidColorBrush(Color.FromRgb(7, 35, 47)),
+                    FontSize = 10,
+                    FontWeight = FontWeights.Bold,
+                    TextAlignment = TextAlignment.Center
+                };
+
+                bitLabel.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                if (bitLabel.DesiredSize.Width > cellWidth - 2.0 || bitLabel.DesiredSize.Height > bitBandHeight)
+                {
+                    continue;
+                }
+
+                Canvas.SetLeft(bitLabel, bitLeft + (cellWidth - bitLabel.DesiredSize.Width) / 2.0);
+                Canvas.SetTop(bitLabel, bitBandTop + (bitBandHeight - bitLabel.DesiredSize.Height) / 2.0 - 1.0);
+                _decodeOverlay.Children.Add(bitLabel);
+            }
         }
 
         private void DrawDataSegmentLabels(ProtocolSegment segment, double left, double rowTop, double width, double rowHeight)
@@ -1234,6 +1356,8 @@ namespace InteractiveExamples
                 {
                     StartX = clippedStart,
                     EndX = clippedEnd,
+                    OriginalStartX = segment.OriginalEndX > segment.OriginalStartX ? segment.OriginalStartX : segment.StartX,
+                    OriginalEndX = segment.OriginalEndX > segment.OriginalStartX ? segment.OriginalEndX : segment.EndX,
                     Label = segment.Label,
                     BitLabels = segment.BitLabels,
                     FillColor = segment.FillColor,

@@ -528,6 +528,8 @@ namespace InteractiveExamples
             {
                 StartX = startX,
                 EndX = endX,
+                OriginalStartX = startX,
+                OriginalEndX = endX,
                 IsMarker = isMarker,
                 Label = label,
                 BitLabels = bitLabels
