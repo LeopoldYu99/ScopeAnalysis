@@ -15,6 +15,8 @@ namespace LCWpf
         private const int ProtocolExportChunkSeconds = 5;
         private const double ProtocolExportPartitionDurationSeconds = 0.1;
         private const int ProtocolExportPartitionsPerChunk = (int)(ProtocolExportChunkSeconds / ProtocolExportPartitionDurationSeconds);
+        private const double MinimumEmptySegmentDurationMilliseconds = 20;
+        private const double MinimumEmptySegmentIntervalMilliseconds = 40;
 
         public BinFileDataProducer()
         {
@@ -85,7 +87,9 @@ namespace LCWpf
                     Encoding.ASCII.GetBytes(PayloadAsciiTextBox.Text ?? string.Empty),
                     GetLogicalDataByteCount(dataRate, durationSeconds),
                     emptyDataRatio,
-                    emptyDataValue);
+                    emptyDataValue,
+                    Environment.TickCount,
+                    dataRate);
                 byte[] payloadBytes2 = protocolType == SerialProtocolType.FourWireSerial
                     ? BuildSecondaryLogicalPayloadBytes(payloadBytes, emptyDataValue)
                     : new byte[0];
@@ -344,7 +348,7 @@ namespace LCWpf
             return Math.Max(1, (long)Math.Round(byteCount, MidpointRounding.AwayFromZero));
         }
 
-        private static byte[] BuildLogicalPayloadBytes(byte[] seedBytes, long byteCount, int emptyDataRatio, byte emptyDataValue)
+        private static byte[] BuildLogicalPayloadBytes(byte[] seedBytes, long byteCount, int emptyDataRatio, byte emptyDataValue, int randomSeed, uint dataRate)
         {
             if (byteCount <= 0)
             {
@@ -360,19 +364,215 @@ namespace LCWpf
                 ? new[] { emptyDataValue }
                 : seedBytes;
             byte[] outputBytes = new byte[(int)byteCount];
-            long activeByteCount = (long)Math.Round(
-                (byteCount * (100 - emptyDataRatio)) / 100.0,
-                MidpointRounding.AwayFromZero);
-            activeByteCount = Math.Max(0, Math.Min(byteCount, activeByteCount));
+            bool[] emptyMask = BuildSegmentedEmptyMask(outputBytes.Length, emptyDataRatio, randomSeed, dataRate);
+            int payloadIndex = 0;
 
             for (int i = 0; i < outputBytes.Length; i++)
             {
-                outputBytes[i] = i < activeByteCount
-                    ? normalizedSeedBytes[i % normalizedSeedBytes.Length]
-                    : emptyDataValue;
+                if (emptyMask[i])
+                {
+                    outputBytes[i] = emptyDataValue;
+                    continue;
+                }
+
+                outputBytes[i] = normalizedSeedBytes[payloadIndex % normalizedSeedBytes.Length];
+                payloadIndex++;
             }
 
             return outputBytes;
+        }
+
+        private static bool[] BuildSegmentedEmptyMask(int byteCount, int emptyDataRatio, int randomSeed, uint dataRate)
+        {
+            bool[] emptyMask = new bool[byteCount];
+            if (byteCount <= 0 || emptyDataRatio <= 0)
+            {
+                return emptyMask;
+            }
+
+            int emptyByteCount = (int)Math.Round(
+                (((long)byteCount) * emptyDataRatio) / 100.0,
+                MidpointRounding.AwayFromZero);
+            emptyByteCount = Math.Max(0, Math.Min(byteCount, emptyByteCount));
+            if (emptyByteCount == 0)
+            {
+                return emptyMask;
+            }
+
+            if (emptyByteCount >= byteCount)
+            {
+                for (int i = 0; i < emptyMask.Length; i++)
+                {
+                    emptyMask[i] = true;
+                }
+
+                return emptyMask;
+            }
+
+            int emptySegmentMinBytes = GetLogicalByteCountForDuration(dataRate, MinimumEmptySegmentDurationMilliseconds, byteCount);
+            int emptySegmentMinGapBytes = GetLogicalByteCountForDuration(dataRate, MinimumEmptySegmentIntervalMilliseconds, byteCount);
+            int nonEmptyByteCount = byteCount - emptyByteCount;
+            Random random = new Random(randomSeed);
+            int emptySegmentCount = DetermineEmptySegmentCount(
+                emptyByteCount,
+                nonEmptyByteCount,
+                emptySegmentMinBytes,
+                emptySegmentMinGapBytes);
+            int[] emptySegmentLengths = BuildEmptySegmentLengths(
+                emptyByteCount,
+                emptySegmentCount,
+                emptySegmentMinBytes,
+                random);
+            int[] gapLengths = BuildGapLengths(
+                nonEmptyByteCount,
+                emptySegmentCount,
+                emptySegmentMinGapBytes,
+                random);
+            int index = gapLengths[0];
+
+            for (int i = 0; i < emptySegmentLengths.Length; i++)
+            {
+                int segmentLength = emptySegmentLengths[i];
+                for (int j = 0; j < segmentLength && index + j < emptyMask.Length; j++)
+                {
+                    emptyMask[index + j] = true;
+                }
+
+                index += segmentLength + gapLengths[i + 1];
+            }
+
+            return emptyMask;
+        }
+
+        private static int DetermineEmptySegmentCount(int emptyByteCount, int nonEmptyByteCount, int emptySegmentMinBytes, int emptySegmentMinGapBytes)
+        {
+            if (emptyByteCount <= 0)
+            {
+                return 0;
+            }
+
+            int maximumSegmentsByLength = Math.Max(1, emptyByteCount / Math.Max(1, emptySegmentMinBytes));
+            int maximumSegmentsByGap = nonEmptyByteCount <= 0
+                ? 1
+                : Math.Max(1, (nonEmptyByteCount / Math.Max(1, emptySegmentMinGapBytes)) + 1);
+            return Math.Max(1, Math.Min(maximumSegmentsByLength, maximumSegmentsByGap));
+        }
+
+        private static int[] BuildEmptySegmentLengths(int emptyByteCount, int emptySegmentCount, int emptySegmentMinBytes, Random random)
+        {
+            if (emptySegmentCount <= 1)
+            {
+                return new[] { emptyByteCount };
+            }
+
+            int[] lengths = new int[emptySegmentCount];
+            int assignedBytes = 0;
+            for (int i = 0; i < lengths.Length; i++)
+            {
+                lengths[i] = emptySegmentMinBytes;
+                assignedBytes += emptySegmentMinBytes;
+            }
+
+            int remainingBytes = Math.Max(0, emptyByteCount - assignedBytes);
+            DistributeBytes(lengths, remainingBytes, int.MaxValue, random);
+
+            ShuffleArray(lengths, random);
+            return lengths;
+        }
+
+        private static int[] BuildGapLengths(int nonEmptyByteCount, int emptySegmentCount, int emptySegmentMinGapBytes, Random random)
+        {
+            int[] gapLengths = new int[Math.Max(1, emptySegmentCount + 1)];
+            if (emptySegmentCount <= 0)
+            {
+                gapLengths[0] = nonEmptyByteCount;
+                return gapLengths;
+            }
+
+            int internalGapCount = Math.Max(0, emptySegmentCount - 1);
+            int requiredGapBytes = internalGapCount * emptySegmentMinGapBytes;
+            for (int i = 1; i < emptySegmentCount; i++)
+            {
+                gapLengths[i] = emptySegmentMinGapBytes;
+            }
+
+            int remainingBytes = Math.Max(0, nonEmptyByteCount - requiredGapBytes);
+            DistributeBytes(gapLengths, remainingBytes, int.MaxValue, random);
+            return gapLengths;
+        }
+
+        private static int DistributeBytes(int[] lengths, int remainingBytes, int perSlotLimit, Random random)
+        {
+            if (lengths == null || lengths.Length == 0 || remainingBytes <= 0)
+            {
+                return remainingBytes;
+            }
+
+            while (remainingBytes > 0)
+            {
+                bool canGrowAnySlot = false;
+                for (int i = 0; i < lengths.Length; i++)
+                {
+                    if (lengths[i] < perSlotLimit)
+                    {
+                        canGrowAnySlot = true;
+                        break;
+                    }
+                }
+
+                if (canGrowAnySlot == false)
+                {
+                    return remainingBytes;
+                }
+
+                int slotIndex = random.Next(lengths.Length);
+                if (lengths[slotIndex] >= perSlotLimit)
+                {
+                    continue;
+                }
+
+                int maxGrowth = perSlotLimit == int.MaxValue
+                    ? Math.Max(1, remainingBytes / lengths.Length)
+                    : perSlotLimit - lengths[slotIndex];
+                maxGrowth = Math.Max(1, Math.Min(remainingBytes, maxGrowth));
+                int growth = maxGrowth == 1 ? 1 : random.Next(1, maxGrowth + 1);
+                lengths[slotIndex] += growth;
+                remainingBytes -= growth;
+            }
+
+            return 0;
+        }
+
+        private static int GetLogicalByteCountForDuration(uint dataRate, double durationMilliseconds, int byteCountLimit)
+        {
+            if (byteCountLimit <= 0)
+            {
+                return 1;
+            }
+
+            long byteCount = GetLogicalDataByteCount(dataRate, durationMilliseconds / 1000.0);
+            if (byteCount <= 0)
+            {
+                return 1;
+            }
+
+            return (int)Math.Max(1, Math.Min((long)byteCountLimit, byteCount));
+        }
+
+        private static void ShuffleArray(int[] values, Random random)
+        {
+            if (values == null || values.Length <= 1)
+            {
+                return;
+            }
+
+            for (int i = values.Length - 1; i > 0; i--)
+            {
+                int swapIndex = random.Next(i + 1);
+                int temp = values[i];
+                values[i] = values[swapIndex];
+                values[swapIndex] = temp;
+            }
         }
 
         private static byte[] BuildSecondaryLogicalPayloadBytes(byte[] primaryBytes, byte emptyDataValue)

@@ -378,19 +378,10 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
 
-                                <TextBlock Grid.Row="0"
-                                           Grid.Column="0"
-                                           Text="CLK:"
-                                           VerticalAlignment="Center"
-                                           Margin="0,0,10,0"/>
-                                <TextBox Grid.Row="0"
-                                         Grid.Column="1"
-                                         x:Name="FourWireClkTextBox"
-                                         Text="F0"/>
+                                <TextBlock Grid.Row="0"  Grid.Column="0" Text="CLK:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                <TextBox Grid.Row="0" Grid.Column="1" x:Name="FourWireClkTextBox" Text="F0"/>
 
-                                <TextBlock Grid.Row="0"
-                                           Grid.Column="2"
-                                           Text="EN:"
+                                <TextBlock Grid.Row="0" Grid.Column="2" Text="EN:"
                                            VerticalAlignment="Center"
                                            Margin="12,0,10,0"/>
                                 <TextBox Grid.Row="0"
