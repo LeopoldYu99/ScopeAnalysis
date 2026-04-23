@@ -480,11 +480,10 @@ namespace InteractiveExamples
 
             string edgeLabel = measurement.Direction == DigitalEdgeDirection.Rising ? "上升沿" : "下降沿";
             return string.Format(
-                "{0}\n宽度: {1}\n周期: {2}\n频率: {3}\n占空比: {4:0.00}%",
+                "{0}\n宽度: {1}\n周期: {2}\n占空比: {3:0.00}%",
                 edgeLabel,
                 FormatTimeValue(measurement.Width),
                 FormatTimeValue(measurement.Period),
-                FormatFrequencyValue(measurement.FrequencyHz),
                 measurement.DutyCyclePercent);
         }
 
