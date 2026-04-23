@@ -14,7 +14,8 @@ namespace InteractiveExamples
             int uartDataBits,
             double uartStopBits,
             UartParityMode uartParityMode,
-            int uartIdleBits)
+            int uartIdleBits,
+            int samplesPerBit)
         {
             List<ProtocolSegment> segments = new List<ProtocolSegment>();
             if (digitalWords == null || sampleCount <= 0 || sampleIntervalUs <= 0 || uartBaudRate <= 0 || uartDataBits <= 0 || uartStopBits <= 0)
@@ -22,7 +23,9 @@ namespace InteractiveExamples
                 return segments;
             }
 
-            double bitDurationUs = 1000000.0 / uartBaudRate;
+            double bitDurationUs = samplesPerBit > 1
+                ? sampleIntervalUs * samplesPerBit
+                : 1000000.0 / uartBaudRate;
             double minimumIdleDurationUs = Math.Max(0, uartIdleBits) * bitDurationUs;
             double previousFrameEndX = double.NaN;
             for (int sampleIndex = 1; sampleIndex < sampleCount; sampleIndex++)

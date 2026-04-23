@@ -29,6 +29,12 @@ namespace InteractiveExamples
             public uint SampleRate { get; set; }
             public uint DataRate { get; set; }
             public string TimestampText { get; set; }
+            public bool HasUartMetadata { get; set; }
+            public int UartBaudRate { get; set; }
+            public UartParityMode UartParityMode { get; set; }
+            public int UartDataBits { get; set; }
+            public double UartStopBits { get; set; }
+            public int UartSamplesPerBit { get; set; }
         }
 
         private sealed class ProtocolImportPageItem
@@ -411,11 +417,36 @@ namespace InteractiveExamples
 
                 if (useFolderImport == false)
                 {
+                    string filePath = importPathTextBox.Text == null ? string.Empty : importPathTextBox.Text.Trim();
+                    UartBinFileMetadata uartMetadata;
+                    if (string.IsNullOrWhiteSpace(filePath) == false
+                        && ProtocolBinNaming.TryParseUartFileMetadata(filePath, out uartMetadata)
+                        && uartMetadata.LineCount == 1)
+                    {
+                        sampleRateTextBox.Text = uartMetadata.SampleRate.ToString(CultureInfo.InvariantCulture);
+                        sampleRateTextBox.IsEnabled = false;
+                        folderMetadataTextBlock.Visibility = Visibility.Visible;
+                        folderMetadataTextBlock.Foreground = Brushes.DimGray;
+                        folderMetadataTextBlock.Text = string.Format(
+                            CultureInfo.InvariantCulture,
+                            "UART metadata: Sample Rate {0} Hz, Baud {1} bps, Parity {2}, Data Bits {3}, Stop Bits {4}, Time {5}, File {6}",
+                            uartMetadata.SampleRate,
+                            uartMetadata.BaudRate,
+                            uartMetadata.ParityText,
+                            uartMetadata.DataBits,
+                            uartMetadata.StopBits,
+                            uartMetadata.TimestampText,
+                            uartMetadata.FileNumber);
+                        return;
+                    }
+
+                    sampleRateTextBox.IsEnabled = true;
                     if (string.IsNullOrWhiteSpace(sampleRateTextBox.Text))
                     {
                         sampleRateTextBox.Text = "50000000";
                     }
 
+                    folderMetadataTextBlock.Visibility = Visibility.Collapsed;
                     folderMetadataTextBlock.Text = string.Empty;
                     return;
                 }
@@ -455,7 +486,7 @@ namespace InteractiveExamples
 
             TextBlock hintTextBlock = new TextBlock
             {
-                Text = "Single channel imports one BIN file. 2-wire / 3-wire / 4-wire imports select a folder named lineCount;sampleRate;dataRate;timestamp;.",
+                Text = "Single channel imports one BIN file. UART files named 1;sampleRate;baudRate;parity;dataBits;stopBits;time-fileNumber auto-fill decode settings. 2-wire / 3-wire / 4-wire imports select a folder named lineCount;sampleRate;dataRate;timestamp;.",
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 16, 0, 0),
                 Foreground = Brushes.DimGray
@@ -488,6 +519,12 @@ namespace InteractiveExamples
                 uint sampleRate;
                 uint dataRate = 0;
                 string timestampText = string.Empty;
+                bool hasUartMetadata = false;
+                int uartBaudRate = 0;
+                UartParityMode uartParityMode = UartParityMode.None;
+                int uartDataBits = 0;
+                double uartStopBits = 0;
+                int uartSamplesPerBit = 0;
 
                 if (string.IsNullOrEmpty(selectedProtocol))
                 {
@@ -541,16 +578,42 @@ namespace InteractiveExamples
                         return;
                     }
 
-                    if (sampleRate % dataRate != 0)
+                }
+                else
+                {
+                    UartBinFileMetadata uartMetadata;
+                    if (ProtocolBinNaming.TryParseUartFileMetadata(importPath, out uartMetadata))
                     {
-                        MessageBox.Show(dialog, "Sample rate must be an integer multiple of data rate.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        if (uartMetadata.LineCount != 1)
+                        {
+                            MessageBox.Show(dialog, "UART file line count must be 1.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
+                            return;
+                        }
+
+                        if (TryParseUartParityMode(uartMetadata.ParityText, out uartParityMode) == false)
+                        {
+                            MessageBox.Show(dialog, "UART parity in the file name is invalid.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
+                            return;
+                        }
+
+                        sampleRate = uartMetadata.SampleRate;
+                        timestampText = uartMetadata.TimestampText;
+                        hasUartMetadata = true;
+                        uartBaudRate = uartMetadata.BaudRate;
+                        uartDataBits = uartMetadata.DataBits;
+                        uartStopBits = uartMetadata.StopBits;
+                        uartSamplesPerBit = GetSamplesPerBit(uartMetadata.SampleRate, (uint)uartMetadata.BaudRate);
+                        if (uartSamplesPerBit <= 0)
+                        {
+                            MessageBox.Show(dialog, "UART repeated samples per bit is invalid.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
+                            return;
+                        }
+                    }
+                    else if (TryParseFrequency(sampleRateTextBox.Text, out sampleRate) == false || sampleRate == 0)
+                    {
+                        MessageBox.Show(dialog, "Sample rate must be a positive value, for example 50M or 50000000.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
                         return;
                     }
-                }
-                else if (TryParseFrequency(sampleRateTextBox.Text, out sampleRate) == false || sampleRate == 0)
-                {
-                    MessageBox.Show(dialog, "Sample rate must be a positive value, for example 50M or 50000000.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
                 }
 
                 selection = new SignalImportSelection
@@ -560,7 +623,13 @@ namespace InteractiveExamples
                     ImportPath = importPath,
                     SampleRate = sampleRate,
                     DataRate = dataRate,
-                    TimestampText = timestampText
+                    TimestampText = timestampText,
+                    HasUartMetadata = hasUartMetadata,
+                    UartBaudRate = uartBaudRate,
+                    UartParityMode = uartParityMode,
+                    UartDataBits = uartDataBits,
+                    UartStopBits = uartStopBits,
+                    UartSamplesPerBit = uartSamplesPerBit
                 };
                 dialog.DialogResult = true;
             };
@@ -623,6 +692,10 @@ namespace InteractiveExamples
             {
                 ConfigureChartDataSourceBehavior(_chart.ViewXY, true);
                 ImportWaveformToSignal(0, importResult, importResult.SignalName);
+                if (selection.HasUartMetadata)
+                {
+                    ApplyImportedUartDecodeSettings(_chartSignals[0], selection);
+                }
 
                 _lastConsumedX = importResult.SampleCount * importResult.SampleInterval;
                 _chart.ViewXY.XAxes[0].SetRange(0, Math.Max(sampleInterval, _lastConsumedX));
@@ -735,7 +808,7 @@ namespace InteractiveExamples
             int samplesPerBit = GetSamplesPerBit(page.SampleRate, page.DataRate);
             if (samplesPerBit <= 0)
             {
-                MessageBox.Show(this, "Sample rate must be an integer multiple of data rate.", "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(this, "Repeated samples per bit is invalid.", "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -1080,13 +1153,13 @@ namespace InteractiveExamples
 
         private static int GetSamplesPerBit(uint sampleRate, uint dataRate)
         {
-            if (sampleRate == 0 || dataRate == 0 || sampleRate % dataRate != 0)
+            if (sampleRate == 0 || dataRate == 0)
             {
                 return 0;
             }
 
-            uint samplesPerBit = sampleRate / dataRate;
-            return samplesPerBit > int.MaxValue ? 0 : (int)samplesPerBit;
+            double samplesPerBit = Math.Round(sampleRate / (double)dataRate, MidpointRounding.AwayFromZero);
+            return samplesPerBit <= 0 || samplesPerBit > int.MaxValue ? 0 : (int)samplesPerBit;
         }
 
         private static bool TryParseFrequency(string text, out uint frequency)
@@ -1170,6 +1243,52 @@ namespace InteractiveExamples
             signal.DecodeSettings.Mode = SignalDecodeMode.FixedWidth8Bit;
             signal.DecodeSettings.DataBits = 8;
             signal.DecodeSettings.SamplesPerBit = samplesPerBit;
+        }
+
+        private static void ApplyImportedUartDecodeSettings(ChartSignal signal, SignalImportSelection selection)
+        {
+            if (signal == null || signal.DecodeSettings == null || selection == null || selection.HasUartMetadata == false)
+            {
+                return;
+            }
+
+            signal.DecodeSettings.Mode = SignalDecodeMode.UartFrame;
+            signal.DecodeSettings.BaudRate = selection.UartBaudRate;
+            signal.DecodeSettings.ParityMode = selection.UartParityMode;
+            signal.DecodeSettings.DataBits = selection.UartDataBits;
+            signal.DecodeSettings.StopBits = selection.UartStopBits;
+            signal.DecodeSettings.IdleBits = 1;
+            signal.DecodeSettings.SamplesPerBit = selection.UartSamplesPerBit;
+        }
+
+        private static bool TryParseUartParityMode(string text, out UartParityMode parityMode)
+        {
+            parityMode = UartParityMode.None;
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return false;
+            }
+
+            switch (text.Trim())
+            {
+                case "None":
+                    parityMode = UartParityMode.None;
+                    return true;
+                case "Odd":
+                    parityMode = UartParityMode.Odd;
+                    return true;
+                case "Even":
+                    parityMode = UartParityMode.Even;
+                    return true;
+                case "Mark":
+                    parityMode = UartParityMode.Mark;
+                    return true;
+                case "Space":
+                    parityMode = UartParityMode.Space;
+                    return true;
+                default:
+                    return false;
+            }
         }
 
         private static SerialProtocolType GetSelectedImportProtocolType(int selectedIndex)

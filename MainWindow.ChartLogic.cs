@@ -1360,7 +1360,8 @@ namespace InteractiveExamples
                             decodeSettings.DataBits,
                             decodeSettings.StopBits,
                             decodeSettings.ParityMode,
-                            decodeSettings.IdleBits);
+                            decodeSettings.IdleBits,
+                            decodeSettings.SamplesPerBit);
                         break;
                 }
 

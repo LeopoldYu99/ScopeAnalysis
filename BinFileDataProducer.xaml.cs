@@ -59,14 +59,9 @@ namespace LCWpf
                 SerialProtocolType protocolType = GetSelectedProtocolType();
                 if (protocolType == SerialProtocolType.Uart)
                 {
-                    MessageBox.Show(
-                        "当前阶段先完成 2/3/4 线串口协议 BIN 生成，普通串口生成稍后再接入。",
-                        "暂未支持",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Information);
+                    GenerateUartBin();
                     return;
                 }
-
                 uint sampleRate;
                 if (TryGetSelectedSampleRate(out sampleRate) == false || sampleRate == 0)
                 {
@@ -153,6 +148,82 @@ namespace LCWpf
             {
                 MessageBox.Show("BIN 生成失败:\n" + ex.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        private void GenerateUartBin()
+        {
+            uint sampleRate;
+            if (TryGetSelectedSampleRate(out sampleRate) == false || sampleRate == 0)
+            {
+                throw new InvalidOperationException("Sample rate must be valid.");
+            }
+
+            int baudRate = GetSelectedBaudRate();
+            int samplesPerBit = GetRoundedSamplesPerBit(sampleRate, baudRate);
+            int dataBits = GetSelectedDataBits();
+            double stopBits = GetSelectedStopBits();
+            UartParityMode parityMode = GetSelectedParityMode();
+            double durationSeconds = GetDurationSeconds();
+            byte emptyDataValue = GetEmptyDataValue();
+            long payloadByteCount = GetUartPayloadByteCount(sampleRate, durationSeconds, samplesPerBit, dataBits, stopBits, parityMode);
+            byte[] payloadBytes = BuildLogicalPayloadBytes(
+                Encoding.ASCII.GetBytes(PayloadAsciiTextBox.Text ?? string.Empty),
+                payloadByteCount,
+                GetEmptyDataRatio(),
+                emptyDataValue,
+                Environment.TickCount,
+                (uint)Math.Max(1, baudRate));
+            byte[] uartBytes = BuildSampledUartBytes(payloadBytes, samplesPerBit, dataBits, stopBits, parityMode);
+            if (uartBytes.Length == 0)
+            {
+                throw new InvalidOperationException("No UART data was generated.");
+            }
+
+            string exportParentDirectory = SelectProtocolExportDirectory();
+            if (string.IsNullOrWhiteSpace(exportParentDirectory))
+            {
+                return;
+            }
+
+            DateTime exportTimestamp = DateTime.Now;
+            string exportDirectory = Path.Combine(
+                exportParentDirectory,
+                ProtocolBinNaming.BuildUartExportFolderName(
+                    sampleRate,
+                    baudRate,
+                    parityMode.ToString(),
+                    dataBits,
+                    stopBits,
+                    exportTimestamp));
+            Directory.CreateDirectory(exportDirectory);
+
+            int chunkCount = WriteUartChunks(
+                uartBytes,
+                payloadBytes,
+                sampleRate,
+                parityMode,
+                dataBits,
+                stopBits,
+                samplesPerBit,
+                durationSeconds,
+                emptyDataValue,
+                exportDirectory);
+
+            MessageBox.Show(
+                string.Format(
+                    CultureInfo.InvariantCulture,
+                    "UART BIN generated.{0}{0}Directory: {1}{0}Files: {2:N0}{0}Sample Rate: {3:N0} Hz{0}Baud Rate: {4:N0} bps{0}Repeated samples per bit: {5:N0}{0}Payload bytes: {6:N0}{0}Export bytes: {7:N0}",
+                    Environment.NewLine,
+                    exportDirectory,
+                    chunkCount,
+                    sampleRate,
+                    baudRate,
+                    samplesPerBit,
+                    payloadBytes.Length,
+                    uartBytes.Length),
+                "Success",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
         }
 
         private void UpdatePayloadPreview()
@@ -261,6 +332,80 @@ namespace LCWpf
             }
 
             return dataRate;
+        }
+
+        private int GetSelectedBaudRate()
+        {
+            uint baudRate;
+            if (TryParseFrequency(GetComboBoxText(BaudRateComboBox), out baudRate) == false || baudRate == 0 || baudRate > int.MaxValue)
+            {
+                throw new InvalidOperationException("Baud rate must be a valid positive value.");
+            }
+
+            return (int)baudRate;
+        }
+
+        private int GetSelectedDataBits()
+        {
+            int dataBits;
+            if (int.TryParse(GetComboBoxText(DataBitsComboBox), NumberStyles.Integer, CultureInfo.InvariantCulture, out dataBits) == false || dataBits <= 0)
+            {
+                throw new InvalidOperationException("Data bits must be a positive integer.");
+            }
+
+            return dataBits;
+        }
+
+        private double GetSelectedStopBits()
+        {
+            double stopBits;
+            string text = GetComboBoxText(StopBitsComboBox);
+            if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out stopBits) == false
+                && double.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out stopBits) == false)
+            {
+                throw new InvalidOperationException("Stop bits must be a positive number.");
+            }
+
+            if (stopBits <= 0)
+            {
+                throw new InvalidOperationException("Stop bits must be a positive number.");
+            }
+
+            return stopBits;
+        }
+
+        private UartParityMode GetSelectedParityMode()
+        {
+            string text = GetComboBoxText(ParityComboBox);
+            switch (text)
+            {
+                case "Odd":
+                    return UartParityMode.Odd;
+                case "Even":
+                    return UartParityMode.Even;
+                case "Mark":
+                    return UartParityMode.Mark;
+                case "Space":
+                    return UartParityMode.Space;
+                default:
+                    return UartParityMode.None;
+            }
+        }
+
+        private static string GetComboBoxText(ComboBox comboBox)
+        {
+            if (comboBox == null)
+            {
+                return string.Empty;
+            }
+
+            ComboBoxItem selectedItem = comboBox.SelectedItem as ComboBoxItem;
+            if (selectedItem != null)
+            {
+                return Convert.ToString(selectedItem.Content, CultureInfo.InvariantCulture);
+            }
+
+            return comboBox.Text ?? string.Empty;
         }
 
         private double GetDurationSeconds()
@@ -593,6 +738,143 @@ namespace LCWpf
             return secondaryBytes;
         }
 
+        private static int GetRoundedSamplesPerBit(uint sampleRate, int baudRate)
+        {
+            if (sampleRate == 0 || baudRate <= 0)
+            {
+                throw new InvalidOperationException("Sample rate and baud rate must be positive values.");
+            }
+
+            double roundedSamplesPerBit = Math.Round(sampleRate / (double)baudRate, MidpointRounding.AwayFromZero);
+            if (roundedSamplesPerBit <= 0 || roundedSamplesPerBit > int.MaxValue)
+            {
+                throw new InvalidOperationException("Repeated samples per bit is out of range.");
+            }
+
+            return (int)roundedSamplesPerBit;
+        }
+
+        private static long GetUartPayloadByteCount(uint sampleRate, double durationSeconds, int samplesPerBit, int dataBits, double stopBits, UartParityMode parityMode)
+        {
+            if (sampleRate == 0 || durationSeconds <= 0 || samplesPerBit <= 0)
+            {
+                return 0;
+            }
+
+            long totalSamples = (long)Math.Round(sampleRate * durationSeconds, MidpointRounding.AwayFromZero);
+            int frameSamples = GetUartFrameSampleCount(samplesPerBit, dataBits, stopBits, parityMode);
+            long availableSamples = totalSamples - (2L * samplesPerBit);
+            if (availableSamples <= 0 || frameSamples <= 0)
+            {
+                return 1;
+            }
+
+            return Math.Max(1, availableSamples / frameSamples);
+        }
+
+        private static int GetUartFrameSampleCount(int samplesPerBit, int dataBits, double stopBits, UartParityMode parityMode)
+        {
+            int parityBitCount = parityMode == UartParityMode.None ? 0 : 1;
+            int stopSamples = GetStopBitSampleCount(samplesPerBit, stopBits);
+            return checked(samplesPerBit * (1 + dataBits + parityBitCount) + stopSamples);
+        }
+
+        private static int GetStopBitSampleCount(int samplesPerBit, double stopBits)
+        {
+            int stopSamples = (int)Math.Round(samplesPerBit * stopBits, MidpointRounding.AwayFromZero);
+            return Math.Max(1, stopSamples);
+        }
+
+        private static byte[] BuildSampledUartBytes(byte[] payloadBytes, int samplesPerBit, int dataBits, double stopBits, UartParityMode parityMode)
+        {
+            if (payloadBytes == null || payloadBytes.Length == 0)
+            {
+                return new byte[0];
+            }
+
+            int stopSamples = GetStopBitSampleCount(samplesPerBit, stopBits);
+            int parityBitCount = parityMode == UartParityMode.None ? 0 : 1;
+            long totalSamples = checked(
+                (2L * samplesPerBit) +
+                ((long)payloadBytes.Length * (samplesPerBit * (1 + dataBits + parityBitCount) + stopSamples)));
+            long outputLength = (totalSamples + 7) / 8;
+            if (outputLength > int.MaxValue)
+            {
+                throw new InvalidOperationException("Export BIN is too large. Reduce duration or sample rate.");
+            }
+
+            byte[] outputBytes = new byte[(int)outputLength];
+            int sampleIndex = 0;
+            WriteRepeatedUartBit(outputBytes, ref sampleIndex, true, samplesPerBit);
+
+            for (int byteIndex = 0; byteIndex < payloadBytes.Length; byteIndex++)
+            {
+                byte value = payloadBytes[byteIndex];
+                WriteRepeatedUartBit(outputBytes, ref sampleIndex, false, samplesPerBit);
+                for (int bitIndex = 0; bitIndex < dataBits; bitIndex++)
+                {
+                    bool bitHigh = bitIndex < 8 && ((value >> bitIndex) & 0x1) != 0;
+                    WriteRepeatedUartBit(outputBytes, ref sampleIndex, bitHigh, samplesPerBit);
+                }
+
+                if (parityMode != UartParityMode.None)
+                {
+                    WriteRepeatedUartBit(outputBytes, ref sampleIndex, CalculateUartParityBit(value, dataBits, parityMode), samplesPerBit);
+                }
+
+                WriteRepeatedUartBit(outputBytes, ref sampleIndex, true, stopSamples);
+            }
+
+            WriteRepeatedUartBit(outputBytes, ref sampleIndex, true, samplesPerBit);
+            return outputBytes;
+        }
+
+        private static void WriteRepeatedUartBit(byte[] outputBytes, ref int sampleIndex, bool bitHigh, int repeatCount)
+        {
+            for (int i = 0; i < repeatCount; i++)
+            {
+                if (bitHigh)
+                {
+                    int byteIndex = sampleIndex / 8;
+                    int bitOffset = 7 - (sampleIndex % 8);
+                    outputBytes[byteIndex] |= (byte)(1 << bitOffset);
+                }
+
+                sampleIndex++;
+            }
+        }
+
+        private static bool CalculateUartParityBit(byte value, int dataBits, UartParityMode parityMode)
+        {
+            switch (parityMode)
+            {
+                case UartParityMode.Odd:
+                    return (CountSetBits(value, dataBits) & 0x1) == 0;
+                case UartParityMode.Even:
+                    return (CountSetBits(value, dataBits) & 0x1) != 0;
+                case UartParityMode.Mark:
+                    return true;
+                case UartParityMode.Space:
+                    return false;
+                default:
+                    return false;
+            }
+        }
+
+        private static int CountSetBits(byte value, int dataBits)
+        {
+            int count = 0;
+            for (int bitIndex = 0; bitIndex < dataBits; bitIndex++)
+            {
+                if (bitIndex < 8 && ((value >> bitIndex) & 0x1) != 0)
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
         private static byte[] BuildSampledProtocolBytes(
             byte[] payloadBytes,
             byte[] payloadBytes2,
@@ -736,6 +1018,57 @@ namespace LCWpf
             return chunkCount;
         }
 
+        private static int WriteUartChunks(
+            byte[] uartBytes,
+            byte[] payloadBytes,
+            uint sampleRate,
+            UartParityMode parityMode,
+            int dataBits,
+            double stopBits,
+            int samplesPerBit,
+            double durationSeconds,
+            byte emptyDataValue,
+            string exportDirectory)
+        {
+            int bytesPerChunk = GetPackedSampleByteCount(sampleRate, ProtocolExportChunkSeconds);
+            if (bytesPerChunk <= 0)
+            {
+                throw new InvalidOperationException("UART chunk size is invalid.");
+            }
+
+            int chunkCount = Math.Max(1, (int)Math.Ceiling(uartBytes.Length / (double)bytesPerChunk));
+            double exportedDurationSeconds = sampleRate == 0 ? durationSeconds : (uartBytes.Length * 8.0) / sampleRate;
+            double totalDurationSeconds = Math.Max(durationSeconds, exportedDurationSeconds);
+            for (int chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++)
+            {
+                int offset = chunkIndex * bytesPerChunk;
+                int byteCount = Math.Min(bytesPerChunk, uartBytes.Length - offset);
+                if (byteCount <= 0)
+                {
+                    continue;
+                }
+
+                byte[] chunkBytes = new byte[byteCount];
+                Buffer.BlockCopy(uartBytes, offset, chunkBytes, 0, byteCount);
+                double chunkStartSeconds = chunkIndex * ProtocolExportChunkSeconds;
+                double chunkEndSeconds = Math.Min(totalDurationSeconds, (chunkIndex + 1) * ProtocolExportChunkSeconds);
+                string activePartitions = BuildUartActivePartitionList(
+                    payloadBytes,
+                    emptyDataValue,
+                    sampleRate,
+                    samplesPerBit,
+                    dataBits,
+                    stopBits,
+                    parityMode,
+                    chunkStartSeconds,
+                    chunkEndSeconds);
+                string fileName = ProtocolBinNaming.BuildExportChunkFileName(chunkIndex + 1, activePartitions);
+                File.WriteAllBytes(Path.Combine(exportDirectory, fileName), chunkBytes);
+            }
+
+            return chunkCount;
+        }
+
         private static string BuildActivePartitionList(
             byte[] payloadBytes,
             byte[] payloadBytes2,
@@ -754,6 +1087,41 @@ namespace LCWpf
                 int startByteIndex = GetLogicalByteIndexAtTime(dataRate, partitionStartSeconds);
                 int endByteIndex = GetLogicalByteIndexAtTime(dataRate, partitionEndSeconds);
                 if (ContainsNonDefaultData(payloadBytes, payloadBytes2, protocolType, startByteIndex, endByteIndex, emptyDataValue) == false)
+                {
+                    continue;
+                }
+
+                if (builder.Length > 0)
+                {
+                    builder.Append(',');
+                }
+
+                builder.Append(partitionIndex + 1);
+            }
+
+            return builder.ToString();
+        }
+
+        private static string BuildUartActivePartitionList(
+            byte[] payloadBytes,
+            byte emptyDataValue,
+            uint sampleRate,
+            int samplesPerBit,
+            int dataBits,
+            double stopBits,
+            UartParityMode parityMode,
+            double chunkStartSeconds,
+            double chunkEndSeconds)
+        {
+            int partitionCount = GetPartitionCountForChunk(chunkStartSeconds, chunkEndSeconds);
+            StringBuilder builder = new StringBuilder();
+            for (int partitionIndex = 0; partitionIndex < partitionCount; partitionIndex++)
+            {
+                double partitionStartSeconds = chunkStartSeconds + (partitionIndex * ProtocolExportPartitionDurationSeconds);
+                double partitionEndSeconds = Math.Min(chunkEndSeconds, partitionStartSeconds + ProtocolExportPartitionDurationSeconds);
+                int startByteIndex = GetUartPayloadByteIndexAtTime(sampleRate, samplesPerBit, dataBits, stopBits, parityMode, partitionStartSeconds, false);
+                int endByteIndex = GetUartPayloadByteIndexAtTime(sampleRate, samplesPerBit, dataBits, stopBits, parityMode, partitionEndSeconds, true);
+                if (ContainsNonDefaultData(payloadBytes, null, SerialProtocolType.Uart, startByteIndex, endByteIndex, emptyDataValue) == false)
                 {
                     continue;
                 }
@@ -798,6 +1166,36 @@ namespace LCWpf
             return false;
         }
 
+        private static int GetUartPayloadByteIndexAtTime(
+            uint sampleRate,
+            int samplesPerBit,
+            int dataBits,
+            double stopBits,
+            UartParityMode parityMode,
+            double timeSeconds,
+            bool roundUp)
+        {
+            if (timeSeconds <= 0 || sampleRate == 0 || samplesPerBit <= 0)
+            {
+                return 0;
+            }
+
+            double initialIdleSeconds = samplesPerBit / (double)sampleRate;
+            double frameDurationSeconds = GetUartFrameSampleCount(samplesPerBit, dataBits, stopBits, parityMode) / (double)sampleRate;
+            if (frameDurationSeconds <= 0 || timeSeconds <= initialIdleSeconds)
+            {
+                return 0;
+            }
+
+            double byteIndex = (timeSeconds - initialIdleSeconds) / frameDurationSeconds;
+            if (byteIndex >= int.MaxValue)
+            {
+                return int.MaxValue;
+            }
+
+            return Math.Max(0, roundUp ? (int)Math.Ceiling(byteIndex) : (int)Math.Floor(byteIndex));
+        }
+
         private static int GetLogicalByteIndexAtTime(uint dataRate, double timeSeconds)
         {
             if (timeSeconds <= 0 || dataRate == 0)
@@ -829,6 +1227,22 @@ namespace LCWpf
             }
 
             double byteCount = (sampleRate * lineCount * durationSeconds) / 8.0;
+            if (byteCount <= 0 || byteCount > int.MaxValue)
+            {
+                return 0;
+            }
+
+            return (int)Math.Round(byteCount, MidpointRounding.AwayFromZero);
+        }
+
+        private static int GetPackedSampleByteCount(uint sampleRate, double durationSeconds)
+        {
+            if (sampleRate == 0 || durationSeconds <= 0)
+            {
+                return 0;
+            }
+
+            double byteCount = (sampleRate * durationSeconds) / 8.0;
             if (byteCount <= 0 || byteCount > int.MaxValue)
             {
                 return 0;
@@ -999,7 +1413,6 @@ namespace LCWpf
             {
                 return SerialProtocolType.Uart;
             }
-
             switch (ProtocolTypeComboBox.SelectedIndex)
             {
                 case 1:
@@ -1019,7 +1432,6 @@ namespace LCWpf
             {
                 return;
             }
-
             UartConfigPanel.Visibility = protocolType == SerialProtocolType.Uart ? Visibility.Visible : Visibility.Collapsed;
             TwoWireConfigPanel.Visibility = protocolType == SerialProtocolType.TwoWireSerial ? Visibility.Visible : Visibility.Collapsed;
             ThreeWireConfigPanel.Visibility = protocolType == SerialProtocolType.ThreeWireSerial ? Visibility.Visible : Visibility.Collapsed;

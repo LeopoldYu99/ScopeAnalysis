@@ -18,6 +18,18 @@ namespace InteractiveExamples
         public HashSet<int> ActivePartitions { get; set; }
     }
 
+    internal sealed class UartBinFileMetadata
+    {
+        public int LineCount { get; set; }
+        public uint SampleRate { get; set; }
+        public int BaudRate { get; set; }
+        public string ParityText { get; set; }
+        public int DataBits { get; set; }
+        public double StopBits { get; set; }
+        public string TimestampText { get; set; }
+        public int FileNumber { get; set; }
+    }
+
     internal static class ProtocolBinNaming
     {
         public static string BuildExportFolderName(int lineCount, uint sampleRate, uint dataRate, DateTime exportTimestamp)
@@ -38,6 +50,46 @@ namespace InteractiveExamples
                 "{0}-{1}.bin",
                 filePageNumber,
                 NormalizeActivePartitionList(activePartitionList));
+        }
+
+        public static string BuildUartExportFolderName(
+            uint sampleRate,
+            int baudRate,
+            string parityText,
+            int dataBits,
+            double stopBits,
+            DateTime exportTimestamp)
+        {
+            return string.Format(
+                CultureInfo.InvariantCulture,
+                "1;{0};{1};{2};{3};{4};{5}",
+                sampleRate,
+                baudRate,
+                NormalizeFileNameToken(parityText),
+                dataBits,
+                FormatStopBits(stopBits),
+                BuildTimestampText(exportTimestamp));
+        }
+
+        public static string BuildUartExportFileName(
+            uint sampleRate,
+            int baudRate,
+            string parityText,
+            int dataBits,
+            double stopBits,
+            DateTime exportTimestamp,
+            int fileNumber)
+        {
+            return string.Format(
+                CultureInfo.InvariantCulture,
+                "1;{0};{1};{2};{3};{4};{5}-{6}.bin",
+                sampleRate,
+                baudRate,
+                NormalizeFileNameToken(parityText),
+                dataBits,
+                FormatStopBits(stopBits),
+                BuildTimestampText(exportTimestamp),
+                Math.Max(1, fileNumber));
         }
 
         public static bool TryParseFolderMetadata(string folderPathOrName, out ProtocolBinFolderMetadata metadata)
@@ -137,6 +189,134 @@ namespace InteractiveExamples
             return true;
         }
 
+        public static bool TryParseUartFolderMetadata(string folderPathOrName, out UartBinFileMetadata metadata)
+        {
+            metadata = null;
+            if (string.IsNullOrWhiteSpace(folderPathOrName))
+            {
+                return false;
+            }
+
+            string folderName = folderPathOrName;
+            try
+            {
+                folderName = System.IO.Path.GetFileName(folderPathOrName.TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar));
+            }
+            catch
+            {
+                folderName = folderPathOrName;
+            }
+
+            if (string.IsNullOrWhiteSpace(folderName))
+            {
+                return false;
+            }
+
+            string[] parts = folderName.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length != 7)
+            {
+                return false;
+            }
+
+            int lineCount;
+            uint sampleRate;
+            int baudRate;
+            int dataBits;
+            double stopBits;
+            if (int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out lineCount) == false
+                || lineCount <= 0
+                || uint.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out sampleRate) == false
+                || sampleRate == 0
+                || int.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out baudRate) == false
+                || baudRate <= 0
+                || string.IsNullOrWhiteSpace(parts[3])
+                || int.TryParse(parts[4], NumberStyles.Integer, CultureInfo.InvariantCulture, out dataBits) == false
+                || dataBits <= 0
+                || TryParseStopBits(parts[5], out stopBits) == false
+                || string.IsNullOrWhiteSpace(parts[6]))
+            {
+                return false;
+            }
+
+            metadata = new UartBinFileMetadata
+            {
+                LineCount = lineCount,
+                SampleRate = sampleRate,
+                BaudRate = baudRate,
+                ParityText = parts[3].Trim(),
+                DataBits = dataBits,
+                StopBits = stopBits,
+                TimestampText = parts[6].Trim(),
+                FileNumber = 0
+            };
+            return true;
+        }
+
+        public static bool TryParseUartFileMetadata(string filePathOrName, out UartBinFileMetadata metadata)
+        {
+            metadata = null;
+            if (string.IsNullOrWhiteSpace(filePathOrName))
+            {
+                return false;
+            }
+
+            string fileNameWithoutExtension;
+            try
+            {
+                fileNameWithoutExtension = System.IO.Path.GetFileNameWithoutExtension(filePathOrName);
+            }
+            catch
+            {
+                fileNameWithoutExtension = filePathOrName;
+            }
+
+            if (string.IsNullOrWhiteSpace(fileNameWithoutExtension))
+            {
+                return false;
+            }
+
+            string[] parts = fileNameWithoutExtension.Split(new[] { ';' }, StringSplitOptions.None);
+            if (parts.Length != 7)
+            {
+                return false;
+            }
+
+            int lineCount;
+            uint sampleRate;
+            int baudRate;
+            int dataBits;
+            double stopBits;
+            string timestampText;
+            int fileNumber;
+            if (int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out lineCount) == false
+                || lineCount <= 0
+                || uint.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out sampleRate) == false
+                || sampleRate == 0
+                || int.TryParse(parts[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out baudRate) == false
+                || baudRate <= 0
+                || string.IsNullOrWhiteSpace(parts[3])
+                || int.TryParse(parts[4], NumberStyles.Integer, CultureInfo.InvariantCulture, out dataBits) == false
+                || dataBits <= 0
+                || TryParseStopBits(parts[5], out stopBits) == false
+                || TryParseTimestampAndFileNumber(parts[6], out timestampText, out fileNumber) == false)
+            {
+                return false;
+            }
+
+            metadata = new UartBinFileMetadata
+            {
+                LineCount = lineCount,
+                SampleRate = sampleRate,
+                BaudRate = baudRate,
+                ParityText = parts[3].Trim(),
+                DataBits = dataBits,
+                StopBits = stopBits,
+                TimestampText = timestampText,
+                FileNumber = fileNumber
+            };
+            return true;
+        }
+
         private static string BuildTimestampText(DateTime exportTimestamp)
         {
             return string.Format(
@@ -149,6 +329,62 @@ namespace InteractiveExamples
                 exportTimestamp.Minute,
                 exportTimestamp.Second,
                 exportTimestamp.Millisecond);
+        }
+
+        private static string FormatStopBits(double stopBits)
+        {
+            return stopBits.ToString("0.###", CultureInfo.InvariantCulture);
+        }
+
+        private static string NormalizeFileNameToken(string token)
+        {
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                return "None";
+            }
+
+            char[] invalidFileNameChars = System.IO.Path.GetInvalidFileNameChars();
+            string normalizedToken = token.Trim();
+            for (int i = 0; i < invalidFileNameChars.Length; i++)
+            {
+                normalizedToken = normalizedToken.Replace(invalidFileNameChars[i], '_');
+            }
+
+            return normalizedToken.Length == 0 ? "None" : normalizedToken;
+        }
+
+        private static bool TryParseStopBits(string text, out double stopBits)
+        {
+            return double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out stopBits) && stopBits > 0;
+        }
+
+        private static bool TryParseTimestampAndFileNumber(string text, out string timestampText, out int fileNumber)
+        {
+            timestampText = null;
+            fileNumber = 0;
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return false;
+            }
+
+            int separatorIndex = text.LastIndexOf('-');
+            if (separatorIndex <= 0 || separatorIndex >= text.Length - 1)
+            {
+                return false;
+            }
+
+            string parsedTimestampText = text.Substring(0, separatorIndex);
+            int parsedFileNumber;
+            if (string.IsNullOrWhiteSpace(parsedTimestampText)
+                || int.TryParse(text.Substring(separatorIndex + 1), NumberStyles.Integer, CultureInfo.InvariantCulture, out parsedFileNumber) == false
+                || parsedFileNumber <= 0)
+            {
+                return false;
+            }
+
+            timestampText = parsedTimestampText;
+            fileNumber = parsedFileNumber;
+            return true;
         }
 
         private static string NormalizeActivePartitionList(string activePartitionList)
