@@ -99,7 +99,8 @@ namespace InteractiveExamples
 
             Band sweepBandDark = new Band(view, view.XAxes[0], view.YAxes[0])
             {
-                BorderWidth = 0
+                BorderWidth = 0,
+                Visible = false
             };
             sweepBandDark.Fill.Color = Color.FromArgb(255, 0, 0, 0);
             sweepBandDark.Fill.GradientColor = Color.FromArgb(0, 0, 0, 0);
@@ -111,7 +112,8 @@ namespace InteractiveExamples
 
             Band sweepBandBright = new Band(view, view.XAxes[0], view.YAxes[0])
             {
-                BorderWidth = 0
+                BorderWidth = 0,
+                Visible = false
             };
             sweepBandBright.Fill.Color = Color.FromArgb(0, 0, 0, 0);
             sweepBandBright.Fill.GradientColor = Color.FromArgb(150, 255, 255, 255);
