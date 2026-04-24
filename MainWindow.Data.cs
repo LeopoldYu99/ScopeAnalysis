@@ -49,6 +49,11 @@ namespace InteractiveExamples
             public uint SampleRate { get; set; }
             public uint DataRate { get; set; }
             public bool IsActivePartition { get; set; }
+            public int ChannelCount { get; set; }
+            public int BytesPerChannel { get; set; }
+            public int SampleCount { get; set; }
+            public long StartSampleIndex { get; set; }
+            public int LeadingHighSamples { get; set; }
 
             public Brush DisplayBrush
             {
@@ -259,6 +264,82 @@ namespace InteractiveExamples
                 return false;
             }
 
+            ProtocolPageManifest manifest;
+            if (ProtocolPageManifestStorage.TryLoad(importPath, out manifest))
+            {
+                SerialProtocolType manifestProtocolType;
+                if (TryParseManifestProtocolType(manifest.ProtocolType, out manifestProtocolType) == false)
+                {
+                    validationMessage = "manifest.json protocolType is invalid.";
+                    return false;
+                }
+
+                if (manifest.LineCount <= 0 || manifest.SampleRate == 0 || manifest.Pages == null || manifest.Pages.Count == 0)
+                {
+                    validationMessage = "manifest.json is missing required paging metadata.";
+                    return false;
+                }
+
+                if (manifestProtocolType == SerialProtocolType.Uart)
+                {
+                    UartParityMode uartParityMode;
+                    if (TryParseUartParityMode(manifest.ParityText, out uartParityMode) == false)
+                    {
+                        validationMessage = "UART parity in manifest.json is invalid.";
+                        return false;
+                    }
+
+                    int uartSamplesPerBit = manifest.SamplesPerBit > 0
+                        ? manifest.SamplesPerBit
+                        : GetSamplesPerBit(manifest.SampleRate, (uint)Math.Max(0, manifest.BaudRate));
+                    if (manifest.BaudRate <= 0 || uartSamplesPerBit <= 0 || manifest.DataBits <= 0 || manifest.StopBits <= 0)
+                    {
+                        validationMessage = "UART settings in manifest.json are incomplete.";
+                        return false;
+                    }
+
+                    selection = new SignalImportSelection
+                    {
+                        ProtocolType = SerialProtocolType.Uart,
+                        ProtocolName = GetImportProtocolDisplayName(SerialProtocolType.Uart),
+                        ImportPath = importPath,
+                        SampleRate = manifest.SampleRate,
+                        DataRate = 0,
+                        TimestampText = manifest.TimestampText,
+                        HasUartMetadata = true,
+                        UartBaudRate = manifest.BaudRate,
+                        UartParityMode = uartParityMode,
+                        UartDataBits = manifest.DataBits,
+                        UartStopBits = manifest.StopBits,
+                        UartSamplesPerBit = uartSamplesPerBit
+                    };
+                    return true;
+                }
+
+                if (manifest.DataRate == 0)
+                {
+                    validationMessage = "manifest.json dataRate must be positive for fixed-width protocol imports.";
+                    return false;
+                }
+
+                selection = new SignalImportSelection
+                {
+                    ProtocolType = manifestProtocolType,
+                    ProtocolName = GetImportProtocolDisplayName(manifestProtocolType),
+                    ImportPath = importPath,
+                    SampleRate = manifest.SampleRate,
+                    DataRate = manifest.DataRate,
+                    TimestampText = manifest.TimestampText,
+                    HasUartMetadata = false,
+                    UartBaudRate = 0,
+                    UartParityMode = UartParityMode.None,
+                    UartDataBits = 0,
+                    UartStopBits = 0,
+                    UartSamplesPerBit = 0
+                };
+                return true;
+            }
+
             UartBinFileMetadata uartMetadata;
             if (ProtocolBinNaming.TryParseUartFolderMetadata(importPath, out uartMetadata))
             {
@@ -461,7 +542,9 @@ namespace InteractiveExamples
                 return;
             }
 
-            byte[][] splitBytes = SplitProtocolBytes(protocolBytes, channelNames.Length);
+            byte[][] splitBytes = page.BytesPerChannel > 0
+                ? SplitProtocolBytes(protocolBytes, channelNames.Length, page.BytesPerChannel)
+                : SplitProtocolBytes(protocolBytes, channelNames.Length);
             if (splitBytes == null || splitBytes.Length != channelNames.Length || splitBytes.Any(bytes => bytes == null || bytes.Length == 0))
             {
                 MessageBox.Show(this, "Failed to split the import data into protocol channels.", "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -472,7 +555,8 @@ namespace InteractiveExamples
             BinaryWaveformImportResult[] importResults = new BinaryWaveformImportResult[channelNames.Length];
             for (int i = 0; i < channelNames.Length; i++)
             {
-                importResults[i] = BinaryWaveformImporter.ImportBytes(channelNames[i], splitBytes[i], sampleInterval);
+                int exactSampleCount = page.SampleCount > 0 ? page.SampleCount : splitBytes[i].Length * 8;
+                importResults[i] = BinaryWaveformImporter.ImportBytes(channelNames[i], splitBytes[i], sampleInterval, exactSampleCount);
             }
 
             if (importResults.Any(result => result == null || result.SampleCount <= 0))
@@ -502,7 +586,7 @@ namespace InteractiveExamples
                     ImportWaveformToSignal(i, importResults[i], channelNames[i]);
                     if (isUartImport)
                     {
-                        ApplyImportedUartDecodeSettings(_chartSignals[i], _currentProtocolImportSession);
+                        ApplyImportedUartDecodeSettings(_chartSignals[i], _currentProtocolImportSession, page);
                     }
                     else
                     {
@@ -569,6 +653,16 @@ namespace InteractiveExamples
             if (filePaths == null || filePaths.Length == 0)
             {
                 return new List<ProtocolImportPageItem>();
+            }
+
+            ProtocolPageManifest manifest;
+            if (ProtocolPageManifestStorage.TryLoad(folderPath, out manifest))
+            {
+                List<ProtocolImportPageItem> manifestPages = BuildProtocolImportPagesFromManifest(folderPath, protocolType, manifest);
+                if (manifestPages.Count > 0)
+                {
+                    return manifestPages;
+                }
             }
 
             string[] channelNames = GetProtocolChannelNames(protocolType);
@@ -725,6 +819,70 @@ namespace InteractiveExamples
             }
 
             return orderedPages;
+        }
+
+        private static List<ProtocolImportPageItem> BuildProtocolImportPagesFromManifest(
+            string folderPath,
+            SerialProtocolType protocolType,
+            ProtocolPageManifest manifest)
+        {
+            List<ProtocolImportPageItem> pages = new List<ProtocolImportPageItem>();
+            if (string.IsNullOrWhiteSpace(folderPath) || manifest == null || manifest.Pages == null || manifest.Pages.Count == 0)
+            {
+                return pages;
+            }
+
+            SerialProtocolType manifestProtocolType;
+            if (TryParseManifestProtocolType(manifest.ProtocolType, out manifestProtocolType) == false || manifestProtocolType != protocolType)
+            {
+                return pages;
+            }
+
+            for (int i = 0; i < manifest.Pages.Count; i++)
+            {
+                ProtocolPageManifestPage manifestPage = manifest.Pages[i];
+                if (manifestPage == null || string.IsNullOrWhiteSpace(manifestPage.FileName))
+                {
+                    continue;
+                }
+
+                string filePath = Path.Combine(folderPath, manifestPage.FileName);
+                if (File.Exists(filePath) == false)
+                {
+                    continue;
+                }
+
+                long fileLength = new FileInfo(filePath).Length;
+                int channelCount = manifestPage.ChannelCount > 0 ? manifestPage.ChannelCount : manifest.LineCount;
+                int bytesPerChannel = manifestPage.BytesPerChannel > 0
+                    ? manifestPage.BytesPerChannel
+                    : (channelCount > 0 ? (int)(fileLength / channelCount) : 0);
+                int byteCount = bytesPerChannel > 0 && channelCount > 0
+                    ? bytesPerChannel * channelCount
+                    : (fileLength > int.MaxValue ? int.MaxValue : (int)fileLength);
+                int pageNumber = manifestPage.PageNumber > 0 ? manifestPage.PageNumber : pages.Count + 1;
+
+                pages.Add(new ProtocolImportPageItem
+                {
+                    PageNumber = pageNumber,
+                    DisplayName = string.Format(CultureInfo.InvariantCulture, "Page {0}", pageNumber),
+                    FilePath = filePath,
+                    FilePageNumber = pageNumber,
+                    PartitionNumber = 1,
+                    OffsetBytes = 0,
+                    ByteCount = byteCount,
+                    SampleRate = manifest.SampleRate,
+                    DataRate = manifest.DataRate,
+                    IsActivePartition = manifestPage.IsActiveData ?? true,
+                    ChannelCount = channelCount,
+                    BytesPerChannel = bytesPerChannel,
+                    SampleCount = manifestPage.SampleCount,
+                    StartSampleIndex = manifestPage.StartSampleIndex,
+                    LeadingHighSamples = manifestPage.LeadingHighSamples
+                });
+            }
+
+            return pages.OrderBy(page => page.PageNumber).ToList();
         }
 
         private static byte[] ReadProtocolPartitionBytes(ProtocolImportPageItem page)
@@ -938,6 +1096,27 @@ namespace InteractiveExamples
             return channels;
         }
 
+        private static byte[][] SplitProtocolBytes(byte[] protocolBytes, int channelCount, int bytesPerChannel)
+        {
+            if (protocolBytes == null
+                || protocolBytes.Length == 0
+                || channelCount <= 0
+                || bytesPerChannel <= 0
+                || protocolBytes.Length < channelCount * bytesPerChannel)
+            {
+                return null;
+            }
+
+            byte[][] channels = new byte[channelCount][];
+            for (int channelIndex = 0; channelIndex < channelCount; channelIndex++)
+            {
+                channels[channelIndex] = new byte[bytesPerChannel];
+                Buffer.BlockCopy(protocolBytes, channelIndex * bytesPerChannel, channels[channelIndex], 0, bytesPerChannel);
+            }
+
+            return channels;
+        }
+
         private static void ApplyImportedProtocolDecodeSettings(ChartSignal signal, int samplesPerBit)
         {
             if (signal == null || signal.DecodeSettings == null)
@@ -947,6 +1126,7 @@ namespace InteractiveExamples
 
             signal.DecodeSettings.Mode = SignalDecodeMode.FixedWidth8Bit;
             signal.DecodeSettings.DataBits = 8;
+            signal.DecodeSettings.LeadingIdleSamples = 0;
             signal.DecodeSettings.SamplesPerBit = samplesPerBit;
         }
 
@@ -963,10 +1143,11 @@ namespace InteractiveExamples
             signal.DecodeSettings.DataBits = selection.UartDataBits;
             signal.DecodeSettings.StopBits = selection.UartStopBits;
             signal.DecodeSettings.IdleBits = 1;
+            signal.DecodeSettings.LeadingIdleSamples = 0;
             signal.DecodeSettings.SamplesPerBit = selection.UartSamplesPerBit;
         }
 
-        private static void ApplyImportedUartDecodeSettings(ChartSignal signal, ProtocolImportSession session)
+        private static void ApplyImportedUartDecodeSettings(ChartSignal signal, ProtocolImportSession session, ProtocolImportPageItem page)
         {
             if (signal == null || signal.DecodeSettings == null || session == null || session.HasUartMetadata == false)
             {
@@ -979,6 +1160,7 @@ namespace InteractiveExamples
             signal.DecodeSettings.DataBits = session.UartDataBits;
             signal.DecodeSettings.StopBits = session.UartStopBits;
             signal.DecodeSettings.IdleBits = 1;
+            signal.DecodeSettings.LeadingIdleSamples = page == null ? 0 : Math.Max(0, page.LeadingHighSamples);
             signal.DecodeSettings.SamplesPerBit = session.UartSamplesPerBit;
         }
 
@@ -1010,6 +1192,17 @@ namespace InteractiveExamples
                 default:
                     return false;
             }
+        }
+
+        private static bool TryParseManifestProtocolType(string text, out SerialProtocolType protocolType)
+        {
+            protocolType = SerialProtocolType.Uart;
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return false;
+            }
+
+            return Enum.TryParse(text.Trim(), true, out protocolType);
         }
 
         private static bool TryGetProtocolTypeFromLineCount(int lineCount, out SerialProtocolType protocolType)

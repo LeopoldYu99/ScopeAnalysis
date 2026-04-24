@@ -15,7 +15,8 @@ namespace InteractiveExamples
             double uartStopBits,
             UartParityMode uartParityMode,
             int uartIdleBits,
-            int samplesPerBit)
+            int samplesPerBit,
+            int leadingIdleSamples)
         {
             List<ProtocolSegment> segments = new List<ProtocolSegment>();
             if (digitalWords == null || sampleCount <= 0 || sampleIntervalUs <= 0 || uartBaudRate <= 0 || uartDataBits <= 0 || uartStopBits <= 0)
@@ -28,7 +29,34 @@ namespace InteractiveExamples
                 : 1000000.0 / uartBaudRate;
             double minimumIdleDurationUs = Math.Max(0, uartIdleBits) * bitDurationUs;
             double previousFrameEndX = double.NaN;
-            for (int sampleIndex = 1; sampleIndex < sampleCount; sampleIndex++)
+            int scanStartSample = 1;
+            if (TryDecodeLeadingFrame(
+                digitalWords,
+                sampleCount,
+                sampleIntervalUs,
+                bitDurationUs,
+                uartDataBits,
+                uartStopBits,
+                uartParityMode,
+                minimumIdleDurationUs,
+                leadingIdleSamples,
+                out byte leadingDecodedValue,
+                out double leadingFrameEndX))
+            {
+                AddUartSegments(
+                    segments,
+                    0,
+                    leadingFrameEndX,
+                    bitDurationUs,
+                    uartDataBits,
+                    uartStopBits,
+                    uartParityMode,
+                    leadingDecodedValue);
+                previousFrameEndX = leadingFrameEndX;
+                scanStartSample = Math.Max(1, FindLastSampleBefore(sampleCount, sampleIntervalUs, leadingFrameEndX - 0.5 * bitDurationUs) + 1);
+            }
+
+            for (int sampleIndex = scanStartSample; sampleIndex < sampleCount; sampleIndex++)
             {
                 bool previousHigh = GetSampleValue(digitalWords, sampleCount, sampleIndex - 1);
                 bool currentHigh = GetSampleValue(digitalWords, sampleCount, sampleIndex);
@@ -75,6 +103,56 @@ namespace InteractiveExamples
             }
 
             return segments;
+        }
+
+        private static bool TryDecodeLeadingFrame(
+            uint[] digitalWords,
+            int sampleCount,
+            double sampleIntervalUs,
+            double bitDurationUs,
+            int uartDataBits,
+            double uartStopBits,
+            UartParityMode uartParityMode,
+            double minimumIdleDurationUs,
+            int leadingIdleSamples,
+            out byte decodedValue,
+            out double frameEndX)
+        {
+            decodedValue = 0;
+            frameEndX = 0;
+            if (leadingIdleSamples <= 0 || GetSampleValue(digitalWords, sampleCount, 0))
+            {
+                return false;
+            }
+
+            double actualIdleDurationUs = leadingIdleSamples * sampleIntervalUs;
+            if (sampleIntervalUs <= 0)
+            {
+                if (actualIdleDurationUs + 1e-9 < minimumIdleDurationUs)
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                double quantizedRequiredIdleDurationUs = Math.Round(minimumIdleDurationUs / sampleIntervalUs) * sampleIntervalUs;
+                if (actualIdleDurationUs + 1e-9 < quantizedRequiredIdleDurationUs)
+                {
+                    return false;
+                }
+            }
+
+            return TryDecodeFrame(
+                digitalWords,
+                sampleCount,
+                sampleIntervalUs,
+                0,
+                bitDurationUs,
+                uartDataBits,
+                uartStopBits,
+                uartParityMode,
+                out decodedValue,
+                out frameEndX);
         }
 
         public static List<ProtocolSegment> BuildFixedWidthSegments(

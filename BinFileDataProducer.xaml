@@ -223,6 +223,28 @@
                                        Text="byte"/>
                         </Grid>
                     </StackPanel>
+
+                    <StackPanel Grid.Row="1"
+                                Grid.Column="4">
+                        <TextBlock Style="{StaticResource FieldLabelStyle}"
+                                   Text="Page &#22823;&#23567;"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBox Grid.Column="0"
+                                     x:Name="PageDurationSecondsTextBox"
+                                     Style="{StaticResource FieldTextBoxStyle}"
+                                     Text="0.1"/>
+                            <TextBlock Grid.Column="1"
+                                       Margin="8,0,0,0"
+                                       VerticalAlignment="Center"
+                                       Foreground="#FF666666"
+                                       Text="&#31186;"/>
+                        </Grid>
+                    </StackPanel>
                 </Grid>
             </GroupBox>
 

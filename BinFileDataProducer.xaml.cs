@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -76,6 +77,7 @@ namespace LCWpf
 
                 int samplesPerBit = checked((int)(sampleRate / dataRate));
                 double durationSeconds = GetDurationSeconds();
+                double pageDurationSeconds = GetPageDurationSeconds();
                 byte emptyDataValue = GetEmptyDataValue();
                 int emptyDataRatio = GetEmptyDataRatio();
                 byte[] payloadBytes = BuildLogicalPayloadBytes(
@@ -110,12 +112,13 @@ namespace LCWpf
                 }
 
                 int lineCount = GetProtocolLineCount(protocolType);
+                DateTime exportTimestamp = DateTime.Now;
                 string exportDirectory = Path.Combine(
                     exportParentDirectory,
-                    ProtocolBinNaming.BuildExportFolderName(lineCount, sampleRate, dataRate, DateTime.Now));
+                    ProtocolBinNaming.BuildExportFolderName(lineCount, sampleRate, dataRate, exportTimestamp));
                 Directory.CreateDirectory(exportDirectory);
 
-                int chunkCount = WriteProtocolChunks(
+                int pageCount = WriteProtocolPages(
                     protocolBytes,
                     payloadBytes,
                     payloadBytes2,
@@ -123,8 +126,10 @@ namespace LCWpf
                     lineCount,
                     sampleRate,
                     dataRate,
-                    durationSeconds,
+                    samplesPerBit,
                     emptyDataValue,
+                    pageDurationSeconds,
+                    exportTimestamp,
                     exportDirectory);
 
                 MessageBox.Show(
@@ -134,7 +139,7 @@ namespace LCWpf
                         Environment.NewLine,
                         GetProtocolDisplayName(protocolType),
                         exportDirectory,
-                        chunkCount,
+                        pageCount,
                         sampleRate,
                         dataRate,
                         samplesPerBit,
@@ -164,6 +169,7 @@ namespace LCWpf
             double stopBits = GetSelectedStopBits();
             UartParityMode parityMode = GetSelectedParityMode();
             double durationSeconds = GetDurationSeconds();
+            double pageDurationSeconds = GetPageDurationSeconds();
             byte emptyDataValue = GetEmptyDataValue();
             long payloadByteCount = GetUartPayloadByteCount(sampleRate, durationSeconds, samplesPerBit, dataBits, stopBits, parityMode);
             byte[] payloadBytes = BuildLogicalPayloadBytes(
@@ -197,25 +203,27 @@ namespace LCWpf
                     exportTimestamp));
             Directory.CreateDirectory(exportDirectory);
 
-            int chunkCount = WriteUartChunks(
+            int pageCount = WriteUartPages(
                 uartBytes,
                 payloadBytes,
                 sampleRate,
+                baudRate,
                 parityMode,
                 dataBits,
                 stopBits,
                 samplesPerBit,
-                durationSeconds,
                 emptyDataValue,
+                pageDurationSeconds,
+                exportTimestamp,
                 exportDirectory);
 
             MessageBox.Show(
                 string.Format(
                     CultureInfo.InvariantCulture,
-                    "UART BIN generated.{0}{0}Directory: {1}{0}Files: {2:N0}{0}Sample Rate: {3:N0} Hz{0}Baud Rate: {4:N0} bps{0}Repeated samples per bit: {5:N0}{0}Payload bytes: {6:N0}{0}Export bytes: {7:N0}",
+                    "UART BIN generated.{0}{0}Directory: {1}{0}Pages: {2:N0}{0}Sample Rate: {3:N0} Hz{0}Baud Rate: {4:N0} bps{0}Repeated samples per bit: {5:N0}{0}Payload bytes: {6:N0}{0}Export bytes: {7:N0}",
                     Environment.NewLine,
                     exportDirectory,
-                    chunkCount,
+                    pageCount,
                     sampleRate,
                     baudRate,
                     samplesPerBit,
@@ -421,6 +429,24 @@ namespace LCWpf
             if (value <= 0)
             {
                 throw new InvalidOperationException("文件时长必须大于 0。");
+            }
+
+            return value;
+        }
+
+        private double GetPageDurationSeconds()
+        {
+            string text = PageDurationSecondsTextBox == null ? null : PageDurationSecondsTextBox.Text;
+            double value;
+            if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value) == false
+                && double.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out value) == false)
+            {
+                throw new InvalidOperationException("Page duration must be a positive number.");
+            }
+
+            if (value <= 0)
+            {
+                throw new InvalidOperationException("Page duration must be greater than 0.");
             }
 
             return value;
@@ -986,6 +1012,293 @@ namespace LCWpf
 
             expandedByteCache[value] = pattern;
             return pattern;
+        }
+
+        private static int WriteProtocolPages(
+            byte[] protocolBytes,
+            byte[] payloadBytes,
+            byte[] payloadBytes2,
+            SerialProtocolType protocolType,
+            int lineCount,
+            uint sampleRate,
+            uint dataRate,
+            int samplesPerBit,
+            byte emptyDataValue,
+            double pageDurationSeconds,
+            DateTime exportTimestamp,
+            string exportDirectory)
+        {
+            byte[][] channelBytes = ProtocolPageUtility.SplitInterleavedPackedBytes(protocolBytes, lineCount);
+            if (channelBytes == null || channelBytes.Length != lineCount)
+            {
+                throw new InvalidOperationException("Failed to split protocol data into channel pages.");
+            }
+
+            int totalSamples = checked(channelBytes[0].Length * 8);
+            List<ProtocolPageManifestPage> pages = ProtocolPageUtility.BuildFixedWidthPages(
+                totalSamples,
+                samplesPerBit * 8,
+                sampleRate,
+                pageDurationSeconds,
+                lineCount);
+            if (pages.Count == 0)
+            {
+                throw new InvalidOperationException("No protocol pages were generated.");
+            }
+
+            UpdateFixedWidthPageActivity(pages, payloadBytes, payloadBytes2, protocolType, emptyDataValue, samplesPerBit);
+
+            for (int pageIndex = 0; pageIndex < pages.Count; pageIndex++)
+            {
+                ProtocolPageManifestPage page = pages[pageIndex];
+                byte[][] pageChannelBytes = new byte[lineCount][];
+                for (int channelIndex = 0; channelIndex < lineCount; channelIndex++)
+                {
+                    pageChannelBytes[channelIndex] = ProtocolPageUtility.ExtractPackedBits(
+                        channelBytes[channelIndex],
+                        page.StartSampleIndex,
+                        page.SampleCount);
+                }
+
+                byte[] outputBytes = ProtocolPageUtility.CombineChannelBytes(pageChannelBytes);
+                File.WriteAllBytes(Path.Combine(exportDirectory, page.FileName), outputBytes);
+            }
+
+            ProtocolPageManifestStorage.Save(
+                exportDirectory,
+                new ProtocolPageManifest
+                {
+                    Version = 1,
+                    ProtocolType = GetProtocolTypeFromLineCount(lineCount).ToString(),
+                    LineCount = lineCount,
+                    SampleRate = sampleRate,
+                    DataRate = dataRate,
+                    BaudRate = 0,
+                    ParityText = string.Empty,
+                    DataBits = 8,
+                    StopBits = 0,
+                    SamplesPerBit = samplesPerBit,
+                    PageDurationSeconds = pageDurationSeconds,
+                    TimestampText = BuildManifestTimestampText(exportTimestamp),
+                    Pages = pages
+                });
+
+            return pages.Count;
+        }
+
+        private static int WriteUartPages(
+            byte[] uartBytes,
+            byte[] payloadBytes,
+            uint sampleRate,
+            int baudRate,
+            UartParityMode parityMode,
+            int dataBits,
+            double stopBits,
+            int samplesPerBit,
+            byte emptyDataValue,
+            double pageDurationSeconds,
+            DateTime exportTimestamp,
+            string exportDirectory)
+        {
+            int frameSamples = GetUartFrameSampleCount(samplesPerBit, dataBits, stopBits, parityMode);
+            int totalSamples = GetTotalUartSampleCount(payloadBytes == null ? 0 : payloadBytes.Length, samplesPerBit, dataBits, stopBits, parityMode);
+            List<ProtocolPageManifestPage> pages = ProtocolPageUtility.BuildUartPages(
+                totalSamples,
+                samplesPerBit,
+                frameSamples,
+                payloadBytes == null ? 0 : payloadBytes.Length,
+                sampleRate,
+                pageDurationSeconds);
+            if (pages.Count == 0)
+            {
+                throw new InvalidOperationException("No UART pages were generated.");
+            }
+
+            UpdateUartPageActivity(pages, payloadBytes, emptyDataValue, samplesPerBit, dataBits, stopBits, parityMode);
+
+            for (int pageIndex = 0; pageIndex < pages.Count; pageIndex++)
+            {
+                ProtocolPageManifestPage page = pages[pageIndex];
+                byte[] pageBytes = ProtocolPageUtility.ExtractPackedBits(uartBytes, page.StartSampleIndex, page.SampleCount);
+                File.WriteAllBytes(Path.Combine(exportDirectory, page.FileName), pageBytes);
+            }
+
+            ProtocolPageManifestStorage.Save(
+                exportDirectory,
+                new ProtocolPageManifest
+                {
+                    Version = 1,
+                    ProtocolType = SerialProtocolType.Uart.ToString(),
+                    LineCount = 1,
+                    SampleRate = sampleRate,
+                    DataRate = 0,
+                    BaudRate = Math.Max(0, baudRate),
+                    ParityText = parityMode.ToString(),
+                    DataBits = dataBits,
+                    StopBits = stopBits,
+                    SamplesPerBit = samplesPerBit,
+                    PageDurationSeconds = pageDurationSeconds,
+                    TimestampText = BuildManifestTimestampText(exportTimestamp),
+                    Pages = pages
+                });
+
+            return pages.Count;
+        }
+
+        private static void UpdateFixedWidthPageActivity(
+            List<ProtocolPageManifestPage> pages,
+            byte[] payloadBytes,
+            byte[] payloadBytes2,
+            SerialProtocolType protocolType,
+            byte emptyDataValue,
+            int samplesPerBit)
+        {
+            if (pages == null || pages.Count == 0 || samplesPerBit <= 0)
+            {
+                return;
+            }
+
+            long samplesPerPayloadByte = (long)samplesPerBit * 8;
+            if (samplesPerPayloadByte <= 0)
+            {
+                return;
+            }
+
+            for (int i = 0; i < pages.Count; i++)
+            {
+                ProtocolPageManifestPage page = pages[i];
+                if (page == null)
+                {
+                    continue;
+                }
+
+                int startByteIndex = SafeLongToInt(page.StartSampleIndex / samplesPerPayloadByte);
+                int endByteIndex = SafeLongToInt((page.StartSampleIndex + page.SampleCount) / samplesPerPayloadByte);
+                page.IsActiveData = ContainsNonDefaultData(
+                    payloadBytes,
+                    payloadBytes2,
+                    protocolType,
+                    startByteIndex,
+                    endByteIndex,
+                    emptyDataValue);
+            }
+        }
+
+        private static void UpdateUartPageActivity(
+            List<ProtocolPageManifestPage> pages,
+            byte[] payloadBytes,
+            byte emptyDataValue,
+            int samplesPerBit,
+            int dataBits,
+            double stopBits,
+            UartParityMode parityMode)
+        {
+            if (pages == null || pages.Count == 0 || samplesPerBit <= 0)
+            {
+                return;
+            }
+
+            int frameSamples = GetUartFrameSampleCount(samplesPerBit, dataBits, stopBits, parityMode);
+            if (frameSamples <= 0)
+            {
+                return;
+            }
+
+            for (int i = 0; i < pages.Count; i++)
+            {
+                ProtocolPageManifestPage page = pages[i];
+                if (page == null)
+                {
+                    continue;
+                }
+
+                int startByteIndex = GetUartPageStartByteIndex(page.StartSampleIndex, samplesPerBit, frameSamples);
+                int endByteIndex = GetUartPageEndByteIndex(page.StartSampleIndex + page.SampleCount, samplesPerBit, frameSamples);
+                page.IsActiveData = ContainsNonDefaultData(
+                    payloadBytes,
+                    null,
+                    SerialProtocolType.Uart,
+                    startByteIndex,
+                    endByteIndex,
+                    emptyDataValue);
+            }
+        }
+
+        private static int GetUartPageStartByteIndex(long startSampleIndex, int samplesPerBit, int frameSamples)
+        {
+            if (startSampleIndex <= samplesPerBit)
+            {
+                return 0;
+            }
+
+            return SafeLongToInt((startSampleIndex - samplesPerBit) / frameSamples);
+        }
+
+        private static int GetUartPageEndByteIndex(long endSampleIndexExclusive, int samplesPerBit, int frameSamples)
+        {
+            if (endSampleIndexExclusive <= samplesPerBit)
+            {
+                return 0;
+            }
+
+            long relativeSampleCount = endSampleIndexExclusive - samplesPerBit;
+            return SafeLongToInt((relativeSampleCount + frameSamples - 1) / frameSamples);
+        }
+
+        private static int SafeLongToInt(long value)
+        {
+            if (value <= 0)
+            {
+                return 0;
+            }
+
+            return value >= int.MaxValue ? int.MaxValue : (int)value;
+        }
+
+        private static int GetTotalUartSampleCount(int payloadByteCount, int samplesPerBit, int dataBits, double stopBits, UartParityMode parityMode)
+        {
+            if (payloadByteCount <= 0)
+            {
+                return 0;
+            }
+
+            int frameSamples = GetUartFrameSampleCount(samplesPerBit, dataBits, stopBits, parityMode);
+            long totalSamples = checked((2L * samplesPerBit) + ((long)payloadByteCount * frameSamples));
+            if (totalSamples > int.MaxValue)
+            {
+                throw new InvalidOperationException("UART sample count is too large.");
+            }
+
+            return (int)totalSamples;
+        }
+
+        private static string BuildManifestTimestampText(DateTime exportTimestamp)
+        {
+            return string.Format(
+                CultureInfo.InvariantCulture,
+                "{0}_{1}_{2}_{3}_{4}_{5}_{6}",
+                exportTimestamp.Year,
+                exportTimestamp.Month,
+                exportTimestamp.Day,
+                exportTimestamp.Hour,
+                exportTimestamp.Minute,
+                exportTimestamp.Second,
+                exportTimestamp.Millisecond);
+        }
+
+        private static SerialProtocolType GetProtocolTypeFromLineCount(int lineCount)
+        {
+            switch (lineCount)
+            {
+                case 2:
+                    return SerialProtocolType.TwoWireSerial;
+                case 3:
+                    return SerialProtocolType.ThreeWireSerial;
+                case 4:
+                    return SerialProtocolType.FourWireSerial;
+                default:
+                    return SerialProtocolType.Uart;
+            }
         }
 
         private static int WriteProtocolChunks(

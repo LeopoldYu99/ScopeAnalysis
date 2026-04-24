@@ -10,6 +10,7 @@ namespace InteractiveExamples
         private double _stopBits = 1;
         private UartParityMode _parityMode = UartParityMode.None;
         private int _idleBits = 1;
+        private int _leadingIdleSamples;
         private int _emptyDataRunSegmentThreshold = 10;
         private int _samplesPerBit = 1;
         private SignalDecodeMode _mode = SignalDecodeMode.UartFrame;
@@ -101,6 +102,23 @@ namespace InteractiveExamples
                 if (_idleBits != normalizedValue)
                 {
                     _idleBits = normalizedValue;
+                    _version++;
+                }
+            }
+        }
+
+        public int LeadingIdleSamples
+        {
+            get
+            {
+                return _leadingIdleSamples;
+            }
+            set
+            {
+                int normalizedValue = Math.Max(0, value);
+                if (_leadingIdleSamples != normalizedValue)
+                {
+                    _leadingIdleSamples = normalizedValue;
                     _version++;
                 }
             }

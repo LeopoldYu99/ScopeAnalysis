@@ -30,34 +30,44 @@ namespace InteractiveExamples
                 return null;
             }
 
+            int sampleCount = checked(bytes.Length * 8);
+            return ImportBytes(signalName, bytes, sampleIntervalSeconds, sampleCount);
+        }
+
+        public static BinaryWaveformImportResult ImportBytes(string signalName, byte[] bytes, double sampleIntervalSeconds, int sampleCount)
+        {
+            if (bytes == null || bytes.Length == 0 || sampleCount <= 0)
+            {
+                return null;
+            }
+
+            int maximumSampleCount = checked(bytes.Length * 8);
+            if (sampleCount > maximumSampleCount)
+            {
+                return null;
+            }
+
             return new BinaryWaveformImportResult
             {
                 SignalName = string.IsNullOrWhiteSpace(signalName) ? "Signal" : signalName,
-                DigitalWords = PackDigitalWords(bytes),
-                SampleCount = checked(bytes.Length * 8),
+                DigitalWords = PackDigitalWords(bytes, sampleCount),
+                SampleCount = sampleCount,
                 SampleInterval = sampleIntervalSeconds
             };
         }
 
-        private static uint[] PackDigitalWords(byte[] bytes)
+        private static uint[] PackDigitalWords(byte[] bytes, int sampleCount)
         {
-            int sampleCount = checked(bytes.Length * 8);
             uint[] digitalWords = new uint[(sampleCount + 31) / 32];
-            int sampleIndex = 0;
-
-            for (int byteIndex = 0; byteIndex < bytes.Length; byteIndex++)
+            for (int sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++)
             {
-                byte valueByte = bytes[byteIndex];
-                for (int bitIndex = 7; bitIndex >= 0; bitIndex--)
+                int byteIndex = sampleIndex / 8;
+                int bitIndex = 7 - (sampleIndex % 8);
+                if (((bytes[byteIndex] >> bitIndex) & 0x1) != 0)
                 {
-                    if (((valueByte >> bitIndex) & 0x1) != 0)
-                    {
-                        int wordIndex = sampleIndex / 32;
-                        int bitOffset = sampleIndex % 32;
-                        digitalWords[wordIndex] |= 1u << bitOffset;
-                    }
-
-                    sampleIndex++;
+                    int wordIndex = sampleIndex / 32;
+                    int bitOffset = sampleIndex % 32;
+                    digitalWords[wordIndex] |= 1u << bitOffset;
                 }
             }
 

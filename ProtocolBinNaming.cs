@@ -52,6 +52,14 @@ namespace InteractiveExamples
                 NormalizeActivePartitionList(activePartitionList));
         }
 
+        public static string BuildPageFileName(int filePageNumber)
+        {
+            return string.Format(
+                CultureInfo.InvariantCulture,
+                "{0}.bin",
+                Math.Max(1, filePageNumber));
+        }
+
         public static string BuildUartExportFolderName(
             uint sampleRate,
             int baudRate,
