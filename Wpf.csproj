@@ -44,10 +44,6 @@
     </Reference>
     <Reference Include="Arction.DirectXInit, Version=10.3.2.4002, Culture=neutral, PublicKeyToken=6484d7bb14b95dd3, processorArchitecture=MSIL">
     </Reference>
-    <Reference Include="Arction.Licensing, Version=2.2.3.2, Culture=neutral, PublicKeyToken=6484d7bb14b95dd3, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\ControlTest\PolarControl\bin\Debug\Arction.Licensing.dll</HintPath>
-    </Reference>
     <Reference Include="Arction.RenderingDefinitions, Version=10.3.2.4002, Culture=neutral, PublicKeyToken=6484d7bb14b95dd3, processorArchitecture=MSIL">
     </Reference>
     <Reference Include="Arction.RenderingEngine, Version=10.3.2.4002, Culture=neutral, PublicKeyToken=6484d7bb14b95dd3, processorArchitecture=MSIL">
@@ -168,6 +164,11 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Arction.Licensing.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
