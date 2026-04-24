@@ -1,4 +1,4 @@
-namespace InteractiveExamples
+﻿namespace ScopeAnalysis
 {
     internal enum UartParityMode
     {
@@ -9,3 +9,4 @@ namespace InteractiveExamples
         Space
     }
 }
+

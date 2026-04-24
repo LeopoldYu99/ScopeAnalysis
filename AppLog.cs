@@ -1,11 +1,11 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Text;
 using System.Threading;
 
-namespace LCWpf
+namespace ScopeAnalysis
 {
     internal static class AppLog
     {
@@ -32,7 +32,7 @@ namespace LCWpf
 
                 int processId = Process.GetCurrentProcess().Id;
                 string fileName = string.Format(
-                    "LCWpf_{0:yyyyMMdd_HHmmss}_pid{1}.log",
+                    "ScopeAnalysis_{0:yyyyMMdd_HHmmss}_pid{1}.log",
                     DateTime.Now,
                     processId);
 
@@ -79,9 +79,9 @@ namespace LCWpf
                 AppDomain.CurrentDomain.BaseDirectory,
                 Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "LCWpf",
+                    "ScopeAnalysis",
                     "Logs"),
-                Path.Combine(Path.GetTempPath(), "LCWpf", "Logs")
+                Path.Combine(Path.GetTempPath(), "ScopeAnalysis", "Logs")
             };
 
             foreach (string candidate in candidates)
@@ -181,3 +181,4 @@ namespace LCWpf
         }
     }
 }
+

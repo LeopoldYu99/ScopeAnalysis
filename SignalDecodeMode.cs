@@ -1,4 +1,4 @@
-namespace InteractiveExamples
+﻿namespace ScopeAnalysis
 {
     internal enum SignalDecodeMode
     {
@@ -7,3 +7,4 @@ namespace InteractiveExamples
         FixedWidth8Bit
     }
 }
+

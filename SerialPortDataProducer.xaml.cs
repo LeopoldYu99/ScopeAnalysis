@@ -1,14 +1,14 @@
-using System;
+﻿using System;
 using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
-using InteractiveExamples;
+using ScopeAnalysis;
 using Microsoft.Win32;
 using Forms = System.Windows.Forms;
 
-namespace LCWpf
+namespace ScopeAnalysis
 {
     public sealed class SerialWaveformBuildResult
     {
@@ -743,13 +743,13 @@ namespace LCWpf
             switch (protocolType)
             {
                 case SerialProtocolType.TwoWireSerial:
-                    return "2线串口";
+                    return "2-wire serial";
                 case SerialProtocolType.ThreeWireSerial:
-                    return "3线串口";
+                    return "3-wire serial";
                 case SerialProtocolType.FourWireSerial:
-                    return "4线串口";
+                    return "4-wire serial";
                 default:
-                    return "串口";
+                    return "涓插彛";
             }
         }
 
@@ -1297,3 +1297,4 @@ namespace LCWpf
         Space
     }
 }
+

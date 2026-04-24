@@ -1,7 +1,7 @@
-using System;
+﻿using System;
 using System.IO;
 
-namespace InteractiveExamples
+namespace ScopeAnalysis
 {
     internal sealed class BinaryWaveformImportResult
     {
@@ -70,8 +70,8 @@ namespace InteractiveExamples
                     digitalWords[wordIndex] |= 1u << bitOffset;
                 }
             }
-
             return digitalWords;
         }
     }
 }
+

@@ -1,9 +1,9 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
 
-namespace LCWpf
+namespace ScopeAnalysis
 {
     public partial class App : Application
     {
@@ -87,3 +87,4 @@ namespace LCWpf
         }
     }
 }
+

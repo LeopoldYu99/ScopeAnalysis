@@ -1,6 +1,6 @@
-using System.Windows.Media;
+﻿using System.Windows.Media;
 
-namespace InteractiveExamples
+namespace ScopeAnalysis
 {
     internal sealed class ProtocolSegment
     {
@@ -16,3 +16,4 @@ namespace InteractiveExamples
         public bool IsMarker { get; set; }
     }
 }
+

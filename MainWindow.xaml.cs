@@ -1,4 +1,4 @@
-using Arction.Wpf.Charting;
+﻿using Arction.Wpf.Charting;
 using Arction.Wpf.Charting.Axes;
 using Arction.Wpf.Charting.SeriesXY;
 using Arction.Wpf.Charting.Views.ViewXY;
@@ -9,9 +9,9 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
 
-namespace InteractiveExamples
+namespace ScopeAnalysis
 {
-    public partial class Example8BillionPoints : Window, IDisposable
+    public partial class MainWindow : Window, IDisposable
     {
         private LightningChart _chart;
         private Canvas _decodeOverlay;
@@ -51,7 +51,7 @@ namespace InteractiveExamples
         private const float LineWidth = 1f;
         private const double MicrosecondsPerSecond = 1000000.0;
 
-        public Example8BillionPoints()
+        public MainWindow()
         {
             InitializeComponent();
             CreateChart();
@@ -62,7 +62,7 @@ namespace InteractiveExamples
             _chart = new LightningChart();
 
             _chart.BeginUpdate();
-            _chart.ChartName = "8 Billion Points";
+            _chart.ChartName = "ScopeAnalysis";
             _chart.ChartRenderOptions.DeviceType = RendererDeviceType.AutoPreferD11;
             _chart.ChartRenderOptions.LineAAType2D = LineAntiAliasingType.QLAA;
 
@@ -301,3 +301,4 @@ namespace InteractiveExamples
         }
     }
 }
+

@@ -1,8 +1,8 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Windows.Media;
 
-namespace InteractiveExamples
+namespace ScopeAnalysis
 {
     internal static class DecodeLogic
     {
@@ -638,3 +638,4 @@ namespace InteractiveExamples
         }
     }
 }
+

@@ -3,9 +3,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 
-namespace InteractiveExamples
+namespace ScopeAnalysis
 {
-    public partial class Example8BillionPoints
+    public partial class MainWindow
     {
         private void CompositionTarget_Rendering(object sender, EventArgs e)
         {
@@ -95,3 +95,4 @@ namespace InteractiveExamples
     
     }
 }
+

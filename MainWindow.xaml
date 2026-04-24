@@ -1,11 +1,13 @@
-<Window x:Class="InteractiveExamples.Example8BillionPoints"
+<Window x:Class="ScopeAnalysis.MainWindow"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:local="clr-namespace:InteractiveExamples"
+             xmlns:local="clr-namespace:ScopeAnalysis"
              mc:Ignorable="d"
              x:Name="BillionPoints"
+             Title="ScopeAnalysis"
+             Icon="Assets/ScopeAnalysis.ico"
              d:DesignHeight="1000" d:DesignWidth="1500">
     <Window.Resources>
         <Style x:Key="FocusVisual">

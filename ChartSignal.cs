@@ -1,8 +1,8 @@
-using Arction.Wpf.Charting;
+﻿using Arction.Wpf.Charting;
 using Arction.Wpf.Charting.Axes;
 using Arction.Wpf.Charting.SeriesXY;
 
-namespace InteractiveExamples
+namespace ScopeAnalysis
 {
     internal sealed class DigitalHistorySnapshot
     {
@@ -84,3 +84,4 @@ namespace InteractiveExamples
         }
     }
 }
+

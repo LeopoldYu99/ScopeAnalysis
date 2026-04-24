@@ -1,6 +1,6 @@
-using System;
+﻿using System;
 
-namespace InteractiveExamples
+namespace ScopeAnalysis
 {
     internal sealed class UartDecodeSettings
     {
@@ -175,3 +175,4 @@ namespace InteractiveExamples
         }
     }
 }
+

@@ -8,7 +8,7 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 
-namespace LCWpf.Properties
+namespace ScopeAnalysis.Properties
 {
 
 
@@ -28,3 +28,4 @@ namespace LCWpf.Properties
         }
     }
 }
+

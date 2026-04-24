@@ -1,14 +1,14 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
-using InteractiveExamples;
+using ScopeAnalysis;
 using Forms = System.Windows.Forms;
 
-namespace LCWpf
+namespace ScopeAnalysis
 {
     public partial class BinFileDataProducer : UserControl
     {
@@ -66,13 +66,13 @@ namespace LCWpf
                 uint sampleRate;
                 if (TryGetSelectedSampleRate(out sampleRate) == false || sampleRate == 0)
                 {
-                    throw new InvalidOperationException("采样率必须是有效值。");
+                    throw new InvalidOperationException("Sample rate must be a valid value.");
                 }
 
                 uint dataRate = GetSelectedDataRate(protocolType);
                 if (sampleRate % dataRate != 0)
                 {
-                    throw new InvalidOperationException("采样率必须是数据速率的整数倍，才能按整数采样点重复每个 bit。");
+                    throw new InvalidOperationException("Sample rate must be an integer multiple of the data rate.");
                 }
 
                 int samplesPerBit = checked((int)(sampleRate / dataRate));
@@ -102,7 +102,7 @@ namespace LCWpf
 
                 if (protocolBytes.Length == 0)
                 {
-                    throw new InvalidOperationException("没有生成任何协议数据。");
+                    throw new InvalidOperationException("No protocol data was generated.");
                 }
 
                 string exportParentDirectory = SelectProtocolExportDirectory();
@@ -135,7 +135,7 @@ namespace LCWpf
                 MessageBox.Show(
                     string.Format(
                         CultureInfo.InvariantCulture,
-                        "BIN 生成完成。{0}{0}协议: {1}{0}目录: {2}{0}文件数: {3:N0}{0}采样率: {4:N0} Hz{0}数据速率: {5:N0} bps{0}每 bit 重复采样点: {6:N0}{0}逻辑数据字节: {7:N0}{0}导出字节: {8:N0}",
+                        "BIN 鐢熸垚瀹屾垚銆倇0}{0}鍗忚: {1}{0}鐩綍: {2}{0}鏂囦欢鏁? {3:N0}{0}閲囨牱鐜? {4:N0} Hz{0}鏁版嵁閫熺巼: {5:N0} bps{0}姣?bit 閲嶅閲囨牱鐐? {6:N0}{0}閫昏緫鏁版嵁瀛楄妭: {7:N0}{0}瀵煎嚭瀛楄妭: {8:N0}",
                         Environment.NewLine,
                         GetProtocolDisplayName(protocolType),
                         exportDirectory,
@@ -151,7 +151,7 @@ namespace LCWpf
             }
             catch (Exception ex)
             {
-                MessageBox.Show("BIN 生成失败:\n" + ex.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show("BIN 鐢熸垚澶辫触:\n" + ex.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -330,13 +330,13 @@ namespace LCWpf
                     text = FourWireSamplesPerBitTextBox == null ? null : FourWireSamplesPerBitTextBox.Text;
                     break;
                 default:
-                    throw new InvalidOperationException("当前协议不需要数据速率。");
+                    throw new InvalidOperationException("The current protocol does not require a data rate.");
             }
 
             uint dataRate;
             if (TryParseFrequency(text, out dataRate) == false || dataRate == 0)
             {
-                throw new InvalidOperationException("数据速率必须是有效频率，例如 5M 或 5000000。");
+                throw new InvalidOperationException("Data rate must be a valid frequency such as 5M or 5000000.");
             }
 
             return dataRate;
@@ -423,12 +423,12 @@ namespace LCWpf
             if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value) == false
                 && double.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out value) == false)
             {
-                throw new InvalidOperationException("文件时长必须是正数。");
+                throw new InvalidOperationException("Duration must be a valid positive number.");
             }
 
             if (value <= 0)
             {
-                throw new InvalidOperationException("文件时长必须大于 0。");
+                throw new InvalidOperationException("Duration must be greater than 0.");
             }
 
             return value;
@@ -459,12 +459,12 @@ namespace LCWpf
             if (int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out value) == false
                 && int.TryParse(text, out value) == false)
             {
-                throw new InvalidOperationException("空数据占比必须是 0 到 100 之间的整数。");
+                throw new InvalidOperationException("Empty data ratio must be an integer between 0 and 100.");
             }
 
             if (value < 0 || value > 100)
             {
-                throw new InvalidOperationException("空数据占比必须是 0 到 100 之间的整数。");
+                throw new InvalidOperationException("Empty data ratio must be an integer between 0 and 100.");
             }
 
             return value;
@@ -472,7 +472,7 @@ namespace LCWpf
 
         private byte GetEmptyDataValue()
         {
-            return ParseByteValue(EmptyDataValueTextBox == null ? null : EmptyDataValueTextBox.Text, "空数据值");
+            return ParseByteValue(EmptyDataValueTextBox == null ? null : EmptyDataValueTextBox.Text, "Empty data value");
         }
 
         private byte GetClockValue(SerialProtocolType protocolType)
@@ -513,7 +513,7 @@ namespace LCWpf
 
             if (byteCount > int.MaxValue)
             {
-                throw new InvalidOperationException("逻辑数据太大，请缩短文件时长或降低数据速率。");
+                throw new InvalidOperationException("Logical payload is too large. Reduce the duration or lower the data rate.");
             }
 
             return Math.Max(1, (long)Math.Round(byteCount, MidpointRounding.AwayFromZero));
@@ -528,7 +528,7 @@ namespace LCWpf
 
             if (byteCount > int.MaxValue)
             {
-                throw new InvalidOperationException("逻辑数据太大。");
+                throw new InvalidOperationException("Logical payload is too large.");
             }
 
             byte[] normalizedSeedBytes = seedBytes == null || seedBytes.Length == 0
@@ -934,14 +934,14 @@ namespace LCWpf
 
             if (samplesPerBit <= 0)
             {
-                throw new InvalidOperationException("每 bit 采样点数必须大于 0。");
+                throw new InvalidOperationException("Samples per bit must be greater than 0.");
             }
 
             int lineCount = GetProtocolLineCount(protocolType);
             long outputLength = checked((long)payloadBytes.Length * samplesPerBit * lineCount);
             if (outputLength > int.MaxValue)
             {
-                throw new InvalidOperationException("导出 BIN 太大，请缩短文件时长或降低采样率。");
+                throw new InvalidOperationException("Exported BIN data is too large. Reduce the duration or lower the sample rate.");
             }
 
             byte[] exportBytes = new byte[(int)outputLength];
@@ -978,7 +978,7 @@ namespace LCWpf
                             exportBytes[outputIndex++] = expandedData2[packedByteIndex];
                             break;
                         default:
-                            throw new InvalidOperationException("不支持的协议类型。");
+                            throw new InvalidOperationException("Unsupported protocol type.");
                     }
                 }
             }
@@ -1316,7 +1316,7 @@ namespace LCWpf
             int bytesPerChunk = GetInterleavedProtocolByteCount(lineCount, sampleRate, ProtocolExportChunkSeconds);
             if (bytesPerChunk <= 0)
             {
-                throw new InvalidOperationException("分片大小无效。");
+                throw new InvalidOperationException("Chunk size is invalid.");
             }
 
             int chunkCount = Math.Max(1, (int)Math.Ceiling(protocolBytes.Length / (double)bytesPerChunk));
@@ -1664,7 +1664,7 @@ namespace LCWpf
                 }
             }
 
-            throw new InvalidOperationException(fieldName + " 必须是 0-255 或 00-FF 范围内的 byte。");
+            throw new InvalidOperationException(fieldName + " must be a byte value in the range 0-255 or 00-FF.");
         }
 
         private static int GetProtocolLineCount(SerialProtocolType protocolType)
@@ -1687,13 +1687,13 @@ namespace LCWpf
             switch (protocolType)
             {
                 case SerialProtocolType.TwoWireSerial:
-                    return "2 线串口";
+                    return "2-wire serial";
                 case SerialProtocolType.ThreeWireSerial:
-                    return "3 线串口";
+                    return "3-wire serial";
                 case SerialProtocolType.FourWireSerial:
-                    return "4 线串口";
+                    return "4-wire serial";
                 default:
-                    return "串口";
+                    return "UART";
             }
         }
 
@@ -1701,7 +1701,7 @@ namespace LCWpf
         {
             using (Forms.FolderBrowserDialog folderDialog = new Forms.FolderBrowserDialog())
             {
-                folderDialog.Description = "选择协议 BIN 文件的导出目录。";
+                folderDialog.Description = "Select a folder to export protocol BIN files.";
                 folderDialog.ShowNewFolderButton = true;
                 return folderDialog.ShowDialog() == Forms.DialogResult.OK
                     ? folderDialog.SelectedPath
@@ -1793,3 +1793,4 @@ namespace LCWpf
         }
     }
 }
+

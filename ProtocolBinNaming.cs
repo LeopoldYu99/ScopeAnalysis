@@ -1,8 +1,8 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 
-namespace InteractiveExamples
+namespace ScopeAnalysis
 {
     internal sealed class ProtocolBinFolderMetadata
     {
@@ -424,3 +424,4 @@ namespace InteractiveExamples
         }
     }
 }
+

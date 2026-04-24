@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Runtime.Remoting;
 using System.Windows;
@@ -10,9 +10,9 @@ using Arction.Wpf.Charting.Axes;
 using Arction.Wpf.Charting.SeriesXY;
 using Arction.Wpf.Charting.Views.ViewXY;
 
-namespace InteractiveExamples
+namespace ScopeAnalysis
 {
-    public partial class Example8BillionPoints
+    public partial class MainWindow
     {
         private double? TryGetXAxisValueAt(double controlX)
         {
@@ -454,9 +454,9 @@ namespace InteractiveExamples
                 return _measurementHoverXValue.ToString("0.000");
             }
 
-            string edgeLabel = measurement.Direction == DigitalEdgeDirection.Rising ? "上升沿" : "下降沿";
+            string edgeLabel = measurement.Direction == DigitalEdgeDirection.Rising ? "Rising Edge" : "Falling Edge";
             return string.Format(
-                "{0}\n宽度: {1}\n周期: {2}\n占空比: {3:0.00}%",
+                "{0}\n瀹藉害: {1}\n鍛ㄦ湡: {2}\n鍗犵┖姣? {3:0.00}%",
                 edgeLabel,
                 FormatTimeValue(measurement.Width),
                 FormatTimeValue(measurement.Period),
@@ -1777,3 +1777,4 @@ namespace InteractiveExamples
         }
     }
 }
+

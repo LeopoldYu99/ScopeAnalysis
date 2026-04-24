@@ -6,8 +6,9 @@
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{9913ACF3-2C30-4187-A114-86FCC3A081D5}</ProjectGuid>
     <OutputType>WinExe</OutputType>
-    <RootNamespace>LCWpf</RootNamespace>
-    <AssemblyName>LCWpf</AssemblyName>
+    <RootNamespace>ScopeAnalysis</RootNamespace>
+    <AssemblyName>ScopeAnalysis</AssemblyName>
+    <ApplicationIcon>Assets\ScopeAnalysis.ico</ApplicationIcon>
     <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <ProjectTypeGuids>{60dc8134-eba5-43b8-bcc9-bb4bc16c2548};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
@@ -169,6 +170,9 @@
     <Content Include="Arction.Licensing.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Assets\ScopeAnalysis.ico" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

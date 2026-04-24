@@ -1,4 +1,4 @@
-namespace InteractiveExamples
+﻿namespace ScopeAnalysis
 {
     public enum SerialProtocolType
     {
@@ -8,3 +8,4 @@ namespace InteractiveExamples
         FourWireSerial
     }
 }
+

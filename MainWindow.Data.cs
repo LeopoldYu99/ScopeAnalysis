@@ -1,7 +1,7 @@
-using Arction.Wpf.Charting;
+﻿using Arction.Wpf.Charting;
 using Arction.Wpf.Charting.SeriesXY;
 using Arction.Wpf.Charting.Views.ViewXY;
-using LCWpf;
+using ScopeAnalysis;
 using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
@@ -13,9 +13,9 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using Forms = System.Windows.Forms;
 
-namespace InteractiveExamples
+namespace ScopeAnalysis
 {
-    public partial class Example8BillionPoints
+    public partial class MainWindow
     {
         private const int ProtocolImportChunkSeconds = 5;
         private const double ProtocolImportPartitionDurationSeconds = 0.1;
@@ -1310,3 +1310,4 @@ namespace InteractiveExamples
         }
     }
 }
+
