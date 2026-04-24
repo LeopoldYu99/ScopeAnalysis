@@ -4,10 +4,35 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              mc:Ignorable="d"
-             d:DesignHeight="620"
-             d:DesignWidth="920">
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <Grid Margin="20">
+             d:DesignHeight="720"
+             d:DesignWidth="960">
+    <UserControl.Resources>
+        <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
+            <Setter Property="Margin" Value="0,0,0,6"/>
+            <Setter Property="Foreground" Value="#FF333333"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <Style x:Key="FieldTextBoxStyle" TargetType="TextBox">
+            <Setter Property="MinWidth" Value="0"/>
+            <Setter Property="MinHeight" Value="32"/>
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+
+        <Style x:Key="FieldComboBoxStyle" TargetType="ComboBox">
+            <Setter Property="MinWidth" Value="0"/>
+            <Setter Property="MinHeight" Value="32"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+        <Grid Margin="20"
+              MaxWidth="980">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
@@ -15,407 +40,441 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <GroupBox Grid.Row="0" Header="&#21457;&#36865;&#25968;&#25454;" Margin="0,0,0,12" Padding="10">
+            <GroupBox Grid.Row="0"
+                      Header="&#21457;&#36865;&#25968;&#25454;"
+                      Margin="0,0,0,12"
+                      Padding="12">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="20"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-                    <TextBlock Grid.Row="0"
-                               Grid.ColumnSpan="2"
-                               Text="&#36755;&#20837; ASCII &#20869;&#23481;&#65292;&#31995;&#32479;&#20250;&#33258;&#21160;&#36716;&#25104; HEX &#39044;&#35272;&#12290;"
-                               TextWrapping="Wrap"/>
+                    <StackPanel Grid.Row="0"
+                                Grid.Column="0"
+                                Margin="0,0,0,0">
+                        <TextBlock Style="{StaticResource FieldLabelStyle}"
+                                   Text="ASCII &#20869;&#23481;"/>
+                        <TextBox x:Name="PayloadAsciiTextBox"
+                                 Style="{StaticResource FieldTextBoxStyle}"
+                                 MinHeight="110"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto"
+                                 VerticalContentAlignment="Top"
+                                 FontFamily="Consolas"
+                                 Text="ScopeAnalysis"/>
+                    </StackPanel>
 
-                    <TextBlock Grid.Row="1"
-                               Grid.Column="0"
-                               Text="ASCII &#20869;&#23481;:"
-                               VerticalAlignment="Top"
-                               Margin="0,12,12,0"/>
-                    <TextBox Grid.Row="1"
-                             Grid.Column="1"
-                             x:Name="PayloadAsciiTextBox"
-                             Margin="0,12,0,0"
-                             MinHeight="88"
-                             AcceptsReturn="True"
-                             TextWrapping="Wrap"
-                             VerticalScrollBarVisibility="Auto"
-                             FontFamily="Consolas"
-                             Text="ScopeAnalysis"/>
+                    <StackPanel Grid.Row="0"
+                                Grid.Column="2"
+                                Margin="0,0,0,0">
+                        <TextBlock Style="{StaticResource FieldLabelStyle}"
+                                   Text="HEX &#39044;&#35272;"/>
+                        <TextBox x:Name="PayloadHexTextBox"
+                                 Style="{StaticResource FieldTextBoxStyle}"
+                                 MinHeight="110"
+                                 IsReadOnly="True"
+                                 TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto"
+                                 VerticalContentAlignment="Top"
+                                 FontFamily="Consolas"
+                                 Background="#FFF5F5F5"/>
+                    </StackPanel>
 
-                    <TextBlock Grid.Row="2"
-                               Grid.ColumnSpan="2"
-                               x:Name="PayloadSummaryTextBlock"
-                               Margin="0,10,0,0"
-                               Foreground="#FF555555"/>
-
-                    <TextBlock Grid.Row="3"
-                               Grid.Column="0"
-                               Text="HEX &#39044;&#35272;:"
-                               VerticalAlignment="Top"
-                               Margin="0,10,12,0"/>
-                    <TextBox Grid.Row="3"
-                             Grid.Column="1"
-                             x:Name="PayloadHexTextBox"
-                             Margin="0,10,0,0"
-                             MinHeight="88"
-                             IsReadOnly="True"
-                             TextWrapping="Wrap"
-                             VerticalScrollBarVisibility="Auto"
-                             FontFamily="Consolas"
-                             Background="#FFF5F5F5"/>
-
-                    <Border Grid.Row="4"
-                            Grid.ColumnSpan="2"
+                    <Border Grid.Row="1"
+                            Grid.ColumnSpan="3"
                             Margin="0,12,0,0"
-                            Padding="10,8"
-                            Background="#FFF8F8F8"
-                            BorderBrush="#FFE0E0E0"
-                            BorderThickness="1">
-                        <TextBlock Text="&#35828;&#26126;&#65306;&#24403;&#36755;&#20837;&#20013;&#20986;&#29616;&#38750; ASCII &#23383;&#31526;&#26102;&#65292;&#39044;&#35272;&#20250;&#25353; ASCII &#32534;&#30721;&#30340;&#40664;&#35748;&#34892;&#20026;&#26174;&#31034;&#12290;"
-                                   TextWrapping="Wrap"
-                                   Foreground="#FF666666"/>
+                            Padding="10,7"
+                            Background="#FFF9FAFB"
+                            BorderBrush="#FFE3E7EB"
+                            BorderThickness="1"
+                            CornerRadius="4">
+                        <TextBlock x:Name="PayloadSummaryTextBlock"
+                                   Foreground="#FF415364"/>
                     </Border>
                 </Grid>
             </GroupBox>
 
-            <GroupBox Grid.Row="1" Header="&#21442;&#25968;&#37197;&#32622;" Margin="0,0,0,12" Padding="10">
-                <Grid>
+            <GroupBox Grid.Row="1"
+                      Header="&#21442;&#25968;&#37197;&#32622;"
+                      Margin="0,0,0,12"
+                      Padding="12">
+                <Grid Margin="0,2,0,0">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="180"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="180"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="180"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="18"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="18"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-                    <TextBlock Grid.Row="0"
-                               Grid.Column="0"
-                               Text="&#37319;&#26679;&#29575;:"
-                               VerticalAlignment="Center"
-                               Margin="0,0,10,0"/>
-                    <ComboBox Grid.Row="0"
-                              Grid.Column="1"
-                              x:Name="SampleRateComboBox"
-                              SelectedIndex="3">
-                        <ComboBoxItem Content="10M"/>
-                        <ComboBoxItem Content="20M"/>
-                        <ComboBoxItem Content="25M"/>
-                        <ComboBoxItem Content="50M"/>
-                    </ComboBox>
-                    <TextBlock Grid.Row="0"
-                               Grid.Column="2"
-                               Text="&#37319;&#26679;&#38388;&#38548;:"
-                               VerticalAlignment="Center"
-                               Margin="10,0,16,0"/>
-                    <TextBox Grid.Row="0"
-                             Grid.Column="3"
-                             x:Name="BitIntervalNsTextBox"
-                             IsReadOnly="True"
-                             Background="#FFF5F5F5"/>
-                    <TextBlock Grid.Row="0"
-                               Grid.Column="4"
-                               Text="ns"
-                               VerticalAlignment="Center"
-                               Margin="10,0,16,0"/>
+                    <StackPanel Grid.Row="0"
+                                Grid.Column="0"
+                                Margin="0,0,0,14">
+                        <TextBlock Style="{StaticResource FieldLabelStyle}"
+                                   Text="&#37319;&#26679;&#29575;"/>
+                        <ComboBox x:Name="SampleRateComboBox"
+                                  Style="{StaticResource FieldComboBoxStyle}"
+                                  SelectedIndex="3">
+                            <ComboBoxItem Content="10M"/>
+                            <ComboBoxItem Content="20M"/>
+                            <ComboBoxItem Content="25M"/>
+                            <ComboBoxItem Content="50M"/>
+                        </ComboBox>
+                    </StackPanel>
 
-                    <TextBlock Grid.Row="0"
-                               Grid.Column="5"
-                               Text="&#25991;&#20214;&#26102;&#38271;:"
-                               VerticalAlignment="Center"
-                               Margin="0,0,10,0"/>
-                    <TextBox Grid.Row="0"
-                             Grid.Column="6"
-                             x:Name="DurationSecondsTextBox"
-                             Text="1"/>
+                    <StackPanel Grid.Row="0"
+                                Grid.Column="2"
+                                Margin="0,0,0,14">
+                        <TextBlock Style="{StaticResource FieldLabelStyle}"
+                                   Text="&#37319;&#26679;&#38388;&#38548;"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
 
-                    <TextBlock Grid.Row="1"
-                               Grid.Column="0"
-                               Text="&#31354;&#25968;&#25454;&#21344;&#27604;:"
-                               VerticalAlignment="Center"
-                               Margin="0,12,10,0"/>
-                    <TextBox Grid.Row="1"
-                             Grid.Column="1"
-                             x:Name="EmptyDataRatioTextBox"
-                             Margin="0,12,0,0"
-                             Text="90"/>
-                    <TextBlock Grid.Row="1"
-                               Grid.Column="2"
-                               Text="%"
-                               VerticalAlignment="Center"
-                               Margin="10,12,16,0"/>
+                            <TextBox Grid.Column="0"
+                                     x:Name="BitIntervalNsTextBox"
+                                     Style="{StaticResource FieldTextBoxStyle}"
+                                     IsReadOnly="True"
+                                     Background="#FFF5F5F5"/>
+                            <TextBlock Grid.Column="1"
+                                       Margin="8,0,0,0"
+                                       VerticalAlignment="Center"
+                                       Foreground="#FF666666"
+                                       Text="ns"/>
+                        </Grid>
+                    </StackPanel>
 
-                    <TextBlock Grid.Row="1"
-                               Grid.Column="3"
-                               Text="&#31354;&#25968;&#25454;&#20540;:"
-                               VerticalAlignment="Center"
-                               Margin="0,12,10,0"/>
-                    <TextBox Grid.Row="1"
-                             Grid.Column="4"
-                             x:Name="EmptyDataValueTextBox"
-                             Margin="0,12,0,0"
-                             Text="0"/>
-                    <TextBlock Grid.Row="1"
-                               Grid.Column="5"
-                               Text="(byte)"
-                               VerticalAlignment="Center"
-                               Margin="10,12,0,0"/>
+                    <StackPanel Grid.Row="0"
+                                Grid.Column="4"
+                                Margin="0,0,0,14">
+                        <TextBlock Style="{StaticResource FieldLabelStyle}"
+                                   Text="&#25991;&#20214;&#26102;&#38271;"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBox Grid.Column="0"
+                                     x:Name="DurationSecondsTextBox"
+                                     Style="{StaticResource FieldTextBoxStyle}"
+                                     Text="1"/>
+                            <TextBlock Grid.Column="1"
+                                       Margin="8,0,0,0"
+                                       VerticalAlignment="Center"
+                                       Foreground="#FF666666"
+                                       Text="&#31186;"/>
+                        </Grid>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="1"
+                                Grid.Column="0">
+                        <TextBlock Style="{StaticResource FieldLabelStyle}"
+                                   Text="&#31354;&#25968;&#25454;&#21344;&#27604;"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBox Grid.Column="0"
+                                     x:Name="EmptyDataRatioTextBox"
+                                     Style="{StaticResource FieldTextBoxStyle}"
+                                     Text="90"/>
+                            <TextBlock Grid.Column="1"
+                                       Margin="8,0,0,0"
+                                       VerticalAlignment="Center"
+                                       Foreground="#FF666666"
+                                       Text="%"/>
+                        </Grid>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="1"
+                                Grid.Column="2">
+                        <TextBlock Style="{StaticResource FieldLabelStyle}"
+                                   Text="&#31354;&#25968;&#25454;&#20540;"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBox Grid.Column="0"
+                                     x:Name="EmptyDataValueTextBox"
+                                     Style="{StaticResource FieldTextBoxStyle}"
+                                     Text="0"/>
+                            <TextBlock Grid.Column="1"
+                                       Margin="8,0,0,0"
+                                       VerticalAlignment="Center"
+                                       Foreground="#FF666666"
+                                       Text="byte"/>
+                        </Grid>
+                    </StackPanel>
                 </Grid>
             </GroupBox>
 
-            <GroupBox Grid.Row="2" Header="&#21327;&#35758;&#37197;&#32622;" Margin="0,0,0,12" Padding="10">
+            <GroupBox Grid.Row="2"
+                      Header="&#21327;&#35758;&#37197;&#32622;"
+                      Margin="0,0,0,12"
+                      Padding="12">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="220"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-                    <TextBlock Grid.Row="0"
-                               Grid.Column="0"
-                               Text="&#21327;&#35758;&#31867;&#22411;:"
-                               VerticalAlignment="Center"
-                               Margin="0,0,10,0"/>
-                    <ComboBox Grid.Row="0"
-                              Grid.Column="1"
-                              x:Name="ProtocolTypeComboBox"
-                              SelectedIndex="0">
-                        <ComboBoxItem Content="&#20018;&#21475;"/>
-                        <ComboBoxItem Content="2 &#32447;&#20018;&#21475;"/>
-                        <ComboBoxItem Content="3 &#32447;&#20018;&#21475;"/>
-                        <ComboBoxItem Content="4 &#32447;&#20018;&#21475;"/>
-                    </ComboBox>
+                    <StackPanel Grid.Row="0"
+                                Grid.Column="0"
+                                HorizontalAlignment="Left">
+                        <TextBlock Style="{StaticResource FieldLabelStyle}"
+                                   Text="&#21327;&#35758;&#31867;&#22411;"/>
+                        <ComboBox x:Name="ProtocolTypeComboBox"
+                                  Style="{StaticResource FieldComboBoxStyle}"
+                                  SelectedIndex="0">
+                            <ComboBoxItem Content="&#20018;&#21475;"/>
+                            <ComboBoxItem Content="2 &#32447;&#20018;&#21475;"/>
+                            <ComboBoxItem Content="3 &#32447;&#20018;&#21475;"/>
+                            <ComboBoxItem Content="4 &#32447;&#20018;&#21475;"/>
+                        </ComboBox>
+                    </StackPanel>
 
-                    <TextBlock Grid.Row="1"
-                               Grid.ColumnSpan="3"
-                               Margin="0,10,0,0"
-                               Text="&#21442;&#32771;&#29616;&#26377;&#21327;&#35758;&#37197;&#32622;&#24067;&#23616;&#65292;2/3/4 &#32447;&#22312;&#21407;&#26377;&#22522;&#30784;&#19978;&#26032;&#22686; &quot;&#27599; Bit &#37319;&#26679;&#25968;&quot; &#36755;&#20837;&#39033;&#12290;"
-                               TextWrapping="Wrap"/>
+                    <Border Grid.Row="1"
+                            Grid.ColumnSpan="2"
+                            Margin="0,14,0,0"
+                            Padding="12"
+                            Background="#FFFCFCFC"
+                            BorderBrush="#FFE3E3E3"
+                            BorderThickness="1"
+                            CornerRadius="4">
+                        <Grid>
+                            <StackPanel x:Name="UartConfigPanel">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="18"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
 
-                    <Grid Grid.Row="2"
-                          Grid.ColumnSpan="3"
-                          Margin="0,12,0,0">
-                        <StackPanel x:Name="UartConfigPanel">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="220"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="220"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Row="0"
+                                                Grid.Column="0"
+                                                Margin="0,0,0,14">
+                                        <TextBlock Style="{StaticResource FieldLabelStyle}"
+                                                   Text="&#27874;&#29305;&#29575;"/>
+                                        <ComboBox x:Name="BaudRateComboBox"
+                                                  Style="{StaticResource FieldComboBoxStyle}"
+                                                  IsEditable="True"
+                                                  Text="115200">
+                                            <ComboBoxItem Content="9600"/>
+                                            <ComboBoxItem Content="19200"/>
+                                            <ComboBoxItem Content="38400"/>
+                                            <ComboBoxItem Content="57600"/>
+                                            <ComboBoxItem Content="115200"/>
+                                            <ComboBoxItem Content="230400"/>
+                                            <ComboBoxItem Content="460800"/>
+                                            <ComboBoxItem Content="921600"/>
+                                        </ComboBox>
+                                    </StackPanel>
 
-                                <TextBlock Grid.Row="0"
-                                           Grid.Column="0"
-                                           Text="&#27874;&#29305;&#29575;:"
-                                           VerticalAlignment="Center"
-                                           Margin="0,0,10,0"/>
-                                <ComboBox Grid.Row="0"
-                                          Grid.Column="1"
-                                          x:Name="BaudRateComboBox"
-                                          IsEditable="True"
-                                          Text="115200">
-                                    <ComboBoxItem Content="9600"/>
-                                    <ComboBoxItem Content="19200"/>
-                                    <ComboBoxItem Content="38400"/>
-                                    <ComboBoxItem Content="57600"/>
-                                    <ComboBoxItem Content="115200"/>
-                                    <ComboBoxItem Content="230400"/>
-                                    <ComboBoxItem Content="460800"/>
-                                    <ComboBoxItem Content="921600"/>
-                                </ComboBox>
+                                    <StackPanel Grid.Row="0"
+                                                Grid.Column="2"
+                                                Margin="0,0,0,14">
+                                        <TextBlock Style="{StaticResource FieldLabelStyle}"
+                                                   Text="&#26657;&#39564;&#20301;"/>
+                                        <ComboBox x:Name="ParityComboBox"
+                                                  Style="{StaticResource FieldComboBoxStyle}"
+                                                  SelectedIndex="0">
+                                            <ComboBoxItem Content="None"/>
+                                            <ComboBoxItem Content="Odd"/>
+                                            <ComboBoxItem Content="Even"/>
+                                            <ComboBoxItem Content="Mark"/>
+                                            <ComboBoxItem Content="Space"/>
+                                        </ComboBox>
+                                    </StackPanel>
 
-                                <TextBlock Grid.Row="0"
-                                           Grid.Column="2"
-                                           Text="&#26657;&#39564;&#20301;:"
-                                           VerticalAlignment="Center"
-                                           Margin="12,0,10,0"/>
-                                <ComboBox Grid.Row="0"
-                                          Grid.Column="3"
-                                          x:Name="ParityComboBox"
-                                          SelectedIndex="0">
-                                    <ComboBoxItem Content="None"/>
-                                    <ComboBoxItem Content="Odd"/>
-                                    <ComboBoxItem Content="Even"/>
-                                    <ComboBoxItem Content="Mark"/>
-                                    <ComboBoxItem Content="Space"/>
-                                </ComboBox>
+                                    <StackPanel Grid.Row="1"
+                                                Grid.Column="0">
+                                        <TextBlock Style="{StaticResource FieldLabelStyle}"
+                                                   Text="&#25968;&#25454;&#20301;"/>
+                                        <ComboBox x:Name="DataBitsComboBox"
+                                                  Style="{StaticResource FieldComboBoxStyle}"
+                                                  SelectedIndex="3">
+                                            <ComboBoxItem Content="5"/>
+                                            <ComboBoxItem Content="6"/>
+                                            <ComboBoxItem Content="7"/>
+                                            <ComboBoxItem Content="8"/>
+                                            <ComboBoxItem Content="9"/>
+                                        </ComboBox>
+                                    </StackPanel>
 
-                                <TextBlock Grid.Row="1"
-                                           Grid.Column="0"
-                                           Text="&#25968;&#25454;&#20301;:"
-                                           VerticalAlignment="Center"
-                                           Margin="0,10,10,0"/>
-                                <ComboBox Grid.Row="1"
-                                          Grid.Column="1"
-                                          x:Name="DataBitsComboBox"
-                                          Margin="0,10,0,0"
-                                          SelectedIndex="3">
-                                    <ComboBoxItem Content="5"/>
-                                    <ComboBoxItem Content="6"/>
-                                    <ComboBoxItem Content="7"/>
-                                    <ComboBoxItem Content="8"/>
-                                    <ComboBoxItem Content="9"/>
-                                </ComboBox>
+                                    <StackPanel Grid.Row="1"
+                                                Grid.Column="2">
+                                        <TextBlock Style="{StaticResource FieldLabelStyle}"
+                                                   Text="&#20572;&#27490;&#20301;"/>
+                                        <ComboBox x:Name="StopBitsComboBox"
+                                                  Style="{StaticResource FieldComboBoxStyle}"
+                                                  SelectedIndex="0">
+                                            <ComboBoxItem Content="1"/>
+                                            <ComboBoxItem Content="1.5"/>
+                                            <ComboBoxItem Content="2"/>
+                                        </ComboBox>
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
 
-                                <TextBlock Grid.Row="1"
-                                           Grid.Column="2"
-                                           Text="&#20572;&#27490;&#20301;:"
-                                           VerticalAlignment="Center"
-                                           Margin="12,10,10,0"/>
-                                <ComboBox Grid.Row="1"
-                                          Grid.Column="3"
-                                          x:Name="StopBitsComboBox"
-                                          Margin="0,10,0,0"
-                                          SelectedIndex="0">
-                                    <ComboBoxItem Content="1"/>
-                                    <ComboBoxItem Content="1.5"/>
-                                    <ComboBoxItem Content="2"/>
-                                </ComboBox>
-                            </Grid>
-                        </StackPanel>
+                            <StackPanel x:Name="TwoWireConfigPanel"
+                                        Visibility="Collapsed">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="18"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
 
-                        <StackPanel x:Name="TwoWireConfigPanel" Visibility="Collapsed">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="180"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="180"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Style="{StaticResource FieldLabelStyle}"
+                                                   Text="CLK"/>
+                                        <TextBox x:Name="TwoWireClkTextBox"
+                                                 Style="{StaticResource FieldTextBoxStyle}"
+                                                 Text="F0"/>
+                                    </StackPanel>
 
-                                <TextBlock Grid.Column="0"
-                                           Text="CLK:"
-                                           VerticalAlignment="Center"
-                                           Margin="0,0,10,0"/>
-                                <TextBox Grid.Column="1"
-                                         x:Name="TwoWireClkTextBox"
-                                         Text="F0"/>
-                                <TextBlock Grid.Column="2"
-                                           Text="&#25968;&#25454;&#36895;&#29575;:"
-                                           VerticalAlignment="Center"
-                                           Margin="12,0,10,0"/>
-                                <TextBox Grid.Column="3"
-                                         x:Name="TwoWireSamplesPerBitTextBox"
-                                         Text="5M"/>
-                            </Grid>
-                        </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Style="{StaticResource FieldLabelStyle}"
+                                                   Text="&#25968;&#25454;&#36895;&#29575;"/>
+                                        <TextBox x:Name="TwoWireSamplesPerBitTextBox"
+                                                 Style="{StaticResource FieldTextBoxStyle}"
+                                                 Text="5M"/>
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
 
-                        <StackPanel x:Name="ThreeWireConfigPanel" Visibility="Collapsed">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="180"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="180"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
+                            <StackPanel x:Name="ThreeWireConfigPanel"
+                                        Visibility="Collapsed">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="18"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="18"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
 
-                                <TextBlock Grid.Row="0" Grid.Column="0" Text="CLK:" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                                <TextBox  Grid.Row="0" Grid.Column="1" x:Name="ThreeWireClkTextBox" Text="F0"/>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Style="{StaticResource FieldLabelStyle}"
+                                                   Text="CLK"/>
+                                        <TextBox x:Name="ThreeWireClkTextBox"
+                                                 Style="{StaticResource FieldTextBoxStyle}"
+                                                 Text="F0"/>
+                                    </StackPanel>
 
-                                <TextBlock Grid.Row="0" Grid.Column="2" Text="EN:"
-                                           VerticalAlignment="Center"
-                                           Margin="12,0,10,0"/>
-                                <TextBox Grid.Row="0"
-                                         Grid.Column="3"
-                                         x:Name="ThreeWireEnTextBox"
-                                         Text="0F"/>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Style="{StaticResource FieldLabelStyle}"
+                                                   Text="EN"/>
+                                        <TextBox x:Name="ThreeWireEnTextBox"
+                                                 Style="{StaticResource FieldTextBoxStyle}"
+                                                 Text="0F"/>
+                                    </StackPanel>
 
-                                <TextBlock Grid.Row="1"
-                                           Grid.Column="0"
-                                           Text="&#25968;&#25454;&#36895;&#29575;:"
-                                           VerticalAlignment="Center"
-                                           Margin="0,10,10,0"/>
-                                <TextBox Grid.Row="1"
-                                         Grid.Column="1"
-                                         x:Name="ThreeWireSamplesPerBitTextBox"
-                                         Margin="0,10,0,0"
-                                         Text="5M"/>
-                            </Grid>
-                        </StackPanel>
+                                    <StackPanel Grid.Column="4">
+                                        <TextBlock Style="{StaticResource FieldLabelStyle}"
+                                                   Text="&#25968;&#25454;&#36895;&#29575;"/>
+                                        <TextBox x:Name="ThreeWireSamplesPerBitTextBox"
+                                                 Style="{StaticResource FieldTextBoxStyle}"
+                                                 Text="5M"/>
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
 
-                        <StackPanel x:Name="FourWireConfigPanel" Visibility="Collapsed">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="180"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="180"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
+                            <StackPanel x:Name="FourWireConfigPanel"
+                                        Visibility="Collapsed">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="18"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="18"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
 
-                                <TextBlock Grid.Row="0"  Grid.Column="0" Text="CLK:" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                                <TextBox Grid.Row="0" Grid.Column="1" x:Name="FourWireClkTextBox" Text="F0"/>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Style="{StaticResource FieldLabelStyle}"
+                                                   Text="CLK"/>
+                                        <TextBox x:Name="FourWireClkTextBox"
+                                                 Style="{StaticResource FieldTextBoxStyle}"
+                                                 Text="F0"/>
+                                    </StackPanel>
 
-                                <TextBlock Grid.Row="0" Grid.Column="2" Text="EN:"
-                                           VerticalAlignment="Center"
-                                           Margin="12,0,10,0"/>
-                                <TextBox Grid.Row="0"
-                                         Grid.Column="3"
-                                         x:Name="FourWireEnTextBox"
-                                         Text="0F"/>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Style="{StaticResource FieldLabelStyle}"
+                                                   Text="EN"/>
+                                        <TextBox x:Name="FourWireEnTextBox"
+                                                 Style="{StaticResource FieldTextBoxStyle}"
+                                                 Text="0F"/>
+                                    </StackPanel>
 
-                                <TextBlock Grid.Row="1"
-                                           Grid.Column="0"
-                                           Text="&#25968;&#25454;&#36895;&#29575;:"
-                                           VerticalAlignment="Center"
-                                           Margin="0,10,10,0"/>
-                                <TextBox Grid.Row="1"
-                                         Grid.Column="1"
-                                         x:Name="FourWireSamplesPerBitTextBox"
-                                         Margin="0,10,0,0"
-                                         Text="5M"/>
-                            </Grid>
-                        </StackPanel>
-                    </Grid>
+                                    <StackPanel Grid.Column="4">
+                                        <TextBlock Style="{StaticResource FieldLabelStyle}"
+                                                   Text="&#25968;&#25454;&#36895;&#29575;"/>
+                                        <TextBox x:Name="FourWireSamplesPerBitTextBox"
+                                                 Style="{StaticResource FieldTextBoxStyle}"
+                                                 Text="5M"/>
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
                 </Grid>
             </GroupBox>
 
-            <DockPanel Grid.Row="3" LastChildFill="False">
-                <TextBlock DockPanel.Dock="Left"
-                           VerticalAlignment="Center"
-                           Foreground="#FF666666"
-                           Text="&#24403;&#21069;&#24050;&#25509;&#20837; 2/3/4 &#32447;&#20018;&#21475; BIN &#29983;&#25104;&#65306;&#27599;&#20010; bit &#25353; &#37319;&#26679;&#29575; / &#25968;&#25454;&#36895;&#29575; &#37325;&#22797;&#37319;&#26679;&#12290;"/>
-                <Button DockPanel.Dock="Right"
-                        x:Name="GenerateBinButton"
-                        Content="Generate BIN"
-                        MinWidth="140"
-                        Height="34"
-                        Padding="18,6"
-                        Click="GenerateBinButton_Click"/>
-            </DockPanel>
+            <Border Grid.Row="3"
+                    Padding="12"
+                    Background="#FFF8F8F8"
+                    BorderBrush="#FFE0E0E0"
+                    BorderThickness="1"
+                    CornerRadius="4">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0"
+                               Margin="0,0,16,0"
+                               VerticalAlignment="Center"
+                               Foreground="#FF666666"
+                               Text="2/3/4 &#32447;&#25353;&#37319;&#26679;&#29575; / &#25968;&#25454;&#36895;&#29575;&#23637;&#24320;&#37319;&#26679;&#12290;"/>
+
+                    <Button Grid.Column="1"
+                            x:Name="GenerateBinButton"
+                            Content="Generate BIN"
+                            MinWidth="148"
+                            Height="36"
+                            Padding="18,6"
+                            HorizontalAlignment="Right"
+                            Click="GenerateBinButton_Click"/>
+                </Grid>
+            </Border>
         </Grid>
     </ScrollViewer>
 </UserControl>
