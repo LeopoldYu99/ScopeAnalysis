@@ -41,8 +41,6 @@ namespace InteractiveExamples
         private bool _isMeasurementHovering;
         private double _measurementHoverXValue;
         private ChartSignal _measurementSignal;
-        private bool _arePointsVisible;
-        private bool _isDecodeVisible = true;
         private bool _isDecodeOverlayDirty = true;
         private bool _isMeasurementVisualDirty = true;
         private double _lastViewportMin = double.NaN;
@@ -56,8 +54,6 @@ namespace InteractiveExamples
         public Example8BillionPoints()
         {
             InitializeComponent();
-            UpdatePointsButton();
-            UpdateDecodeButton();
             CreateChart();
         }
 
@@ -142,7 +138,7 @@ namespace InteractiveExamples
             {
                 Background = Brushes.Transparent,
                 IsHitTestVisible = false,
-                Visibility = _isDecodeVisible ? Visibility.Visible : Visibility.Collapsed
+                Visibility = Visibility.Visible
             };
 
             _measurementStartLine = new Line

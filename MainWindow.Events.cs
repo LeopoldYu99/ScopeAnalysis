@@ -48,16 +48,6 @@ namespace InteractiveExamples
             }
         }
 
-        private void buttonPoints_Click(object sender, RoutedEventArgs e)
-        {
-            SetPointsVisible(_arePointsVisible == false);
-        }
-
-        private void buttonDecode_Click(object sender, RoutedEventArgs e)
-        {
-            SetDecodeVisible(_isDecodeVisible == false);
-        }
-
         private void buttonGenerateBin_Click(object sender, RoutedEventArgs e)
         {
             ShowDataProducerDialog();

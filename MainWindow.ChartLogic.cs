@@ -71,30 +71,6 @@ namespace InteractiveExamples
                 && position.Y <= plotBottom;
         }
 
-        private void UpdatePointsButton()
-        {
-            UpdateXAxisViewModeButton(buttonPoints, _arePointsVisible);
-        }
-
-        private void UpdateDecodeButton()
-        {
-            UpdateXAxisViewModeButton(buttonDecode, _isDecodeVisible);
-        }
-
-        private void SetPointsVisible(bool visible)
-        {
-            _arePointsVisible = visible;
-            UpdatePointsButton();
-            // DigitalLineSeries renders only the digital trace, so there are no point markers to toggle.
-        }
-
-        private void SetDecodeVisible(bool visible)
-        {
-            _isDecodeVisible = visible;
-            UpdateDecodeButton();
-            UpdateDecodeOverlay();
-        }
-
         private void UpdateMeasurementFromControlPosition(double controlX, double controlY)
         {
             double? xValue = TryGetXAxisValueAt(controlX);
@@ -735,7 +711,7 @@ namespace InteractiveExamples
 
         private bool IsPointInsideVisibleDecodeRow(double controlY)
         {
-            if (_isDecodeVisible == false || _chart == null)
+            if (_chart == null)
             {
                 return false;
             }
@@ -905,7 +881,7 @@ namespace InteractiveExamples
             }
 
             _decodeOverlay.Children.Clear();
-            if (_isDecodeVisible == false || _chart == null)
+            if (_chart == null)
             {
                 _decodeOverlay.Visibility = Visibility.Collapsed;
                 return;
@@ -1569,18 +1545,6 @@ namespace InteractiveExamples
             }
 
             return null;
-        }
-
-        private static void UpdateXAxisViewModeButton(Button button, bool isActive)
-        {
-            if (button == null)
-            {
-                return;
-            }
-
-            button.Background = isActive ? new SolidColorBrush(Color.FromRgb(255, 204, 0)) : new SolidColorBrush(Color.FromRgb(70, 70, 70));
-            button.BorderBrush = isActive ? new SolidColorBrush(Color.FromRgb(255, 230, 140)) : new SolidColorBrush(Color.FromRgb(120, 120, 120));
-            button.Foreground = isActive ? Brushes.Black : Brushes.White;
         }
 
         private void MarkDecodeOverlayDirty()
