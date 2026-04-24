@@ -213,423 +213,131 @@ namespace InteractiveExamples
             {
                 return;
             }
-            SignalImportSelection selection = null;
 
-            Window dialog = new Window
+            using (Forms.FolderBrowserDialog folderDialog = new Forms.FolderBrowserDialog())
             {
-                Title = "Import",
-                Owner = this,
-                Width = 560,
-                Height = 390,
-                WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                ResizeMode = ResizeMode.NoResize,
-                Background = Brushes.White
-            };
+                folderDialog.Description = "Select a folder that contains the BIN files.";
+                folderDialog.ShowNewFolderButton = false;
+                folderDialog.SelectedPath = _currentProtocolImportSession == null
+                    ? string.Empty
+                    : _currentProtocolImportSession.FolderPath;
 
-            Grid layoutRoot = new Grid
-            {
-                Margin = new Thickness(16)
-            };
-            layoutRoot.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            layoutRoot.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            layoutRoot.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            layoutRoot.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            layoutRoot.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            layoutRoot.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-            layoutRoot.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            layoutRoot.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            layoutRoot.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            layoutRoot.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-            TextBlock protocolLabel = new TextBlock
-            {
-                Text = "Protocol:",
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, 10, 0)
-            };
-            Grid.SetRow(protocolLabel, 0);
-            Grid.SetColumn(protocolLabel, 0);
-            layoutRoot.Children.Add(protocolLabel);
-
-            ComboBox protocolComboBox = new ComboBox
-            {
-                MinWidth = 220,
-                SelectedIndex = 0
-            };
-            protocolComboBox.Items.Add("Single channel");
-            protocolComboBox.Items.Add("2-wire");
-            protocolComboBox.Items.Add("3-wire");
-            protocolComboBox.Items.Add("4-wire");
-            Grid.SetRow(protocolComboBox, 0);
-            Grid.SetColumn(protocolComboBox, 1);
-            Grid.SetColumnSpan(protocolComboBox, 2);
-            layoutRoot.Children.Add(protocolComboBox);
-
-            TextBlock pathLabel = new TextBlock
-            {
-                Text = "Folder:",
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 12, 10, 0)
-            };
-            Grid.SetRow(pathLabel, 1);
-            Grid.SetColumn(pathLabel, 0);
-            layoutRoot.Children.Add(pathLabel);
-
-            TextBox importPathTextBox = new TextBox
-            {
-                Margin = new Thickness(0, 12, 10, 0),
-                MinWidth = 220
-            };
-            Grid.SetRow(importPathTextBox, 1);
-            Grid.SetColumn(importPathTextBox, 1);
-            layoutRoot.Children.Add(importPathTextBox);
-
-            Button browseButton = new Button
-            {
-                Content = "Browse...",
-                Width = 96,
-                Height = 28,
-                Margin = new Thickness(0, 12, 0, 0)
-            };
-            browseButton.Click += (sender, e) =>
-            {
-                using (Forms.FolderBrowserDialog folderDialog = new Forms.FolderBrowserDialog())
+                if (folderDialog.ShowDialog() != Forms.DialogResult.OK)
                 {
-                    folderDialog.Description = "Select a folder that contains the paged BIN files.";
-                    folderDialog.ShowNewFolderButton = false;
-                    if (folderDialog.ShowDialog() == Forms.DialogResult.OK)
-                    {
-                        importPathTextBox.Text = folderDialog.SelectedPath;
-                    }
-                }
-            };
-            Grid.SetRow(browseButton, 1);
-            Grid.SetColumn(browseButton, 2);
-            layoutRoot.Children.Add(browseButton);
-
-            Action updateImportPathPrompt = () =>
-            {
-                pathLabel.Text = "Folder:";
-            };
-            protocolComboBox.SelectionChanged += (sender, e) => updateImportPathPrompt();
-            updateImportPathPrompt();
-
-            TextBlock sampleRateLabel = new TextBlock
-            {
-                Text = "Sample Rate:",
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 12, 10, 0)
-            };
-            Grid.SetRow(sampleRateLabel, 2);
-            Grid.SetColumn(sampleRateLabel, 0);
-            sampleRateLabel.Visibility = Visibility.Collapsed;
-            layoutRoot.Children.Add(sampleRateLabel);
-
-            TextBox sampleRateTextBox = new TextBox
-            {
-                Margin = new Thickness(0, 12, 10, 0),
-                MinWidth = 220,
-                Text = "50000000"
-            };
-            Grid.SetRow(sampleRateTextBox, 2);
-            Grid.SetColumn(sampleRateTextBox, 1);
-            sampleRateTextBox.Visibility = Visibility.Collapsed;
-            layoutRoot.Children.Add(sampleRateTextBox);
-
-            TextBlock sampleRateUnitTextBlock = new TextBlock
-            {
-                Text = "Hz",
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 12, 0, 0)
-            };
-            Grid.SetRow(sampleRateUnitTextBlock, 2);
-            Grid.SetColumn(sampleRateUnitTextBlock, 2);
-            sampleRateUnitTextBlock.Visibility = Visibility.Collapsed;
-            layoutRoot.Children.Add(sampleRateUnitTextBlock);
-
-            TextBlock dataRateLabel = new TextBlock
-            {
-                Text = "Data Rate:",
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 12, 10, 0)
-            };
-            Grid.SetRow(dataRateLabel, 3);
-            Grid.SetColumn(dataRateLabel, 0);
-            layoutRoot.Children.Add(dataRateLabel);
-
-            TextBox dataRateTextBox = new TextBox
-            {
-                Margin = new Thickness(0, 12, 10, 0),
-                MinWidth = 220,
-                Text = "5M"
-            };
-            Grid.SetRow(dataRateTextBox, 3);
-            Grid.SetColumn(dataRateTextBox, 1);
-            layoutRoot.Children.Add(dataRateTextBox);
-
-            TextBlock dataRateUnitTextBlock = new TextBlock
-            {
-                Text = "bps",
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 12, 0, 0)
-            };
-            Grid.SetRow(dataRateUnitTextBlock, 3);
-            Grid.SetColumn(dataRateUnitTextBlock, 2);
-            layoutRoot.Children.Add(dataRateUnitTextBlock);
-
-            TextBlock folderMetadataTextBlock = new TextBlock
-            {
-                TextWrapping = TextWrapping.Wrap,
-                Margin = new Thickness(0, 12, 0, 0),
-                Foreground = Brushes.DimGray,
-                Visibility = Visibility.Collapsed
-            };
-            Grid.SetRow(folderMetadataTextBlock, 4);
-            Grid.SetColumnSpan(folderMetadataTextBlock, 3);
-            layoutRoot.Children.Add(folderMetadataTextBlock);
-
-            Action updateDataRateVisibility = () =>
-            {
-                Visibility visibility = GetSelectedImportProtocolType(protocolComboBox.SelectedIndex) == SerialProtocolType.Uart
-                    ? Visibility.Collapsed
-                    : Visibility.Visible;
-                dataRateLabel.Visibility = visibility;
-                dataRateTextBox.Visibility = visibility;
-                dataRateUnitTextBlock.Visibility = visibility;
-            };
-            Action updateProtocolFolderMetadata = () =>
-            {
-                SerialProtocolType selectedProtocolType = GetSelectedImportProtocolType(protocolComboBox.SelectedIndex);
-                dataRateTextBox.IsEnabled = false;
-                folderMetadataTextBlock.Visibility = Visibility.Visible;
-
-                string folderPath = importPathTextBox.Text == null ? string.Empty : importPathTextBox.Text.Trim();
-                if (selectedProtocolType == SerialProtocolType.Uart)
-                {
-                    UartBinFileMetadata uartMetadata;
-                    if (string.IsNullOrWhiteSpace(folderPath) == false
-                        && ProtocolBinNaming.TryParseUartFolderMetadata(folderPath, out uartMetadata)
-                        && uartMetadata.LineCount == 1)
-                    {
-                        sampleRateTextBox.Text = uartMetadata.SampleRate.ToString(CultureInfo.InvariantCulture);
-                        dataRateTextBox.Text = string.Empty;
-                        folderMetadataTextBlock.Foreground = Brushes.DimGray;
-                        folderMetadataTextBlock.Text = string.Format(
-                            CultureInfo.InvariantCulture,
-                            "UART folder metadata: Sample Rate {0} Hz, Baud {1} bps, Parity {2}, Data Bits {3}, Stop Bits {4}, Time {5}",
-                            uartMetadata.SampleRate,
-                            uartMetadata.BaudRate,
-                            uartMetadata.ParityText,
-                            uartMetadata.DataBits,
-                            uartMetadata.StopBits,
-                            uartMetadata.TimestampText);
-                        return;
-                    }
-
-                    sampleRateTextBox.Text = string.Empty;
-                    dataRateTextBox.Text = string.Empty;
-                    folderMetadataTextBlock.Foreground = Brushes.DarkRed;
-                    folderMetadataTextBlock.Text = "Folder name must be: 1;sampleRate;baudRate;parity;dataBits;stopBits;timestamp for single channel imports.";
                     return;
                 }
 
-                ProtocolBinFolderMetadata folderMetadata;
-                if (string.IsNullOrWhiteSpace(folderPath) == false
-                    && ProtocolBinNaming.TryParseFolderMetadata(folderPath, out folderMetadata)
-                    && folderMetadata.DataRate > 0)
+                SignalImportSelection selection;
+                string validationMessage;
+                if (TryBuildSignalImportSelectionFromFolder(folderDialog.SelectedPath, out selection, out validationMessage) == false)
                 {
-                    sampleRateTextBox.Text = folderMetadata.SampleRate.ToString(CultureInfo.InvariantCulture);
-                    dataRateTextBox.Text = folderMetadata.DataRate.ToString(CultureInfo.InvariantCulture);
-                    folderMetadataTextBlock.Foreground = Brushes.DimGray;
-                    folderMetadataTextBlock.Text = string.Format(
-                        CultureInfo.InvariantCulture,
-                        "Folder metadata: Sample Rate {0} Hz, Data Rate {1} bps, Time {2}",
-                        folderMetadata.SampleRate,
-                        folderMetadata.DataRate,
-                        folderMetadata.TimestampText);
-                }
-                else
-                {
-                    sampleRateTextBox.Text = string.Empty;
-                    dataRateTextBox.Text = string.Empty;
-                    folderMetadataTextBlock.Foreground = Brushes.DarkRed;
-                    folderMetadataTextBlock.Text = "Folder name must be: lineCount;sampleRate;dataRate;timestamp; for 2-wire / 3-wire / 4-wire imports.";
-                }
-            };
-            protocolComboBox.SelectionChanged += (sender, e) =>
-            {
-                updateDataRateVisibility();
-                updateProtocolFolderMetadata();
-            };
-            importPathTextBox.TextChanged += (sender, e) => updateProtocolFolderMetadata();
-            updateDataRateVisibility();
-            updateProtocolFolderMetadata();
-
-            TextBlock hintTextBlock = new TextBlock
-            {
-                Text = "Single channel imports a folder named 1;sampleRate;baudRate;parity;dataBits;stopBits;timestamp. 2-wire / 3-wire / 4-wire imports select a folder named lineCount;sampleRate;dataRate;timestamp;. Sample rate is read from the folder name.",
-                TextWrapping = TextWrapping.Wrap,
-                Margin = new Thickness(0, 16, 0, 0),
-                Foreground = Brushes.DimGray
-            };
-            Grid.SetRow(hintTextBlock, 5);
-            Grid.SetColumnSpan(hintTextBlock, 3);
-            layoutRoot.Children.Add(hintTextBlock);
-
-            StackPanel buttonBar = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                HorizontalAlignment = HorizontalAlignment.Right,
-                Margin = new Thickness(0, 16, 0, 0)
-            };
-
-            Button importButton = new Button
-            {
-                Content = "Import",
-                Width = 96,
-                Height = 32,
-                Margin = new Thickness(0, 0, 8, 0),
-                IsDefault = true
-            };
-            importButton.Click += (sender, e) =>
-            {
-                string selectedProtocol = protocolComboBox.SelectedItem as string;
-                SerialProtocolType selectedProtocolType = GetSelectedImportProtocolType(protocolComboBox.SelectedIndex);
-                string importPath = importPathTextBox.Text == null ? string.Empty : importPathTextBox.Text.Trim();
-                uint sampleRate = 0;
-                uint dataRate = 0;
-                string timestampText = string.Empty;
-                bool hasUartMetadata = false;
-                int uartBaudRate = 0;
-                UartParityMode uartParityMode = UartParityMode.None;
-                int uartDataBits = 0;
-                double uartStopBits = 0;
-                int uartSamplesPerBit = 0;
-
-                if (string.IsNullOrEmpty(selectedProtocol))
-                {
-                    MessageBox.Show(dialog, "Please select a protocol.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(this, validationMessage, "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
-                if (string.IsNullOrEmpty(importPath))
+                ImportProtocolFolderToSignals(signalIndex, selection);
+            }
+        }
+
+        private static bool TryBuildSignalImportSelectionFromFolder(
+            string importPath,
+            out SignalImportSelection selection,
+            out string validationMessage)
+        {
+            selection = null;
+            validationMessage = string.Empty;
+
+            if (string.IsNullOrWhiteSpace(importPath))
+            {
+                validationMessage = "Please select a folder.";
+                return false;
+            }
+
+            if (Directory.Exists(importPath) == false)
+            {
+                validationMessage = "Selected folder does not exist.";
+                return false;
+            }
+
+            UartBinFileMetadata uartMetadata;
+            if (ProtocolBinNaming.TryParseUartFolderMetadata(importPath, out uartMetadata))
+            {
+                if (uartMetadata.LineCount != 1)
                 {
-                    MessageBox.Show(dialog, "Please select a folder.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
+                    validationMessage = "Single channel folder line count must be 1.";
+                    return false;
                 }
 
-                if (Directory.Exists(importPath) == false)
+                UartParityMode uartParityMode;
+                if (TryParseUartParityMode(uartMetadata.ParityText, out uartParityMode) == false)
                 {
-                    MessageBox.Show(dialog, "Selected folder does not exist.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
+                    validationMessage = "UART parity in the folder name is invalid.";
+                    return false;
                 }
 
-                if (selectedProtocolType == SerialProtocolType.Uart)
+                int uartSamplesPerBit = GetSamplesPerBit(uartMetadata.SampleRate, (uint)uartMetadata.BaudRate);
+                if (uartMetadata.SampleRate == 0 || uartSamplesPerBit <= 0)
                 {
-                    UartBinFileMetadata uartMetadata;
-                    if (ProtocolBinNaming.TryParseUartFolderMetadata(importPath, out uartMetadata) == false)
-                    {
-                        MessageBox.Show(dialog, "Folder name must be: 1;sampleRate;baudRate;parity;dataBits;stopBits;timestamp.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
-                        return;
-                    }
-
-                    if (uartMetadata.LineCount != 1)
-                    {
-                        MessageBox.Show(dialog, "Single channel folder line count must be 1.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
-                        return;
-                    }
-
-                    if (TryParseUartParityMode(uartMetadata.ParityText, out uartParityMode) == false)
-                    {
-                        MessageBox.Show(dialog, "UART parity in the folder name is invalid.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
-                        return;
-                    }
-
-                    sampleRate = uartMetadata.SampleRate;
-                    timestampText = uartMetadata.TimestampText;
-                    hasUartMetadata = true;
-                    uartBaudRate = uartMetadata.BaudRate;
-                    uartDataBits = uartMetadata.DataBits;
-                    uartStopBits = uartMetadata.StopBits;
-                    uartSamplesPerBit = GetSamplesPerBit(uartMetadata.SampleRate, (uint)uartMetadata.BaudRate);
-                    if (sampleRate == 0 || uartSamplesPerBit <= 0)
-                    {
-                        MessageBox.Show(dialog, "UART sample rate and repeated samples per bit must be positive values.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
-                        return;
-                    }
-                }
-                else
-                {
-                    ProtocolBinFolderMetadata folderMetadata;
-                    if (ProtocolBinNaming.TryParseFolderMetadata(importPath, out folderMetadata) == false || folderMetadata.DataRate == 0)
-                    {
-                        MessageBox.Show(dialog, "Folder name must be: lineCount;sampleRate;dataRate;timestamp;.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
-                        return;
-                    }
-
-                    string[] channelNames = GetProtocolChannelNames(selectedProtocolType);
-                    int expectedLineCount = channelNames == null ? 0 : channelNames.Length;
-                    if (expectedLineCount > 0 && folderMetadata.LineCount != expectedLineCount)
-                    {
-                        MessageBox.Show(dialog, "Folder line count does not match the selected protocol.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
-                        return;
-                    }
-
-                    sampleRate = folderMetadata.SampleRate;
-                    dataRate = folderMetadata.DataRate;
-                    timestampText = folderMetadata.TimestampText;
-                    if (sampleRate == 0 || dataRate == 0)
-                    {
-                        MessageBox.Show(dialog, "Folder sample rate and data rate must be positive values.", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
-                        return;
-                    }
+                    validationMessage = "UART sample rate and repeated samples per bit must be positive values.";
+                    return false;
                 }
 
                 selection = new SignalImportSelection
                 {
-                    ProtocolType = selectedProtocolType,
-                    ProtocolName = selectedProtocol,
+                    ProtocolType = SerialProtocolType.Uart,
+                    ProtocolName = GetImportProtocolDisplayName(SerialProtocolType.Uart),
                     ImportPath = importPath,
-                    SampleRate = sampleRate,
-                    DataRate = dataRate,
-                    TimestampText = timestampText,
-                    HasUartMetadata = hasUartMetadata,
-                    UartBaudRate = uartBaudRate,
+                    SampleRate = uartMetadata.SampleRate,
+                    DataRate = 0,
+                    TimestampText = uartMetadata.TimestampText,
+                    HasUartMetadata = true,
+                    UartBaudRate = uartMetadata.BaudRate,
                     UartParityMode = uartParityMode,
-                    UartDataBits = uartDataBits,
-                    UartStopBits = uartStopBits,
+                    UartDataBits = uartMetadata.DataBits,
+                    UartStopBits = uartMetadata.StopBits,
                     UartSamplesPerBit = uartSamplesPerBit
                 };
-                dialog.DialogResult = true;
-            };
-
-            Button cancelButton = new Button
-            {
-                Content = "Cancel",
-                Width = 96,
-                Height = 32,
-                IsCancel = true
-            };
-            cancelButton.Click += (sender, e) =>
-            {
-                dialog.DialogResult = false;
-            };
-
-            buttonBar.Children.Add(importButton);
-            buttonBar.Children.Add(cancelButton);
-            Grid.SetRow(buttonBar, 6);
-            Grid.SetColumnSpan(buttonBar, 3);
-            layoutRoot.Children.Add(buttonBar);
-
-            dialog.Content = layoutRoot;
-
-            bool? result = dialog.ShowDialog();
-            if (result != true || selection == null)
-            {
-                return;
+                return true;
             }
 
-            ImportProtocolFolderToSignals(signalIndex, selection);
+            ProtocolBinFolderMetadata folderMetadata;
+            if (ProtocolBinNaming.TryParseFolderMetadata(importPath, out folderMetadata) == false || folderMetadata.DataRate == 0)
+            {
+                validationMessage = "Folder name must be either 1;sampleRate;baudRate;parity;dataBits;stopBits;timestamp or lineCount;sampleRate;dataRate;timestamp;.";
+                return false;
+            }
+
+            SerialProtocolType protocolType;
+            if (TryGetProtocolTypeFromLineCount(folderMetadata.LineCount, out protocolType) == false)
+            {
+                validationMessage = folderMetadata.LineCount == 1
+                    ? "Single channel imports require a folder name like 1;sampleRate;baudRate;parity;dataBits;stopBits;timestamp."
+                    : "Folder line count must be 2, 3, or 4 to determine the import type automatically.";
+                return false;
+            }
+
+            if (folderMetadata.SampleRate == 0 || folderMetadata.DataRate == 0)
+            {
+                validationMessage = "Folder sample rate and data rate must be positive values.";
+                return false;
+            }
+
+            selection = new SignalImportSelection
+            {
+                ProtocolType = protocolType,
+                ProtocolName = GetImportProtocolDisplayName(protocolType),
+                ImportPath = importPath,
+                SampleRate = folderMetadata.SampleRate,
+                DataRate = folderMetadata.DataRate,
+                TimestampText = folderMetadata.TimestampText,
+                HasUartMetadata = false,
+                UartBaudRate = 0,
+                UartParityMode = UartParityMode.None,
+                UartDataBits = 0,
+                UartStopBits = 0,
+                UartSamplesPerBit = 0
+            };
+            return true;
         }
 
         private void ImportBinaryWaveformToSignal(int signalIndex, SignalImportSelection selection)
@@ -1300,6 +1008,25 @@ namespace InteractiveExamples
                     parityMode = UartParityMode.Space;
                     return true;
                 default:
+                    return false;
+            }
+        }
+
+        private static bool TryGetProtocolTypeFromLineCount(int lineCount, out SerialProtocolType protocolType)
+        {
+            switch (lineCount)
+            {
+                case 2:
+                    protocolType = SerialProtocolType.TwoWireSerial;
+                    return true;
+                case 3:
+                    protocolType = SerialProtocolType.ThreeWireSerial;
+                    return true;
+                case 4:
+                    protocolType = SerialProtocolType.FourWireSerial;
+                    return true;
+                default:
+                    protocolType = SerialProtocolType.Uart;
                     return false;
             }
         }
