@@ -44,6 +44,10 @@
     </Reference>
     <Reference Include="Arction.DirectXInit, Version=10.3.2.4002, Culture=neutral, PublicKeyToken=6484d7bb14b95dd3, processorArchitecture=MSIL">
     </Reference>
+    <Reference Include="Arction.Licensing, Version=2.2.3.2, Culture=neutral, PublicKeyToken=6484d7bb14b95dd3, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\ControlTest\PolarControl\bin\Debug\Arction.Licensing.dll</HintPath>
+    </Reference>
     <Reference Include="Arction.RenderingDefinitions, Version=10.3.2.4002, Culture=neutral, PublicKeyToken=6484d7bb14b95dd3, processorArchitecture=MSIL">
     </Reference>
     <Reference Include="Arction.RenderingEngine, Version=10.3.2.4002, Culture=neutral, PublicKeyToken=6484d7bb14b95dd3, processorArchitecture=MSIL">
@@ -89,6 +93,7 @@
       <DependentUpon>App.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="AppLog.cs" />
     <Compile Include="ChartSignal.cs">
       <SubType>Code</SubType>
     </Compile>
