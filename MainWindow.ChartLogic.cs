@@ -894,6 +894,7 @@ namespace InteractiveExamples
 
         private const double DecodeVerticalOffset = -30.0;
         private const double DecodeSegmentEdgeTolerance = 1e-9;
+        private const double DecodeViewportTolerance = 1e-9;
 
         private void UpdateDecodeOverlay()
         {
@@ -1036,8 +1037,21 @@ namespace InteractiveExamples
 
         private void DrawProtocolSegment(ProtocolSegment segment, double plotLeft, double rowTop, double plotWidth, double rowHeight, double visibleMin, double visibleMax)
         {
-            double left = plotLeft + (segment.StartX - visibleMin) / (visibleMax - visibleMin) * plotWidth;
-            double right = plotLeft + (segment.EndX - visibleMin) / (visibleMax - visibleMin) * plotWidth;
+            double xRange = visibleMax - visibleMin;
+            if (xRange <= 0)
+            {
+                return;
+            }
+
+            double normalizedStart = Math.Max(0.0, Math.Min(1.0, (segment.StartX - visibleMin) / xRange));
+            double normalizedEnd = Math.Max(0.0, Math.Min(1.0, (segment.EndX - visibleMin) / xRange));
+            if (normalizedEnd <= normalizedStart)
+            {
+                return;
+            }
+
+            double left = plotLeft + normalizedStart * plotWidth;
+            double right = plotLeft + normalizedEnd * plotWidth;
             double width = right - left;
             if (width < 4.0)
             {
@@ -1098,6 +1112,7 @@ namespace InteractiveExamples
                     DrawVisibleDataBitLabels(segment, rowTop, rowHeight, visibleMin, visibleMax, plotLeft, plotWidth);
                 }
 
+                TryDrawCenteredSegmentLabel(segment, left, rowTop, width, rowHeight);
                 return;
             }
 
@@ -1123,6 +1138,36 @@ namespace InteractiveExamples
 
             Canvas.SetLeft(label, left + (width - label.DesiredSize.Width) / 2.0);
             Canvas.SetTop(label, rowTop + (rowHeight - label.DesiredSize.Height) / 2.0 - 1.0);
+            _decodeOverlay.Children.Add(label);
+        }
+
+        private void TryDrawCenteredSegmentLabel(ProtocolSegment segment, double left, double rowTop, double width, double rowHeight)
+        {
+            if (segment == null || string.IsNullOrWhiteSpace(segment.Label) || width < 18.0)
+            {
+                return;
+            }
+
+            TextBlock label = new TextBlock
+            {
+                Text = segment.Label,
+                Foreground = new SolidColorBrush(segment.ForegroundColor),
+                FontSize = segment.IsMarker ? 11 : 12,
+                FontWeight = FontWeights.Bold
+            };
+
+            label.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            if (label.DesiredSize.Width > width - 6.0)
+            {
+                return;
+            }
+
+            double topOffset = segment.IsMarker || segment.BitLabels == null || segment.BitLabels.Length == 0
+                ? (rowHeight - label.DesiredSize.Height) / 2.0 - 1.0
+                : 1.0;
+
+            Canvas.SetLeft(label, left + (width - label.DesiredSize.Width) / 2.0);
+            Canvas.SetTop(label, rowTop + topOffset);
             _decodeOverlay.Children.Add(label);
         }
 
@@ -1398,16 +1443,17 @@ namespace InteractiveExamples
                 return visibleSegments;
             }
 
-            int startIndex = FindFirstVisibleSegmentIndex(segments, visibleMin);
+            double tolerance = GetDecodeViewportTolerance(visibleMin, visibleMax);
+            int startIndex = FindFirstVisibleSegmentIndex(segments, visibleMin, tolerance);
             for (int i = startIndex; i < segments.Count; i++)
             {
                 ProtocolSegment segment = segments[i];
-                if (segment.StartX > visibleMax)
+                if (segment.StartX > visibleMax + tolerance)
                 {
                     break;
                 }
 
-                if (segment.EndX < visibleMin)
+                if (segment.EndX < visibleMin - tolerance)
                 {
                     continue;
                 }
@@ -1437,7 +1483,7 @@ namespace InteractiveExamples
             return visibleSegments;
         }
 
-        private static int FindFirstVisibleSegmentIndex(List<ProtocolSegment> segments, double visibleMin)
+        private static int FindFirstVisibleSegmentIndex(List<ProtocolSegment> segments, double visibleMin, double tolerance)
         {
             int low = 0;
             int high = segments.Count - 1;
@@ -1446,7 +1492,7 @@ namespace InteractiveExamples
             while (low <= high)
             {
                 int mid = low + ((high - low) / 2);
-                if (segments[mid].EndX >= visibleMin)
+                if (segments[mid].EndX >= visibleMin - tolerance)
                 {
                     result = mid;
                     high = mid - 1;
@@ -1458,6 +1504,13 @@ namespace InteractiveExamples
             }
 
             return result;
+        }
+
+        private static double GetDecodeViewportTolerance(double visibleMin, double visibleMax)
+        {
+            double scale = Math.Max(1.0, Math.Max(Math.Abs(visibleMin), Math.Abs(visibleMax)));
+            double range = Math.Max(0.0, visibleMax - visibleMin);
+            return Math.Max(range * DecodeViewportTolerance, scale * DecodeViewportTolerance);
         }
 
         private AxisY TryGetYAxisAt(double controlY)
