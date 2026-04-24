@@ -454,9 +454,9 @@ namespace ScopeAnalysis
                 return _measurementHoverXValue.ToString("0.000");
             }
 
-            string edgeLabel = measurement.Direction == DigitalEdgeDirection.Rising ? "Rising Edge" : "Falling Edge";
+            string edgeLabel = measurement.Direction == DigitalEdgeDirection.Rising ? "上升沿" : "下降沿";
             return string.Format(
-                "{0}\n瀹藉害: {1}\n鍛ㄦ湡: {2}\n鍗犵┖姣? {3:0.00}%",
+                "{0}\n宽度: {1}\n周期: {2}\n占空比: {3:0.00}%",
                 edgeLabel,
                 FormatTimeValue(measurement.Width),
                 FormatTimeValue(measurement.Period),
@@ -469,25 +469,25 @@ namespace ScopeAnalysis
             double absoluteSeconds = Math.Abs(seconds);
             if (absoluteSeconds >= 1.0)
             {
-                return string.Format("{0:0.###} s", seconds);
+                return string.Format("{0:0.###} 秒", seconds);
             }
 
             if (absoluteSeconds >= 1e-3)
             {
-                return string.Format("{0:0.###} ms", seconds * 1e3);
+                return string.Format("{0:0.###} 毫秒", seconds * 1e3);
             }
 
             if (absoluteSeconds >= 1e-6)
             {
-                return string.Format("{0:0.###} us", seconds * 1e6);
+                return string.Format("{0:0.###} 微秒", seconds * 1e6);
             }
 
             if (absoluteSeconds >= 1e-9)
             {
-                return string.Format("{0:0.###} ns", seconds * 1e9);
+                return string.Format("{0:0.###} 纳秒", seconds * 1e9);
             }
 
-            return string.Format("{0:0.###E+0} s", seconds);
+            return string.Format("{0:0.###E+0} 秒", seconds);
         }
 
         private string FormatFrequencyValue(double frequencyHz)
@@ -495,15 +495,15 @@ namespace ScopeAnalysis
             double absoluteFrequency = Math.Abs(frequencyHz);
             if (absoluteFrequency >= 1e6)
             {
-                return string.Format("{0:0.###} MHz", frequencyHz / 1e6);
+                return string.Format("{0:0.###} 兆赫", frequencyHz / 1e6);
             }
 
             if (absoluteFrequency >= 1e3)
             {
-                return string.Format("{0:0.###} kHz", frequencyHz / 1e3);
+                return string.Format("{0:0.###} 千赫", frequencyHz / 1e3);
             }
 
-            return string.Format("{0:0.###} Hz", frequencyHz);
+            return string.Format("{0:0.###} 赫兹", frequencyHz);
         }
 
         private double GetXAxisSecondsPerUnit()
@@ -514,17 +514,20 @@ namespace ScopeAnalysis
             }
 
             string unitsText = _chart.ViewXY.XAxes[0].Units.Text;
-            if (string.Equals(unitsText, "us", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(unitsText, "us", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(unitsText, "微秒", StringComparison.OrdinalIgnoreCase))
             {
                 return 1e-6;
             }
 
-            if (string.Equals(unitsText, "ms", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(unitsText, "ms", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(unitsText, "毫秒", StringComparison.OrdinalIgnoreCase))
             {
                 return 1e-3;
             }
 
-            if (string.Equals(unitsText, "ns", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(unitsText, "ns", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(unitsText, "纳秒", StringComparison.OrdinalIgnoreCase))
             {
                 return 1e-9;
             }
@@ -1619,7 +1622,7 @@ namespace ScopeAnalysis
 
         private ChartSignal CreateChartSignal(ViewXY view, int seriesIndex)
         {
-            ChartSignal signal = new ChartSignal(string.Format("Signal {0}", seriesIndex + 1));
+            ChartSignal signal = new ChartSignal(string.Format("通道 {0}", seriesIndex + 1));
             signal.DecodeSettings.BaudRate = 19200;
             signal.DecodeSettings.DataBits = 8;
             signal.DecodeSettings.StopBits = 1;
@@ -1641,7 +1644,7 @@ namespace ScopeAnalysis
             axisY.MinorGrid.Visible = false;
             axisY.MajorGrid.Pattern = LinePattern.Solid;
             axisY.AutoDivSeparationPercent = 0;
-            axisY.Units.Text = "mV";
+            axisY.Units.Text = "毫伏";
             axisY.Visible = true;
             axisY.LabelsVisible = false;
             axisY.MajorDivTickStyle.Visible = false;

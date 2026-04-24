@@ -49,7 +49,7 @@ namespace ScopeAnalysis
 
             return new BinaryWaveformImportResult
             {
-                SignalName = string.IsNullOrWhiteSpace(signalName) ? "Signal" : signalName,
+                SignalName = string.IsNullOrWhiteSpace(signalName) ? "通道" : signalName,
                 DigitalWords = PackDigitalWords(bytes, sampleCount),
                 SampleCount = sampleCount,
                 SampleInterval = sampleIntervalSeconds

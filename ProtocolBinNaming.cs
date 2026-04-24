@@ -348,7 +348,7 @@ namespace ScopeAnalysis
         {
             if (string.IsNullOrWhiteSpace(token))
             {
-                return "None";
+                return "无校验";
             }
 
             char[] invalidFileNameChars = System.IO.Path.GetInvalidFileNameChars();
@@ -358,7 +358,7 @@ namespace ScopeAnalysis
                 normalizedToken = normalizedToken.Replace(invalidFileNameChars[i], '_');
             }
 
-            return normalizedToken.Length == 0 ? "None" : normalizedToken;
+            return normalizedToken.Length == 0 ? "无校验" : normalizedToken;
         }
 
         private static bool TryParseStopBits(string text, out double stopBits)

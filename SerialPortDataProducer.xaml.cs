@@ -62,7 +62,7 @@ namespace ScopeAnalysis
             _previewSeed = Environment.TickCount;
             SampleRateTextBox.Text = FixedSampleRate.ToString(CultureInfo.InvariantCulture);
             BaudRateComboBox.Text = "115200";
-            SelectComboBoxItemByText(ParityComboBox, "None");
+            SelectComboBoxItemByText(ParityComboBox, "无校验");
             SelectComboBoxItemByText(DataBitsComboBox, "8");
             SelectComboBoxItemByText(StopBitsComboBox, "1");
             SampleRateTextBox.TextChanged += HandleSettingsChanged;
@@ -181,9 +181,9 @@ namespace ScopeAnalysis
 
                 SaveFileDialog saveDialog = new SaveFileDialog
                 {
-                    Filter = "BIN files (*.bin)|*.bin|All files (*.*)|*.*",
+                    Filter = "BIN 文件 (*.bin)|*.bin|所有文件 (*.*)|*.*",
                     DefaultExt = ".bin",
-                    FileName = "test_data.bin"
+                    FileName = "测试数据.bin"
                 };
 
                 if (saveDialog.ShowDialog() != true)
@@ -195,20 +195,20 @@ namespace ScopeAnalysis
                 MessageBox.Show(
                     string.Format(
                         CultureInfo.InvariantCulture,
-                        "BIN file generated.{0}{0}Path: {1}{0}Bytes: {2:N0}{0}Default value: 0x{3:X2}{0}Default-byte count: {4:N0}{0}Configured empty ratio: {5}%",
+                        "BIN 文件已生成。{0}{0}路径: {1}{0}字节数: {2:N0}{0}默认值: 0x{3:X2}{0}默认字节数: {4:N0}{0}配置的空数据占比: {5}%",
                         Environment.NewLine,
                         saveDialog.FileName,
                         generatedBytes.Length,
                         defaultByteValue,
                         defaultByteCount,
                         emptyDataRatio),
-                    "Success",
+                    "成功",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Generation failed:\n" + ex.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show("生成失败:\n" + ex.Message, "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -252,7 +252,7 @@ namespace ScopeAnalysis
 
                     if (chunks.Length == 0)
                     {
-                        throw new InvalidOperationException("No protocol data was generated for export.");
+                        throw new InvalidOperationException("没有可导出的协议数据。");
                     }
 
                     Directory.CreateDirectory(exportDirectory);
@@ -266,14 +266,14 @@ namespace ScopeAnalysis
                     MessageBox.Show(
                         string.Format(
                             CultureInfo.InvariantCulture,
-                            "Protocol BIN files generated.{0}{0}Protocol: {1}{0}Directory: {2}{0}Files: {3:N0}{0}Payload bytes: {4:N0}{0}Frames: {5:N0}",
+                            "协议 BIN 文件已生成。{0}{0}协议: {1}{0}目录: {2}{0}文件数: {3:N0}{0}载荷字节数: {4:N0}{0}帧数: {5:N0}",
                             Environment.NewLine,
                             GetProtocolDisplayName(protocolType),
                             exportDirectory,
                             chunks.Length,
                             protocolType == SerialProtocolType.FourWireSerial ? Math.Max(payloadBytes.Length, payloadBytes2.Length) : payloadBytes.Length,
                             frameCount),
-                        "Success",
+                        "成功",
                         MessageBoxButton.OK,
                         MessageBoxImage.Information);
 
@@ -290,7 +290,7 @@ namespace ScopeAnalysis
 
                 SaveFileDialog saveDialog = new SaveFileDialog
                 {
-                    Filter = "BIN files (*.bin)|*.bin|All files (*.*)|*.*",
+                    Filter = "BIN 文件 (*.bin)|*.bin|所有文件 (*.*)|*.*",
                     DefaultExt = ".bin",
                     FileName = BuildProtocolExportFileName(protocolType)
                 };
@@ -304,7 +304,7 @@ namespace ScopeAnalysis
                 MessageBox.Show(
                     string.Format(
                         CultureInfo.InvariantCulture,
-                        "Protocol BIN file generated.{0}{0}Protocol: {1}{0}Path: {2}{0}Payload bytes: {3:N0}{0}Export bytes: {4:N0}{0}Frames: {5:N0}",
+                        "协议 BIN 文件已生成。{0}{0}协议: {1}{0}路径: {2}{0}载荷字节数: {3:N0}{0}导出字节数: {4:N0}{0}帧数: {5:N0}",
                         Environment.NewLine,
                         GetProtocolDisplayName(protocolType),
                         saveDialog.FileName,
@@ -312,13 +312,13 @@ namespace ScopeAnalysis
                         protocolType == SerialProtocolType.FourWireSerial ? Math.Max(payloadBytes.Length, payloadBytes2.Length) : payloadBytes.Length,
                         protocolBytes.Length,
                         frameCount),
-                    "Success",
+                    "成功",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Protocol export failed:\n" + ex.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show("协议导出失败:\n" + ex.Message, "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -622,7 +622,7 @@ namespace ScopeAnalysis
 
             if (byteCount > int.MaxValue)
             {
-                throw new InvalidOperationException("Generated data is too large.");
+                throw new InvalidOperationException("生成的数据过大。");
             }
 
             return byteCount;
@@ -743,13 +743,13 @@ namespace ScopeAnalysis
             switch (protocolType)
             {
                 case SerialProtocolType.TwoWireSerial:
-                    return "2-wire serial";
+                    return "2线串口";
                 case SerialProtocolType.ThreeWireSerial:
-                    return "3-wire serial";
+                    return "3线串口";
                 case SerialProtocolType.FourWireSerial:
-                    return "4-wire serial";
+                    return "4线串口";
                 default:
-                    return "涓插彛";
+                    return "串口";
             }
         }
 
@@ -758,13 +758,13 @@ namespace ScopeAnalysis
             switch (protocolType)
             {
                 case SerialProtocolType.TwoWireSerial:
-                    return "two_wire_protocol_data.bin";
+                    return "2线串口协议数据.bin";
                 case SerialProtocolType.ThreeWireSerial:
-                    return "three_wire_protocol_data.bin";
+                    return "3线串口协议数据.bin";
                 case SerialProtocolType.FourWireSerial:
-                    return "four_wire_protocol_data.bin";
+                    return "4线串口协议数据.bin";
                 default:
-                    return "uart_protocol_data.bin";
+                    return "串口协议数据.bin";
             }
         }
 
@@ -772,7 +772,7 @@ namespace ScopeAnalysis
         {
             using (Forms.FolderBrowserDialog folderDialog = new Forms.FolderBrowserDialog())
             {
-                folderDialog.Description = "Select a folder to export protocol BIN files.";
+                folderDialog.Description = "选择导出协议 BIN 文件的文件夹。";
                 folderDialog.ShowNewFolderButton = true;
                 return folderDialog.ShowDialog() == Forms.DialogResult.OK
                     ? folderDialog.SelectedPath
@@ -1042,12 +1042,20 @@ namespace ScopeAnalysis
             string text = GetComboBoxText(ParityComboBox);
             switch (text)
             {
+                case "奇":
+                case "奇校验":
                 case "Odd":
                     return ParityMode.Odd;
+                case "偶":
+                case "偶校验":
                 case "Even":
                     return ParityMode.Even;
+                case "标记":
+                case "标记校验":
                 case "Mark":
                     return ParityMode.Mark;
+                case "空格":
+                case "空格校验":
                 case "Space":
                     return ParityMode.Space;
                 default:
@@ -1068,7 +1076,7 @@ namespace ScopeAnalysis
                 return value;
             }
 
-            throw new InvalidOperationException("Duration must be a positive number.");
+            throw new InvalidOperationException("时长必须是正数。");
         }
 
         private int GetEmptyDataRatio()
@@ -1077,12 +1085,12 @@ namespace ScopeAnalysis
             if (int.TryParse(EmptyDataRatioTextBox.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out value) == false &&
                 int.TryParse(EmptyDataRatioTextBox.Text, out value) == false)
             {
-                throw new InvalidOperationException("Empty data ratio must be an integer.");
+                throw new InvalidOperationException("空数据占比必须是整数。");
             }
 
             if (value < 0 || value > 100)
             {
-                throw new InvalidOperationException("Empty data ratio must be between 0 and 100.");
+                throw new InvalidOperationException("空数据占比必须在 0 到 100 之间。");
             }
 
             return value;
@@ -1103,7 +1111,7 @@ namespace ScopeAnalysis
                 return value;
             }
 
-            throw new InvalidOperationException("Default value must be a hex byte like 00 or FF.");
+            throw new InvalidOperationException("默认值必须是类似 00 或 FF 的十六进制字节。");
         }
 
         private byte GetClockValue()
@@ -1222,12 +1230,12 @@ namespace ScopeAnalysis
             if (int.TryParse(normalizedText, NumberStyles.Integer, CultureInfo.InvariantCulture, out value) == false &&
                 int.TryParse(normalizedText, out value) == false)
             {
-                throw new InvalidOperationException("Byte repeat count must be a positive integer.");
+                throw new InvalidOperationException("字节重复数必须是正整数。");
             }
 
             if (value <= 0)
             {
-                throw new InvalidOperationException("Byte repeat count must be greater than zero.");
+                throw new InvalidOperationException("字节重复数必须大于 0。");
             }
 
             return value;
@@ -1252,7 +1260,7 @@ namespace ScopeAnalysis
             }
             catch (OverflowException ex)
             {
-                throw new InvalidOperationException("Expanded payload is too large.", ex);
+                throw new InvalidOperationException("展开后的载荷数据过大。", ex);
             }
 
             byte[] expandedBytes = new byte[expandedLength];
@@ -1284,7 +1292,7 @@ namespace ScopeAnalysis
                 return value;
             }
 
-            throw new InvalidOperationException(fieldName + " must be a hex byte like 00 or FF.");
+            throw new InvalidOperationException(fieldName + " 必须是类似 00 或 FF 的十六进制字节。");
         }
     }
 

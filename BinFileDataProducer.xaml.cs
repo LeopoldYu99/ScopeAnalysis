@@ -29,7 +29,7 @@ namespace ScopeAnalysis
 
             SelectComboBoxItemByText(SampleRateComboBox, "50M");
             SelectComboBoxItemByText(BaudRateComboBox, "115200");
-            SelectComboBoxItemByText(ParityComboBox, "None");
+            SelectComboBoxItemByText(ParityComboBox, "无校验");
             SelectComboBoxItemByText(DataBitsComboBox, "8");
             SelectComboBoxItemByText(StopBitsComboBox, "1");
 
@@ -66,13 +66,13 @@ namespace ScopeAnalysis
                 uint sampleRate;
                 if (TryGetSelectedSampleRate(out sampleRate) == false || sampleRate == 0)
                 {
-                    throw new InvalidOperationException("Sample rate must be a valid value.");
+                    throw new InvalidOperationException("采样率必须是有效值。");
                 }
 
                 uint dataRate = GetSelectedDataRate(protocolType);
                 if (sampleRate % dataRate != 0)
                 {
-                    throw new InvalidOperationException("Sample rate must be an integer multiple of the data rate.");
+                    throw new InvalidOperationException("采样率必须是数据速率的整数倍。");
                 }
 
                 int samplesPerBit = checked((int)(sampleRate / dataRate));
@@ -102,7 +102,7 @@ namespace ScopeAnalysis
 
                 if (protocolBytes.Length == 0)
                 {
-                    throw new InvalidOperationException("No protocol data was generated.");
+                    throw new InvalidOperationException("未生成任何协议数据。");
                 }
 
                 string exportParentDirectory = SelectProtocolExportDirectory();
@@ -135,7 +135,7 @@ namespace ScopeAnalysis
                 MessageBox.Show(
                     string.Format(
                         CultureInfo.InvariantCulture,
-                        "BIN 鐢熸垚瀹屾垚銆倇0}{0}鍗忚: {1}{0}鐩綍: {2}{0}鏂囦欢鏁? {3:N0}{0}閲囨牱鐜? {4:N0} Hz{0}鏁版嵁閫熺巼: {5:N0} bps{0}姣?bit 閲嶅閲囨牱鐐? {6:N0}{0}閫昏緫鏁版嵁瀛楄妭: {7:N0}{0}瀵煎嚭瀛楄妭: {8:N0}",
+                        "BIN 生成完成。{0}{0}协议: {1}{0}目录: {2}{0}文件数: {3:N0}{0}采样率: {4:N0} Hz{0}数据速率: {5:N0} bps{0}每位重复采样点: {6:N0}{0}逻辑数据字节: {7:N0}{0}导出字节: {8:N0}",
                         Environment.NewLine,
                         GetProtocolDisplayName(protocolType),
                         exportDirectory,
@@ -145,13 +145,13 @@ namespace ScopeAnalysis
                         samplesPerBit,
                         payloadBytes.Length,
                         protocolBytes.Length),
-                    "Success",
+                    "成功",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
-                MessageBox.Show("BIN 鐢熸垚澶辫触:\n" + ex.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show("BIN 生成失败:\n" + ex.Message, "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -160,7 +160,7 @@ namespace ScopeAnalysis
             uint sampleRate;
             if (TryGetSelectedSampleRate(out sampleRate) == false || sampleRate == 0)
             {
-                throw new InvalidOperationException("Sample rate must be valid.");
+                throw new InvalidOperationException("采样率无效。");
             }
 
             int baudRate = GetSelectedBaudRate();
@@ -182,7 +182,7 @@ namespace ScopeAnalysis
             byte[] uartBytes = BuildSampledUartBytes(payloadBytes, emptyDataValue, samplesPerBit, dataBits, stopBits, parityMode);
             if (uartBytes.Length == 0)
             {
-                throw new InvalidOperationException("No UART data was generated.");
+                throw new InvalidOperationException("未生成任何串口数据。");
             }
 
             string exportParentDirectory = SelectProtocolExportDirectory();
@@ -220,7 +220,7 @@ namespace ScopeAnalysis
             MessageBox.Show(
                 string.Format(
                     CultureInfo.InvariantCulture,
-                    "UART BIN generated.{0}{0}Directory: {1}{0}Pages: {2:N0}{0}Sample Rate: {3:N0} Hz{0}Baud Rate: {4:N0} bps{0}Repeated samples per bit: {5:N0}{0}Payload bytes: {6:N0}{0}Export bytes: {7:N0}",
+                    "串口 BIN 已生成。{0}{0}目录: {1}{0}页数: {2:N0}{0}采样率: {3:N0} Hz{0}波特率: {4:N0} bps{0}每位重复采样点: {5:N0}{0}载荷字节数: {6:N0}{0}导出字节数: {7:N0}",
                     Environment.NewLine,
                     exportDirectory,
                     pageCount,
@@ -229,7 +229,7 @@ namespace ScopeAnalysis
                     samplesPerBit,
                     payloadBytes.Length,
                     uartBytes.Length),
-                "Success",
+                "成功",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
         }
@@ -246,7 +246,7 @@ namespace ScopeAnalysis
 
             PayloadHexTextBox.Text = FormatHexBytes(asciiBytes);
             PayloadSummaryTextBlock.Text = string.Format(
-                "Characters: {0}    ASCII bytes: {1}",
+                "字符数: {0}    字节数: {1}",
                 asciiText.Length,
                 asciiBytes.Length);
         }
@@ -330,13 +330,13 @@ namespace ScopeAnalysis
                     text = FourWireSamplesPerBitTextBox == null ? null : FourWireSamplesPerBitTextBox.Text;
                     break;
                 default:
-                    throw new InvalidOperationException("The current protocol does not require a data rate.");
+                throw new InvalidOperationException("当前协议不需要数据速率。");
             }
 
             uint dataRate;
             if (TryParseFrequency(text, out dataRate) == false || dataRate == 0)
             {
-                throw new InvalidOperationException("Data rate must be a valid frequency such as 5M or 5000000.");
+                throw new InvalidOperationException("数据速率必须是有效频率，例如 5M 或 5000000。");
             }
 
             return dataRate;
@@ -347,7 +347,7 @@ namespace ScopeAnalysis
             uint baudRate;
             if (TryParseFrequency(GetComboBoxText(BaudRateComboBox), out baudRate) == false || baudRate == 0 || baudRate > int.MaxValue)
             {
-                throw new InvalidOperationException("Baud rate must be a valid positive value.");
+                throw new InvalidOperationException("波特率必须是有效的正数。");
             }
 
             return (int)baudRate;
@@ -358,7 +358,7 @@ namespace ScopeAnalysis
             int dataBits;
             if (int.TryParse(GetComboBoxText(DataBitsComboBox), NumberStyles.Integer, CultureInfo.InvariantCulture, out dataBits) == false || dataBits <= 0)
             {
-                throw new InvalidOperationException("Data bits must be a positive integer.");
+                throw new InvalidOperationException("数据位必须是正整数。");
             }
 
             return dataBits;
@@ -371,12 +371,12 @@ namespace ScopeAnalysis
             if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out stopBits) == false
                 && double.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out stopBits) == false)
             {
-                throw new InvalidOperationException("Stop bits must be a positive number.");
+                throw new InvalidOperationException("停止位必须是正数。");
             }
 
             if (stopBits <= 0)
             {
-                throw new InvalidOperationException("Stop bits must be a positive number.");
+                throw new InvalidOperationException("停止位必须是正数。");
             }
 
             return stopBits;
@@ -387,12 +387,20 @@ namespace ScopeAnalysis
             string text = GetComboBoxText(ParityComboBox);
             switch (text)
             {
+                case "奇":
+                case "奇校验":
                 case "Odd":
                     return UartParityMode.Odd;
+                case "偶":
+                case "偶校验":
                 case "Even":
                     return UartParityMode.Even;
+                case "标记":
+                case "标记校验":
                 case "Mark":
                     return UartParityMode.Mark;
+                case "空格":
+                case "空格校验":
                 case "Space":
                     return UartParityMode.Space;
                 default:
@@ -423,12 +431,12 @@ namespace ScopeAnalysis
             if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value) == false
                 && double.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out value) == false)
             {
-                throw new InvalidOperationException("Duration must be a valid positive number.");
+                throw new InvalidOperationException("时长必须是有效的正数。");
             }
 
             if (value <= 0)
             {
-                throw new InvalidOperationException("Duration must be greater than 0.");
+                throw new InvalidOperationException("时长必须大于 0。");
             }
 
             return value;
@@ -441,12 +449,12 @@ namespace ScopeAnalysis
             if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value) == false
                 && double.TryParse(text, NumberStyles.Float, CultureInfo.CurrentCulture, out value) == false)
             {
-                throw new InvalidOperationException("Page duration must be a positive number.");
+                throw new InvalidOperationException("页时长必须是正数。");
             }
 
             if (value <= 0)
             {
-                throw new InvalidOperationException("Page duration must be greater than 0.");
+                throw new InvalidOperationException("页时长必须大于 0。");
             }
 
             return value;
@@ -459,12 +467,12 @@ namespace ScopeAnalysis
             if (int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out value) == false
                 && int.TryParse(text, out value) == false)
             {
-                throw new InvalidOperationException("Empty data ratio must be an integer between 0 and 100.");
+                throw new InvalidOperationException("空数据占比必须是 0 到 100 之间的整数。");
             }
 
             if (value < 0 || value > 100)
             {
-                throw new InvalidOperationException("Empty data ratio must be an integer between 0 and 100.");
+                throw new InvalidOperationException("空数据占比必须是 0 到 100 之间的整数。");
             }
 
             return value;
@@ -472,7 +480,7 @@ namespace ScopeAnalysis
 
         private byte GetEmptyDataValue()
         {
-            return ParseByteValue(EmptyDataValueTextBox == null ? null : EmptyDataValueTextBox.Text, "Empty data value");
+            return ParseByteValue(EmptyDataValueTextBox == null ? null : EmptyDataValueTextBox.Text, "空数据值");
         }
 
         private byte GetClockValue(SerialProtocolType protocolType)
@@ -513,7 +521,7 @@ namespace ScopeAnalysis
 
             if (byteCount > int.MaxValue)
             {
-                throw new InvalidOperationException("Logical payload is too large. Reduce the duration or lower the data rate.");
+                throw new InvalidOperationException("逻辑载荷过大，请缩短时长或降低数据速率。");
             }
 
             return Math.Max(1, (long)Math.Round(byteCount, MidpointRounding.AwayFromZero));
@@ -528,7 +536,7 @@ namespace ScopeAnalysis
 
             if (byteCount > int.MaxValue)
             {
-                throw new InvalidOperationException("Logical payload is too large.");
+                throw new InvalidOperationException("逻辑载荷过大。");
             }
 
             byte[] normalizedSeedBytes = seedBytes == null || seedBytes.Length == 0
@@ -768,13 +776,13 @@ namespace ScopeAnalysis
         {
             if (sampleRate == 0 || baudRate <= 0)
             {
-                throw new InvalidOperationException("Sample rate and baud rate must be positive values.");
+                throw new InvalidOperationException("采样率和波特率必须为正数。");
             }
 
             double roundedSamplesPerBit = Math.Round(sampleRate / (double)baudRate, MidpointRounding.AwayFromZero);
             if (roundedSamplesPerBit <= 0 || roundedSamplesPerBit > int.MaxValue)
             {
-                throw new InvalidOperationException("Repeated samples per bit is out of range.");
+                throw new InvalidOperationException("每位重复采样点数超出范围。");
             }
 
             return (int)roundedSamplesPerBit;
@@ -827,7 +835,7 @@ namespace ScopeAnalysis
             long outputLength = (totalSamples + 7) / 8;
             if (outputLength > int.MaxValue)
             {
-                throw new InvalidOperationException("Export BIN is too large. Reduce duration or sample rate.");
+                throw new InvalidOperationException("导出的 BIN 过大，请缩短时长或降低采样率。");
             }
 
             byte[] outputBytes = new byte[(int)outputLength];
@@ -934,14 +942,14 @@ namespace ScopeAnalysis
 
             if (samplesPerBit <= 0)
             {
-                throw new InvalidOperationException("Samples per bit must be greater than 0.");
+                throw new InvalidOperationException("每位重复采样点数必须大于 0。");
             }
 
             int lineCount = GetProtocolLineCount(protocolType);
             long outputLength = checked((long)payloadBytes.Length * samplesPerBit * lineCount);
             if (outputLength > int.MaxValue)
             {
-                throw new InvalidOperationException("Exported BIN data is too large. Reduce the duration or lower the sample rate.");
+                throw new InvalidOperationException("导出的 BIN 数据过大，请缩短时长或降低采样率。");
             }
 
             byte[] exportBytes = new byte[(int)outputLength];
@@ -978,7 +986,7 @@ namespace ScopeAnalysis
                             exportBytes[outputIndex++] = expandedData2[packedByteIndex];
                             break;
                         default:
-                            throw new InvalidOperationException("Unsupported protocol type.");
+                            throw new InvalidOperationException("不支持的协议类型。");
                     }
                 }
             }
@@ -1031,7 +1039,7 @@ namespace ScopeAnalysis
             byte[][] channelBytes = ProtocolPageUtility.SplitInterleavedPackedBytes(protocolBytes, lineCount);
             if (channelBytes == null || channelBytes.Length != lineCount)
             {
-                throw new InvalidOperationException("Failed to split protocol data into channel pages.");
+                throw new InvalidOperationException("无法将协议数据拆分为各通道分页。");
             }
 
             int totalSamples = checked(channelBytes[0].Length * 8);
@@ -1043,7 +1051,7 @@ namespace ScopeAnalysis
                 lineCount);
             if (pages.Count == 0)
             {
-                throw new InvalidOperationException("No protocol pages were generated.");
+                throw new InvalidOperationException("未生成任何协议分页。");
             }
 
             UpdateFixedWidthPageActivity(pages, payloadBytes, payloadBytes2, protocolType, emptyDataValue, samplesPerBit);
@@ -1111,7 +1119,7 @@ namespace ScopeAnalysis
                 pageDurationSeconds);
             if (pages.Count == 0)
             {
-                throw new InvalidOperationException("No UART pages were generated.");
+                throw new InvalidOperationException("未生成任何串口分页。");
             }
 
             UpdateUartPageActivity(pages, payloadBytes, emptyDataValue, samplesPerBit, dataBits, stopBits, parityMode);
@@ -1266,7 +1274,7 @@ namespace ScopeAnalysis
             long totalSamples = checked((2L * samplesPerBit) + ((long)payloadByteCount * frameSamples));
             if (totalSamples > int.MaxValue)
             {
-                throw new InvalidOperationException("UART sample count is too large.");
+                throw new InvalidOperationException("串口采样点数过大。");
             }
 
             return (int)totalSamples;
@@ -1316,7 +1324,7 @@ namespace ScopeAnalysis
             int bytesPerChunk = GetInterleavedProtocolByteCount(lineCount, sampleRate, ProtocolExportChunkSeconds);
             if (bytesPerChunk <= 0)
             {
-                throw new InvalidOperationException("Chunk size is invalid.");
+                throw new InvalidOperationException("分页块大小无效。");
             }
 
             int chunkCount = Math.Max(1, (int)Math.Ceiling(protocolBytes.Length / (double)bytesPerChunk));
@@ -1363,7 +1371,7 @@ namespace ScopeAnalysis
             int bytesPerChunk = GetPackedSampleByteCount(sampleRate, ProtocolExportChunkSeconds);
             if (bytesPerChunk <= 0)
             {
-                throw new InvalidOperationException("UART chunk size is invalid.");
+                throw new InvalidOperationException("串口分页块大小无效。");
             }
 
             int chunkCount = Math.Max(1, (int)Math.Ceiling(uartBytes.Length / (double)bytesPerChunk));
@@ -1664,7 +1672,7 @@ namespace ScopeAnalysis
                 }
             }
 
-            throw new InvalidOperationException(fieldName + " must be a byte value in the range 0-255 or 00-FF.");
+            throw new InvalidOperationException(fieldName + " 必须是 0-255 或 00-FF 范围内的字节值。");
         }
 
         private static int GetProtocolLineCount(SerialProtocolType protocolType)
@@ -1687,13 +1695,13 @@ namespace ScopeAnalysis
             switch (protocolType)
             {
                 case SerialProtocolType.TwoWireSerial:
-                    return "2-wire serial";
+                    return "2线串口";
                 case SerialProtocolType.ThreeWireSerial:
-                    return "3-wire serial";
+                    return "3线串口";
                 case SerialProtocolType.FourWireSerial:
-                    return "4-wire serial";
+                    return "4线串口";
                 default:
-                    return "UART";
+                    return "串口";
             }
         }
 
@@ -1701,7 +1709,7 @@ namespace ScopeAnalysis
         {
             using (Forms.FolderBrowserDialog folderDialog = new Forms.FolderBrowserDialog())
             {
-                folderDialog.Description = "Select a folder to export protocol BIN files.";
+                folderDialog.Description = "选择导出协议 BIN 文件的文件夹。";
                 folderDialog.ShowNewFolderButton = true;
                 return folderDialog.ShowDialog() == Forms.DialogResult.OK
                     ? folderDialog.SelectedPath

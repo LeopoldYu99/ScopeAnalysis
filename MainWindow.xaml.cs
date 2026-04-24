@@ -62,7 +62,7 @@ namespace ScopeAnalysis
             _chart = new LightningChart();
 
             _chart.BeginUpdate();
-            _chart.ChartName = "ScopeAnalysis";
+            _chart.ChartName = "示波分析";
             _chart.ChartRenderOptions.DeviceType = RendererDeviceType.AutoPreferD11;
             _chart.ChartRenderOptions.LineAAType2D = LineAntiAliasingType.QLAA;
 
@@ -82,7 +82,7 @@ namespace ScopeAnalysis
             view.XAxes[0].AllowScrolling = true;
             view.XAxes[0].SetRange(0, 100);
             view.XAxes[0].MajorGrid.Pattern = LinePattern.Solid;
-            view.XAxes[0].Units.Text = "us";
+            view.XAxes[0].Units.Text = "微秒";
             view.ZoomPanOptions.DevicePrimaryButtonAction = UserInteractiveDeviceButtonAction.Pan;
             view.ZoomPanOptions.PanDirection = PanDirection.Horizontal;
             view.ZoomPanOptions.WheelZooming = WheelZooming.Off;
@@ -215,7 +215,7 @@ namespace ScopeAnalysis
         {
             if (buttonImport != null)
             {
-                buttonImport.Content = "Import";
+                buttonImport.Content = "导入";
                 buttonImport.Visibility = Visibility.Visible;
             }
 
@@ -239,7 +239,7 @@ namespace ScopeAnalysis
                 bool hasTimestamp = hasPagedImport
                     && string.IsNullOrWhiteSpace(_currentProtocolImportSession.TimestampText) == false;
                 textBlockImportTimestamp.Text = hasTimestamp
-                    ? "Time: " + FormatProtocolImportTimestamp(_currentProtocolImportSession.TimestampText)
+                    ? "时间：" + FormatProtocolImportTimestamp(_currentProtocolImportSession.TimestampText)
                     : string.Empty;
                 textBlockImportTimestamp.Visibility = hasTimestamp ? Visibility.Visible : Visibility.Collapsed;
             }

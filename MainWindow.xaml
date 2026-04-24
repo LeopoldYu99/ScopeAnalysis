@@ -6,7 +6,7 @@
              xmlns:local="clr-namespace:ScopeAnalysis"
              mc:Ignorable="d"
              x:Name="BillionPoints"
-             Title="ScopeAnalysis"
+             Title="示波分析"
              Icon="Assets/ScopeAnalysis.ico"
              d:DesignHeight="1000" d:DesignWidth="1500">
     <Window.Resources>
@@ -83,10 +83,10 @@
 
         <Border Grid.Row="0" Background="#FF1C1C1C" BorderBrush="#FF3C3C3C" BorderThickness="0,0,0,1" Padding="10,8">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <Button x:Name="buttonGenerateBin" Width="110" Height="32" Click="buttonGenerateBin_Click" Content="GenerateBIN" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
-                <Button x:Name="buttonImport" Width="90" Height="32" Click="buttonImport_Click" Content="Import" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
+                <Button x:Name="buttonGenerateBin" Width="110" Height="32" Click="buttonGenerateBin_Click" Content="生成 BIN" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
+                <Button x:Name="buttonImport" Width="90" Height="32" Click="buttonImport_Click" Content="导入" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
                 <TextBlock x:Name="textBlockImportPage"
-                           Text="Page:"
+                           Text="页:"
                            Foreground="White"
                            VerticalAlignment="Center"
                            Margin="18,0,8,0"
@@ -125,7 +125,7 @@
 
                 <StackPanel Grid.Column="0" x:Name="stackPanel1" Visibility="Collapsed">
 
-                <Label x:Name="labeli" Content="Select preset" Foreground="White" FontSize="16" FontWeight="Bold"/>
+                <Label x:Name="labeli" Content="选择预设" Foreground="White" FontSize="16" FontWeight="Bold"/>
 
 
 

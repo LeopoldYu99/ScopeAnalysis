@@ -157,7 +157,7 @@ namespace ScopeAnalysis
 
             Window dialog = new Window
             {
-                Title = "Generate BIN",
+                Title = "生成 BIN",
                 Owner = this,
                 Width = 860,
                 Height = 680,
@@ -191,7 +191,7 @@ namespace ScopeAnalysis
 
             Button closeButton = new Button
             {
-                Content = "Close",
+                Content = "关闭",
                 Width = 96,
                 Height = 32,
                 IsCancel = true
@@ -221,7 +221,7 @@ namespace ScopeAnalysis
 
             using (Forms.FolderBrowserDialog folderDialog = new Forms.FolderBrowserDialog())
             {
-                folderDialog.Description = "Select a folder that contains the BIN files.";
+                folderDialog.Description = "选择包含 BIN 文件的文件夹。";
                 folderDialog.ShowNewFolderButton = false;
                 folderDialog.SelectedPath = _currentProtocolImportSession == null
                     ? string.Empty
@@ -236,7 +236,7 @@ namespace ScopeAnalysis
                 string validationMessage;
                 if (TryBuildSignalImportSelectionFromFolder(folderDialog.SelectedPath, out selection, out validationMessage) == false)
                 {
-                    MessageBox.Show(this, validationMessage, "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(this, validationMessage, "导入失败", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
@@ -254,13 +254,13 @@ namespace ScopeAnalysis
 
             if (string.IsNullOrWhiteSpace(importPath))
             {
-                validationMessage = "Please select a folder.";
+                validationMessage = "请选择文件夹。";
                 return false;
             }
 
             if (Directory.Exists(importPath) == false)
             {
-                validationMessage = "Selected folder does not exist.";
+                validationMessage = "所选文件夹不存在。";
                 return false;
             }
 
@@ -270,13 +270,13 @@ namespace ScopeAnalysis
                 SerialProtocolType manifestProtocolType;
                 if (TryParseManifestProtocolType(manifest.ProtocolType, out manifestProtocolType) == false)
                 {
-                    validationMessage = "manifest.json protocolType is invalid.";
+                    validationMessage = "manifest.json 中的 protocolType 无效。";
                     return false;
                 }
 
                 if (manifest.LineCount <= 0 || manifest.SampleRate == 0 || manifest.Pages == null || manifest.Pages.Count == 0)
                 {
-                    validationMessage = "manifest.json is missing required paging metadata.";
+                    validationMessage = "manifest.json 缺少必要的分页元数据。";
                     return false;
                 }
 
@@ -285,7 +285,7 @@ namespace ScopeAnalysis
                     UartParityMode uartParityMode;
                     if (TryParseUartParityMode(manifest.ParityText, out uartParityMode) == false)
                     {
-                        validationMessage = "UART parity in manifest.json is invalid.";
+                        validationMessage = "manifest.json 中的串口校验位无效。";
                         return false;
                     }
 
@@ -294,7 +294,7 @@ namespace ScopeAnalysis
                         : GetSamplesPerBit(manifest.SampleRate, (uint)Math.Max(0, manifest.BaudRate));
                     if (manifest.BaudRate <= 0 || uartSamplesPerBit <= 0 || manifest.DataBits <= 0 || manifest.StopBits <= 0)
                     {
-                        validationMessage = "UART settings in manifest.json are incomplete.";
+                        validationMessage = "manifest.json 中的串口参数不完整。";
                         return false;
                     }
 
@@ -318,7 +318,7 @@ namespace ScopeAnalysis
 
                 if (manifest.DataRate == 0)
                 {
-                    validationMessage = "manifest.json dataRate must be positive for fixed-width protocol imports.";
+                    validationMessage = "对于固定宽度协议导入，manifest.json 中的 dataRate 必须为正数。";
                     return false;
                 }
 
@@ -345,21 +345,21 @@ namespace ScopeAnalysis
             {
                 if (uartMetadata.LineCount != 1)
                 {
-                    validationMessage = "Single channel folder line count must be 1.";
+                    validationMessage = "单通道文件夹的线数必须为 1。";
                     return false;
                 }
 
                 UartParityMode uartParityMode;
                 if (TryParseUartParityMode(uartMetadata.ParityText, out uartParityMode) == false)
                 {
-                    validationMessage = "UART parity in the folder name is invalid.";
+                    validationMessage = "文件夹名中的串口校验位无效。";
                     return false;
                 }
 
                 int uartSamplesPerBit = GetSamplesPerBit(uartMetadata.SampleRate, (uint)uartMetadata.BaudRate);
                 if (uartMetadata.SampleRate == 0 || uartSamplesPerBit <= 0)
                 {
-                    validationMessage = "UART sample rate and repeated samples per bit must be positive values.";
+                    validationMessage = "串口采样率和每位重复采样点数必须为正数。";
                     return false;
                 }
 
@@ -384,7 +384,7 @@ namespace ScopeAnalysis
             ProtocolBinFolderMetadata folderMetadata;
             if (ProtocolBinNaming.TryParseFolderMetadata(importPath, out folderMetadata) == false || folderMetadata.DataRate == 0)
             {
-                validationMessage = "Folder name must be either 1;sampleRate;baudRate;parity;dataBits;stopBits;timestamp or lineCount;sampleRate;dataRate;timestamp;.";
+                validationMessage = "文件夹名称必须是 1;采样率;波特率;校验位;数据位;停止位;时间戳，或 线数;采样率;数据速率;时间戳; 这种格式。";
                 return false;
             }
 
@@ -392,14 +392,14 @@ namespace ScopeAnalysis
             if (TryGetProtocolTypeFromLineCount(folderMetadata.LineCount, out protocolType) == false)
             {
                 validationMessage = folderMetadata.LineCount == 1
-                    ? "Single channel imports require a folder name like 1;sampleRate;baudRate;parity;dataBits;stopBits;timestamp."
-                    : "Folder line count must be 2, 3, or 4 to determine the import type automatically.";
+                    ? "单通道导入要求文件夹名类似 1;采样率;波特率;校验位;数据位;停止位;时间戳。"
+                    : "文件夹线数必须为 2、3 或 4，才能自动判断导入类型。";
                 return false;
             }
 
             if (folderMetadata.SampleRate == 0 || folderMetadata.DataRate == 0)
             {
-                validationMessage = "Folder sample rate and data rate must be positive values.";
+                validationMessage = "文件夹中的采样率和数据速率必须为正数。";
                 return false;
             }
 
@@ -432,7 +432,7 @@ namespace ScopeAnalysis
             BinaryWaveformImportResult importResult = BinaryWaveformImporter.ImportFile(selection.ImportPath, sampleInterval);
             if (importResult == null || importResult.SampleCount <= 0)
             {
-                MessageBox.Show(this, "Failed to import waveform from the selected file.", "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(this, "无法从所选文件导入波形。", "导入失败", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -496,7 +496,7 @@ namespace ScopeAnalysis
             List<ProtocolImportPageItem> pages = GetProtocolImportPages(selection.ImportPath, selection.ProtocolType, selection.SampleRate, selection.DataRate);
             if (pages == null || pages.Count == 0)
             {
-                MessageBox.Show(this, "No paged BIN files were found in the selected folder.", "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(this, "所选文件夹中未找到分页 BIN 文件。", "导入失败", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -531,14 +531,14 @@ namespace ScopeAnalysis
             string[] channelNames = GetProtocolChannelNames(_currentProtocolImportSession.ProtocolType);
             if (channelNames == null || channelNames.Length == 0)
             {
-                MessageBox.Show(this, "Unsupported import protocol.", "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(this, "不支持该导入协议。", "导入失败", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
             byte[] protocolBytes = ReadProtocolPartitionBytes(page);
             if (protocolBytes == null || protocolBytes.Length < channelNames.Length)
             {
-                MessageBox.Show(this, "The import file does not contain enough data for the selected protocol.", "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(this, "导入文件中的数据不足，无法解析所选协议。", "导入失败", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -547,7 +547,7 @@ namespace ScopeAnalysis
                 : SplitProtocolBytes(protocolBytes, channelNames.Length);
             if (splitBytes == null || splitBytes.Length != channelNames.Length || splitBytes.Any(bytes => bytes == null || bytes.Length == 0))
             {
-                MessageBox.Show(this, "Failed to split the import data into protocol channels.", "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(this, "无法将导入数据拆分为对应的协议通道。", "导入失败", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -561,7 +561,7 @@ namespace ScopeAnalysis
 
             if (importResults.Any(result => result == null || result.SampleCount <= 0))
             {
-                MessageBox.Show(this, "Failed to convert imported protocol data into waveforms.", "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(this, "无法将导入的协议数据转换为波形。", "导入失败", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -571,7 +571,7 @@ namespace ScopeAnalysis
                 : GetSamplesPerBit(page.SampleRate, page.DataRate);
             if (samplesPerBit <= 0)
             {
-                MessageBox.Show(this, "Repeated samples per bit is invalid.", "Import failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(this, "每位重复采样点数无效。", "导入失败", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -738,7 +738,7 @@ namespace ScopeAnalysis
                         PageNumber = globalPageNumber,
                         DisplayName = string.Format(
                             CultureInfo.InvariantCulture,
-                            "Page {0} (File {1}, Part {2})",
+                            "第 {0} 页（文件 {1}，分段 {2}）",
                             globalPageNumber,
                             metadata.FilePageNumber,
                             partitionNumber),
@@ -781,7 +781,7 @@ namespace ScopeAnalysis
                             PageNumber = globalPageNumber,
                             DisplayName = string.Format(
                                 CultureInfo.InvariantCulture,
-                                "Page {0} (File {1}, Part {2})",
+                            "第 {0} 页（文件 {1}，分段 {2}）",
                                 globalPageNumber,
                                 parsedFilePageNumber,
                                 partitionNumber),
@@ -812,7 +812,7 @@ namespace ScopeAnalysis
                 orderedPages[i].PageNumber = i + 1;
                 orderedPages[i].DisplayName = string.Format(
                     CultureInfo.InvariantCulture,
-                    "Page {0} (File {1}, Part {2})",
+                    "第 {0} 页（文件 {1}，分段 {2}）",
                     i + 1,
                     orderedPages[i].FilePageNumber,
                     orderedPages[i].PartitionNumber);
@@ -865,7 +865,7 @@ namespace ScopeAnalysis
                 pages.Add(new ProtocolImportPageItem
                 {
                     PageNumber = pageNumber,
-                    DisplayName = string.Format(CultureInfo.InvariantCulture, "Page {0}", pageNumber),
+                    DisplayName = string.Format(CultureInfo.InvariantCulture, "第 {0} 页", pageNumber),
                     FilePath = filePath,
                     FilePageNumber = pageNumber,
                     PartitionNumber = 1,
@@ -1174,18 +1174,28 @@ namespace ScopeAnalysis
 
             switch (text.Trim())
             {
+                case "无":
+                case "无校验":
                 case "None":
                     parityMode = UartParityMode.None;
                     return true;
+                case "奇":
+                case "奇校验":
                 case "Odd":
                     parityMode = UartParityMode.Odd;
                     return true;
+                case "偶":
+                case "偶校验":
                 case "Even":
                     parityMode = UartParityMode.Even;
                     return true;
+                case "标记":
+                case "标记校验":
                 case "Mark":
                     parityMode = UartParityMode.Mark;
                     return true;
+                case "空格":
+                case "空格校验":
                 case "Space":
                     parityMode = UartParityMode.Space;
                     return true;
@@ -1261,13 +1271,13 @@ namespace ScopeAnalysis
             switch (protocolType)
             {
                 case SerialProtocolType.TwoWireSerial:
-                    return "2-wire";
+                    return "2线串口";
                 case SerialProtocolType.ThreeWireSerial:
-                    return "3-wire";
+                    return "3线串口";
                 case SerialProtocolType.FourWireSerial:
-                    return "4-wire";
+                    return "4线串口";
                 default:
-                    return "Single channel";
+                    return "单通道";
             }
         }
 
