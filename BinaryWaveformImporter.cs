@@ -19,7 +19,6 @@ namespace InteractiveExamples
             {
                 return null;
             }
-
             byte[] bytes = File.ReadAllBytes(filePath);
             return ImportBytes(Path.GetFileNameWithoutExtension(filePath), bytes, sampleIntervalSeconds);
         }

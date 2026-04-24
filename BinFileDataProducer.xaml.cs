@@ -173,7 +173,7 @@ namespace LCWpf
                 emptyDataValue,
                 Environment.TickCount,
                 (uint)Math.Max(1, baudRate));
-            byte[] uartBytes = BuildSampledUartBytes(payloadBytes, samplesPerBit, dataBits, stopBits, parityMode);
+            byte[] uartBytes = BuildSampledUartBytes(payloadBytes, emptyDataValue, samplesPerBit, dataBits, stopBits, parityMode);
             if (uartBytes.Length == 0)
             {
                 throw new InvalidOperationException("No UART data was generated.");
@@ -785,7 +785,7 @@ namespace LCWpf
             return Math.Max(1, stopSamples);
         }
 
-        private static byte[] BuildSampledUartBytes(byte[] payloadBytes, int samplesPerBit, int dataBits, double stopBits, UartParityMode parityMode)
+        private static byte[] BuildSampledUartBytes(byte[] payloadBytes, byte idlePayloadValue, int samplesPerBit, int dataBits, double stopBits, UartParityMode parityMode)
         {
             if (payloadBytes == null || payloadBytes.Length == 0)
             {
@@ -794,9 +794,10 @@ namespace LCWpf
 
             int stopSamples = GetStopBitSampleCount(samplesPerBit, stopBits);
             int parityBitCount = parityMode == UartParityMode.None ? 0 : 1;
+            int frameSamples = samplesPerBit * (1 + dataBits + parityBitCount) + stopSamples;
             long totalSamples = checked(
                 (2L * samplesPerBit) +
-                ((long)payloadBytes.Length * (samplesPerBit * (1 + dataBits + parityBitCount) + stopSamples)));
+                ((long)payloadBytes.Length * frameSamples));
             long outputLength = (totalSamples + 7) / 8;
             if (outputLength > int.MaxValue)
             {
@@ -810,6 +811,12 @@ namespace LCWpf
             for (int byteIndex = 0; byteIndex < payloadBytes.Length; byteIndex++)
             {
                 byte value = payloadBytes[byteIndex];
+                if (value == idlePayloadValue)
+                {
+                    WriteRepeatedUartBit(outputBytes, ref sampleIndex, true, frameSamples);
+                    continue;
+                }
+
                 WriteRepeatedUartBit(outputBytes, ref sampleIndex, false, samplesPerBit);
                 for (int bitIndex = 0; bitIndex < dataBits; bitIndex++)
                 {
@@ -826,7 +833,17 @@ namespace LCWpf
             }
 
             WriteRepeatedUartBit(outputBytes, ref sampleIndex, true, samplesPerBit);
+            FillRemainingUartIdleBits(outputBytes, ref sampleIndex);
             return outputBytes;
+        }
+
+        private static void FillRemainingUartIdleBits(byte[] outputBytes, ref int sampleIndex)
+        {
+            int totalSampleCapacity = outputBytes.Length * 8;
+            if (sampleIndex < totalSampleCapacity)
+            {
+                WriteRepeatedUartBit(outputBytes, ref sampleIndex, true, totalSampleCapacity - sampleIndex);
+            }
         }
 
         private static void WriteRepeatedUartBit(byte[] outputBytes, ref int sampleIndex, bool bitHigh, int repeatCount)
