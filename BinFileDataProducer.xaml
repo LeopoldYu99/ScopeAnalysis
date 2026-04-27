@@ -378,7 +378,9 @@
                                                    Text="CLK"/>
                                         <TextBox x:Name="TwoWireClkTextBox"
                                                  Style="{StaticResource FieldTextBoxStyle}"
-                                                 Text="F0"/>
+                                                 Text="AA"
+                                                 IsReadOnly="True"
+                                                 IsEnabled="False"/>
                                     </StackPanel>
 
                                     <StackPanel Grid.Column="2">
@@ -407,7 +409,9 @@
                                                    Text="CLK"/>
                                         <TextBox x:Name="ThreeWireClkTextBox"
                                                  Style="{StaticResource FieldTextBoxStyle}"
-                                                 Text="F0"/>
+                                                 Text="AA"
+                                                 IsReadOnly="True"
+                                                 IsEnabled="False"/>
                                     </StackPanel>
 
                                     <StackPanel Grid.Column="2">
@@ -444,7 +448,9 @@
                                                    Text="CLK"/>
                                         <TextBox x:Name="FourWireClkTextBox"
                                                  Style="{StaticResource FieldTextBoxStyle}"
-                                                 Text="F0"/>
+                                                 Text="AA"
+                                                 IsReadOnly="True"
+                                                 IsEnabled="False"/>
                                     </StackPanel>
 
                                     <StackPanel Grid.Column="2">

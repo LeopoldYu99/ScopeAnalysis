@@ -18,6 +18,7 @@ namespace ScopeAnalysis
         private const int ProtocolExportPartitionsPerChunk = (int)(ProtocolExportChunkSeconds / ProtocolExportPartitionDurationSeconds);
         private const double MinimumEmptySegmentDurationMilliseconds = 20;
         private const double MinimumEmptySegmentIntervalMilliseconds = 40;
+        private const byte ProtocolClockBitPattern = 0xAA;
 
         public BinFileDataProducer()
         {
@@ -485,17 +486,14 @@ namespace ScopeAnalysis
 
         private byte GetClockValue(SerialProtocolType protocolType)
         {
-            switch (protocolType)
-            {
-                case SerialProtocolType.TwoWireSerial:
-                    return ParseByteValue(TwoWireClkTextBox == null ? null : TwoWireClkTextBox.Text, "CLK");
-                case SerialProtocolType.ThreeWireSerial:
-                    return ParseByteValue(ThreeWireClkTextBox == null ? null : ThreeWireClkTextBox.Text, "CLK");
-                case SerialProtocolType.FourWireSerial:
-                    return ParseByteValue(FourWireClkTextBox == null ? null : FourWireClkTextBox.Text, "CLK");
-                default:
-                    return 0x00;
-            }
+            return IsClockedProtocol(protocolType) ? ProtocolClockBitPattern : (byte)0x00;
+        }
+
+        private static bool IsClockedProtocol(SerialProtocolType protocolType)
+        {
+            return protocolType == SerialProtocolType.TwoWireSerial
+                || protocolType == SerialProtocolType.ThreeWireSerial
+                || protocolType == SerialProtocolType.FourWireSerial;
         }
 
         private byte GetEnableValue(SerialProtocolType protocolType)
