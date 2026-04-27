@@ -97,7 +97,6 @@ namespace ScopeAnalysis
                     payloadBytes2,
                     protocolType,
                     GetClockValue(protocolType),
-                    GetEnableValue(protocolType),
                     emptyDataValue,
                     samplesPerBit);
 
@@ -494,19 +493,6 @@ namespace ScopeAnalysis
             return protocolType == SerialProtocolType.TwoWireSerial
                 || protocolType == SerialProtocolType.ThreeWireSerial
                 || protocolType == SerialProtocolType.FourWireSerial;
-        }
-
-        private byte GetEnableValue(SerialProtocolType protocolType)
-        {
-            switch (protocolType)
-            {
-                case SerialProtocolType.ThreeWireSerial:
-                    return ParseByteValue(ThreeWireEnTextBox == null ? null : ThreeWireEnTextBox.Text, "EN");
-                case SerialProtocolType.FourWireSerial:
-                    return ParseByteValue(FourWireEnTextBox == null ? null : FourWireEnTextBox.Text, "EN");
-                default:
-                    return 0x00;
-            }
         }
 
         private static long GetLogicalDataByteCount(uint dataRate, double durationSeconds)
@@ -929,7 +915,6 @@ namespace ScopeAnalysis
             byte[] payloadBytes2,
             SerialProtocolType protocolType,
             byte clockValue,
-            byte enableValue,
             byte defaultByteValue,
             int samplesPerBit)
         {
@@ -953,7 +938,6 @@ namespace ScopeAnalysis
             byte[] exportBytes = new byte[(int)outputLength];
             byte[][] expandedByteCache = new byte[256][];
             byte[] expandedClock = GetExpandedBytePattern(clockValue, samplesPerBit, expandedByteCache);
-            byte[] expandedEnable = GetExpandedBytePattern(enableValue, samplesPerBit, expandedByteCache);
             byte[] expandedDefault = GetExpandedBytePattern(defaultByteValue, samplesPerBit, expandedByteCache);
             int outputIndex = 0;
 
@@ -963,6 +947,10 @@ namespace ScopeAnalysis
                 byte[] expandedData2 = payloadBytes2 != null && payloadIndex < payloadBytes2.Length
                     ? GetExpandedBytePattern(payloadBytes2[payloadIndex], samplesPerBit, expandedByteCache)
                     : expandedDefault;
+                byte[] expandedEnable = GetExpandedBytePattern(
+                    GetProtocolEnableValue(payloadBytes[payloadIndex], payloadBytes2, payloadIndex, protocolType, defaultByteValue),
+                    samplesPerBit,
+                    expandedByteCache);
 
                 for (int packedByteIndex = 0; packedByteIndex < samplesPerBit; packedByteIndex++)
                 {
@@ -990,6 +978,25 @@ namespace ScopeAnalysis
             }
 
             return exportBytes;
+        }
+
+        private static byte GetProtocolEnableValue(
+            byte dataValue,
+            byte[] payloadBytes2,
+            int payloadIndex,
+            SerialProtocolType protocolType,
+            byte defaultByteValue)
+        {
+            bool hasData = dataValue != defaultByteValue;
+            if (protocolType == SerialProtocolType.FourWireSerial)
+            {
+                byte dataValue2 = payloadBytes2 != null && payloadIndex < payloadBytes2.Length
+                    ? payloadBytes2[payloadIndex]
+                    : defaultByteValue;
+                hasData = hasData || dataValue2 != defaultByteValue;
+            }
+
+            return hasData ? (byte)0x00 : (byte)0xFF;
         }
 
         private static byte[] GetExpandedBytePattern(byte value, int samplesPerBit, byte[][] expandedByteCache)

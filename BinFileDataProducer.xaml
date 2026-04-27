@@ -369,21 +369,9 @@
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="18"/>
-                                        <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
 
                                     <StackPanel Grid.Column="0">
-                                        <TextBlock Style="{StaticResource FieldLabelStyle}"
-                                                   Text="CLK"/>
-                                        <TextBox x:Name="TwoWireClkTextBox"
-                                                 Style="{StaticResource FieldTextBoxStyle}"
-                                                 Text="AA"
-                                                 IsReadOnly="True"
-                                                 IsEnabled="False"/>
-                                    </StackPanel>
-
-                                    <StackPanel Grid.Column="2">
                                         <TextBlock Style="{StaticResource FieldLabelStyle}"
                                                    Text="数据速率"/>
                                         <TextBox x:Name="TwoWireSamplesPerBitTextBox"
@@ -398,31 +386,9 @@
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="18"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="18"/>
-                                        <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
 
                                     <StackPanel Grid.Column="0">
-                                        <TextBlock Style="{StaticResource FieldLabelStyle}"
-                                                   Text="CLK"/>
-                                        <TextBox x:Name="ThreeWireClkTextBox"
-                                                 Style="{StaticResource FieldTextBoxStyle}"
-                                                 Text="AA"
-                                                 IsReadOnly="True"
-                                                 IsEnabled="False"/>
-                                    </StackPanel>
-
-                                    <StackPanel Grid.Column="2">
-                                        <TextBlock Style="{StaticResource FieldLabelStyle}"
-                                                   Text="EN"/>
-                                        <TextBox x:Name="ThreeWireEnTextBox"
-                                                 Style="{StaticResource FieldTextBoxStyle}"
-                                                 Text="0F"/>
-                                    </StackPanel>
-
-                                    <StackPanel Grid.Column="4">
                                         <TextBlock Style="{StaticResource FieldLabelStyle}"
                                                    Text="数据速率"/>
                                         <TextBox x:Name="ThreeWireSamplesPerBitTextBox"
@@ -437,31 +403,9 @@
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="18"/>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="18"/>
-                                        <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
 
                                     <StackPanel Grid.Column="0">
-                                        <TextBlock Style="{StaticResource FieldLabelStyle}"
-                                                   Text="CLK"/>
-                                        <TextBox x:Name="FourWireClkTextBox"
-                                                 Style="{StaticResource FieldTextBoxStyle}"
-                                                 Text="AA"
-                                                 IsReadOnly="True"
-                                                 IsEnabled="False"/>
-                                    </StackPanel>
-
-                                    <StackPanel Grid.Column="2">
-                                        <TextBlock Style="{StaticResource FieldLabelStyle}"
-                                                   Text="EN"/>
-                                        <TextBox x:Name="FourWireEnTextBox"
-                                                 Style="{StaticResource FieldTextBoxStyle}"
-                                                 Text="0F"/>
-                                    </StackPanel>
-
-                                    <StackPanel Grid.Column="4">
                                         <TextBlock Style="{StaticResource FieldLabelStyle}"
                                                    Text="数据速率"/>
                                         <TextBox x:Name="FourWireSamplesPerBitTextBox"
