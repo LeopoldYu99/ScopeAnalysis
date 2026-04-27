@@ -437,14 +437,23 @@
                                Foreground="#FF666666"
                                Text="2/3/4 线按采样率 / 数据速率展开采样。"/>
 
-                    <Button Grid.Column="1"
-                            x:Name="GenerateBinButton"
-                            Content="生成 BIN"
-                            MinWidth="148"
-                            Height="36"
-                            Padding="18,6"
-                            HorizontalAlignment="Right"
-                            Click="GenerateBinButton_Click"/>
+                    <StackPanel Grid.Column="1"
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Right">
+                        <Button x:Name="GenerateBinButton"
+                                Content="生成 BIN"
+                                MinWidth="148"
+                                Height="36"
+                                Padding="18,6"
+                                Margin="0,0,8,0"
+                                Click="GenerateBinButton_Click"/>
+                        <Button x:Name="StreamGenerateBinButton"
+                                Content="流式生成"
+                                MinWidth="148"
+                                Height="36"
+                                Padding="18,6"
+                                Click="StreamGenerateBinButton_Click"/>
+                    </StackPanel>
                 </Grid>
             </Border>
         </Grid>

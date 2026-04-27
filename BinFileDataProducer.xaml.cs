@@ -1,8 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using ScopeAnalysis;
@@ -19,6 +22,45 @@ namespace ScopeAnalysis
         private const double MinimumEmptySegmentDurationMilliseconds = 20;
         private const double MinimumEmptySegmentIntervalMilliseconds = 40;
         private const byte ProtocolClockBitPattern = 0xAA;
+
+        private CancellationTokenSource _streamGenerationCancellation;
+        private Task<StreamingGenerationResult> _streamGenerationTask;
+
+        private sealed class StreamingGenerationSession
+        {
+            public SerialProtocolType ProtocolType { get; set; }
+            public uint SampleRate { get; set; }
+            public uint DataRate { get; set; }
+            public int BaudRate { get; set; }
+            public UartParityMode ParityMode { get; set; }
+            public int DataBits { get; set; }
+            public double StopBits { get; set; }
+            public int SamplesPerBit { get; set; }
+            public int LineCount { get; set; }
+            public double PageDurationSeconds { get; set; }
+            public byte EmptyDataValue { get; set; }
+            public int EmptyDataRatio { get; set; }
+            public byte[] SeedBytes { get; set; }
+            public int RandomSeed { get; set; }
+            public DateTime ExportTimestamp { get; set; }
+            public string ExportDirectory { get; set; }
+        }
+
+        private sealed class StreamingGenerationResult
+        {
+            public string ExportDirectory { get; set; }
+            public int PageCount { get; set; }
+            public long PayloadByteCount { get; set; }
+            public long ExportByteCount { get; set; }
+            public TimeSpan Elapsed { get; set; }
+        }
+
+        private sealed class StreamingPageWriteResult
+        {
+            public ProtocolPageManifestPage Page { get; set; }
+            public long PayloadByteCount { get; set; }
+            public long ExportByteCount { get; set; }
+        }
 
         public BinFileDataProducer()
         {
@@ -232,6 +274,489 @@ namespace ScopeAnalysis
                 "成功",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
+        }
+
+        private async void StreamGenerateBinButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_streamGenerationCancellation != null)
+            {
+                StopStreamingGeneration();
+                return;
+            }
+
+            string exportParentDirectory = SelectProtocolExportDirectory();
+            if (string.IsNullOrWhiteSpace(exportParentDirectory))
+            {
+                return;
+            }
+
+            CancellationTokenSource cancellation = null;
+            try
+            {
+                StreamingGenerationSession session = CreateStreamingGenerationSession(exportParentDirectory);
+                Directory.CreateDirectory(session.ExportDirectory);
+
+                cancellation = new CancellationTokenSource();
+                _streamGenerationCancellation = cancellation;
+                SetStreamingGenerationUiState(true, false);
+
+                _streamGenerationTask = Task.Run(
+                    () => RunStreamingGeneration(session, cancellation.Token));
+
+                StreamingGenerationResult result = await _streamGenerationTask;
+                MessageBox.Show(
+                    string.Format(
+                        CultureInfo.InvariantCulture,
+                        "流式 BIN 生成已停止。{0}{0}目录: {1}{0}页数: {2:N0}{0}载荷字节数: {3:N0}{0}导出字节数: {4:N0}",
+                        Environment.NewLine,
+                        result.ExportDirectory,
+                        result.PageCount,
+                        result.PayloadByteCount,
+                        result.ExportByteCount),
+                    "已停止",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("流式 BIN 生成失败:\n" + ex.Message, "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                if (_streamGenerationCancellation == cancellation)
+                {
+                    _streamGenerationCancellation = null;
+                    _streamGenerationTask = null;
+                    SetStreamingGenerationUiState(false, false);
+                }
+
+                if (cancellation != null)
+                {
+                    cancellation.Dispose();
+                }
+            }
+        }
+
+        private void StopStreamingGeneration()
+        {
+            CancellationTokenSource cancellation = _streamGenerationCancellation;
+            if (cancellation == null || cancellation.IsCancellationRequested)
+            {
+                return;
+            }
+
+            cancellation.Cancel();
+            SetStreamingGenerationUiState(true, true);
+        }
+
+        private void SetStreamingGenerationUiState(bool isStreaming, bool isStopping)
+        {
+            if (GenerateBinButton != null)
+            {
+                GenerateBinButton.IsEnabled = isStreaming == false;
+            }
+
+            if (StreamGenerateBinButton == null)
+            {
+                return;
+            }
+
+            StreamGenerateBinButton.Content = isStreaming
+                ? (isStopping ? "正在停止..." : "停止")
+                : "流式生成";
+            StreamGenerateBinButton.IsEnabled = isStopping == false;
+        }
+
+        private StreamingGenerationSession CreateStreamingGenerationSession(string exportParentDirectory)
+        {
+            if (string.IsNullOrWhiteSpace(exportParentDirectory))
+            {
+                throw new InvalidOperationException("导出文件夹无效。");
+            }
+
+            uint sampleRate;
+            if (TryGetSelectedSampleRate(out sampleRate) == false || sampleRate == 0)
+            {
+                throw new InvalidOperationException("采样率必须是有效值。");
+            }
+
+            SerialProtocolType protocolType = GetSelectedProtocolType();
+            double pageDurationSeconds = GetPageDurationSeconds();
+            byte emptyDataValue = GetEmptyDataValue();
+            DateTime exportTimestamp = DateTime.Now;
+
+            StreamingGenerationSession session = new StreamingGenerationSession
+            {
+                ProtocolType = protocolType,
+                SampleRate = sampleRate,
+                PageDurationSeconds = pageDurationSeconds,
+                EmptyDataValue = emptyDataValue,
+                EmptyDataRatio = GetEmptyDataRatio(),
+                SeedBytes = Encoding.ASCII.GetBytes(PayloadAsciiTextBox.Text ?? string.Empty),
+                RandomSeed = Environment.TickCount,
+                ExportTimestamp = exportTimestamp
+            };
+
+            if (protocolType == SerialProtocolType.Uart)
+            {
+                session.BaudRate = GetSelectedBaudRate();
+                session.SamplesPerBit = GetRoundedSamplesPerBit(sampleRate, session.BaudRate);
+                session.DataBits = GetSelectedDataBits();
+                session.StopBits = GetSelectedStopBits();
+                session.ParityMode = GetSelectedParityMode();
+                session.LineCount = 1;
+                session.ExportDirectory = Path.Combine(
+                    exportParentDirectory,
+                    ProtocolBinNaming.BuildUartExportFolderName(
+                        sampleRate,
+                        session.BaudRate,
+                        session.ParityMode.ToString(),
+                        session.DataBits,
+                        session.StopBits,
+                        exportTimestamp));
+                return session;
+            }
+
+            session.DataRate = GetSelectedDataRate(protocolType);
+            if (sampleRate % session.DataRate != 0)
+            {
+                throw new InvalidOperationException("采样率必须是数据速率的整数倍。");
+            }
+
+            session.SamplesPerBit = checked((int)(sampleRate / session.DataRate));
+            session.LineCount = GetProtocolLineCount(protocolType);
+            session.ExportDirectory = Path.Combine(
+                exportParentDirectory,
+                ProtocolBinNaming.BuildExportFolderName(session.LineCount, sampleRate, session.DataRate, exportTimestamp));
+            return session;
+        }
+
+        private static StreamingGenerationResult RunStreamingGeneration(StreamingGenerationSession session, CancellationToken cancellationToken)
+        {
+            if (session == null)
+            {
+                throw new ArgumentNullException("session");
+            }
+
+            ProtocolPageManifest manifest = CreateStreamingManifest(session);
+            StreamingGenerationResult result = new StreamingGenerationResult
+            {
+                ExportDirectory = session.ExportDirectory
+            };
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            long totalSamples = 0;
+
+            while (cancellationToken.IsCancellationRequested == false)
+            {
+                int pageNumber = manifest.Pages.Count + 1;
+                StreamingPageWriteResult pageResult = session.ProtocolType == SerialProtocolType.Uart
+                    ? WriteStreamingUartPage(session, pageNumber, totalSamples)
+                    : WriteStreamingProtocolPage(session, pageNumber, totalSamples);
+
+                manifest.Pages.Add(pageResult.Page);
+                ProtocolPageManifestStorage.Save(session.ExportDirectory, manifest);
+
+                result.PageCount++;
+                result.PayloadByteCount += pageResult.PayloadByteCount;
+                result.ExportByteCount += pageResult.ExportByteCount;
+                totalSamples += pageResult.Page.SampleCount;
+
+                if (WaitForStreamingPace(stopwatch, totalSamples, session.SampleRate, cancellationToken))
+                {
+                    break;
+                }
+            }
+
+            result.Elapsed = stopwatch.Elapsed;
+            return result;
+        }
+
+        private static bool WaitForStreamingPace(Stopwatch stopwatch, long totalSamples, uint sampleRate, CancellationToken cancellationToken)
+        {
+            if (sampleRate == 0 || totalSamples <= 0)
+            {
+                return cancellationToken.IsCancellationRequested;
+            }
+
+            double targetMilliseconds = (totalSamples * 1000.0) / sampleRate;
+            double remainingMilliseconds = targetMilliseconds - stopwatch.Elapsed.TotalMilliseconds;
+            if (remainingMilliseconds <= 1)
+            {
+                return cancellationToken.IsCancellationRequested;
+            }
+
+            int waitMilliseconds = remainingMilliseconds >= int.MaxValue ? int.MaxValue : (int)Math.Round(remainingMilliseconds);
+            return cancellationToken.WaitHandle.WaitOne(Math.Max(1, waitMilliseconds));
+        }
+
+        private static ProtocolPageManifest CreateStreamingManifest(StreamingGenerationSession session)
+        {
+            return new ProtocolPageManifest
+            {
+                Version = 1,
+                ProtocolType = session.ProtocolType.ToString(),
+                LineCount = session.LineCount,
+                SampleRate = session.SampleRate,
+                DataRate = session.ProtocolType == SerialProtocolType.Uart ? 0 : session.DataRate,
+                BaudRate = session.ProtocolType == SerialProtocolType.Uart ? Math.Max(0, session.BaudRate) : 0,
+                ParityText = session.ProtocolType == SerialProtocolType.Uart ? session.ParityMode.ToString() : string.Empty,
+                DataBits = session.ProtocolType == SerialProtocolType.Uart ? session.DataBits : 8,
+                StopBits = session.ProtocolType == SerialProtocolType.Uart ? session.StopBits : 0,
+                SamplesPerBit = session.SamplesPerBit,
+                PageDurationSeconds = session.PageDurationSeconds,
+                TimestampText = BuildManifestTimestampText(session.ExportTimestamp),
+                Pages = new List<ProtocolPageManifestPage>()
+            };
+        }
+
+        private static StreamingPageWriteResult WriteStreamingProtocolPage(
+            StreamingGenerationSession session,
+            int pageNumber,
+            long startSampleIndex)
+        {
+            long payloadByteCount = GetStreamingProtocolPayloadByteCount(
+                session.SampleRate,
+                session.PageDurationSeconds,
+                session.SamplesPerBit);
+            byte[] payloadBytes = BuildLogicalPayloadBytes(
+                session.SeedBytes,
+                payloadByteCount,
+                session.EmptyDataRatio,
+                session.EmptyDataValue,
+                session.RandomSeed + pageNumber,
+                session.DataRate);
+            byte[] payloadBytes2 = session.ProtocolType == SerialProtocolType.FourWireSerial
+                ? BuildSecondaryLogicalPayloadBytes(payloadBytes, session.EmptyDataValue)
+                : new byte[0];
+            byte[] protocolBytes = BuildSampledProtocolBytes(
+                payloadBytes,
+                payloadBytes2,
+                session.ProtocolType,
+                GetClockValueForProtocol(session.ProtocolType),
+                session.EmptyDataValue,
+                session.SamplesPerBit);
+            byte[][] channelBytes = ProtocolPageUtility.SplitInterleavedPackedBytes(protocolBytes, session.LineCount);
+            if (channelBytes == null || channelBytes.Length != session.LineCount)
+            {
+                throw new InvalidOperationException("无法将流式协议数据拆分为通道。");
+            }
+
+            string fileName = ProtocolBinNaming.BuildPageFileName(pageNumber);
+            byte[] outputBytes = ProtocolPageUtility.CombineChannelBytes(channelBytes);
+            File.WriteAllBytes(Path.Combine(session.ExportDirectory, fileName), outputBytes);
+
+            int sampleCount = checked((int)(payloadBytes.Length * (long)session.SamplesPerBit * 8));
+            ProtocolPageManifestPage page = new ProtocolPageManifestPage
+            {
+                PageNumber = pageNumber,
+                FileName = fileName,
+                StartSampleIndex = startSampleIndex,
+                SampleCount = sampleCount,
+                ChannelCount = session.LineCount,
+                BytesPerChannel = channelBytes.Length > 0 && channelBytes[0] != null ? channelBytes[0].Length : 0,
+                LeadingHighSamples = 0,
+                IsActiveData = ContainsNonDefaultData(
+                    payloadBytes,
+                    payloadBytes2,
+                    session.ProtocolType,
+                    0,
+                    payloadBytes.Length,
+                    session.EmptyDataValue),
+                StartTimeSeconds = startSampleIndex / (double)session.SampleRate,
+                DurationSeconds = sampleCount / (double)session.SampleRate,
+                StartsOnBoundary = true,
+                EndsOnBoundary = true
+            };
+
+            return new StreamingPageWriteResult
+            {
+                Page = page,
+                PayloadByteCount = payloadBytes.Length,
+                ExportByteCount = outputBytes.Length
+            };
+        }
+
+        private static StreamingPageWriteResult WriteStreamingUartPage(
+            StreamingGenerationSession session,
+            int pageNumber,
+            long startSampleIndex)
+        {
+            bool includeInitialIdle = pageNumber == 1;
+            long payloadByteCount = GetStreamingUartPayloadByteCount(
+                session.SampleRate,
+                session.PageDurationSeconds,
+                session.SamplesPerBit,
+                session.DataBits,
+                session.StopBits,
+                session.ParityMode,
+                includeInitialIdle);
+            byte[] payloadBytes = BuildLogicalPayloadBytes(
+                session.SeedBytes,
+                payloadByteCount,
+                session.EmptyDataRatio,
+                session.EmptyDataValue,
+                session.RandomSeed + pageNumber,
+                (uint)Math.Max(1, session.BaudRate));
+            int sampleCount;
+            byte[] outputBytes = BuildStreamingUartPageBytes(
+                payloadBytes,
+                session.EmptyDataValue,
+                session.SamplesPerBit,
+                session.DataBits,
+                session.StopBits,
+                session.ParityMode,
+                includeInitialIdle,
+                out sampleCount);
+
+            string fileName = ProtocolBinNaming.BuildPageFileName(pageNumber);
+            File.WriteAllBytes(Path.Combine(session.ExportDirectory, fileName), outputBytes);
+
+            ProtocolPageManifestPage page = new ProtocolPageManifestPage
+            {
+                PageNumber = pageNumber,
+                FileName = fileName,
+                StartSampleIndex = startSampleIndex,
+                SampleCount = sampleCount,
+                ChannelCount = 1,
+                BytesPerChannel = outputBytes.Length,
+                LeadingHighSamples = includeInitialIdle ? 0 : session.SamplesPerBit,
+                IsActiveData = ContainsNonDefaultData(
+                    payloadBytes,
+                    null,
+                    SerialProtocolType.Uart,
+                    0,
+                    payloadBytes.Length,
+                    session.EmptyDataValue),
+                StartTimeSeconds = startSampleIndex / (double)session.SampleRate,
+                DurationSeconds = sampleCount / (double)session.SampleRate,
+                StartsOnBoundary = true,
+                EndsOnBoundary = true
+            };
+
+            return new StreamingPageWriteResult
+            {
+                Page = page,
+                PayloadByteCount = payloadBytes.Length,
+                ExportByteCount = outputBytes.Length
+            };
+        }
+
+        private static long GetStreamingProtocolPayloadByteCount(uint sampleRate, double pageDurationSeconds, int samplesPerBit)
+        {
+            if (sampleRate == 0 || pageDurationSeconds <= 0 || samplesPerBit <= 0)
+            {
+                return 1;
+            }
+
+            long targetSamples = Math.Max(1L, (long)Math.Round(pageDurationSeconds * sampleRate, MidpointRounding.AwayFromZero));
+            long samplesPerPayloadByte = (long)samplesPerBit * 8;
+            if (samplesPerPayloadByte <= 0)
+            {
+                return 1;
+            }
+
+            return Math.Max(1, targetSamples / samplesPerPayloadByte);
+        }
+
+        private static long GetStreamingUartPayloadByteCount(
+            uint sampleRate,
+            double pageDurationSeconds,
+            int samplesPerBit,
+            int dataBits,
+            double stopBits,
+            UartParityMode parityMode,
+            bool includeInitialIdle)
+        {
+            if (sampleRate == 0 || pageDurationSeconds <= 0 || samplesPerBit <= 0)
+            {
+                return 1;
+            }
+
+            long targetSamples = Math.Max(1L, (long)Math.Round(pageDurationSeconds * sampleRate, MidpointRounding.AwayFromZero));
+            if (includeInitialIdle)
+            {
+                targetSamples -= samplesPerBit;
+            }
+
+            int frameSamples = GetUartFrameSampleCount(samplesPerBit, dataBits, stopBits, parityMode);
+            if (targetSamples <= 0 || frameSamples <= 0)
+            {
+                return 1;
+            }
+
+            return Math.Max(1, targetSamples / frameSamples);
+        }
+
+        private static byte[] BuildStreamingUartPageBytes(
+            byte[] payloadBytes,
+            byte idlePayloadValue,
+            int samplesPerBit,
+            int dataBits,
+            double stopBits,
+            UartParityMode parityMode,
+            bool includeInitialIdle,
+            out int sampleCount)
+        {
+            if (payloadBytes == null || payloadBytes.Length == 0)
+            {
+                sampleCount = 0;
+                return new byte[0];
+            }
+
+            int stopSamples = GetStopBitSampleCount(samplesPerBit, stopBits);
+            int parityBitCount = parityMode == UartParityMode.None ? 0 : 1;
+            int frameSamples = samplesPerBit * (1 + dataBits + parityBitCount) + stopSamples;
+            long totalSamples = checked((includeInitialIdle ? samplesPerBit : 0L) + ((long)payloadBytes.Length * frameSamples));
+            if (totalSamples > int.MaxValue)
+            {
+                throw new InvalidOperationException("流式页采样点数过大，请缩短页时长或降低采样率。");
+            }
+
+            long outputLength = (totalSamples + 7) / 8;
+            if (outputLength > int.MaxValue)
+            {
+                throw new InvalidOperationException("流式页导出 BIN 过大，请缩短页时长或降低采样率。");
+            }
+
+            byte[] outputBytes = new byte[(int)outputLength];
+            int sampleIndex = 0;
+            if (includeInitialIdle)
+            {
+                WriteRepeatedUartBit(outputBytes, ref sampleIndex, true, samplesPerBit);
+            }
+
+            for (int byteIndex = 0; byteIndex < payloadBytes.Length; byteIndex++)
+            {
+                byte value = payloadBytes[byteIndex];
+                if (value == idlePayloadValue)
+                {
+                    WriteRepeatedUartBit(outputBytes, ref sampleIndex, true, frameSamples);
+                    continue;
+                }
+
+                WriteRepeatedUartBit(outputBytes, ref sampleIndex, false, samplesPerBit);
+                for (int bitIndex = 0; bitIndex < dataBits; bitIndex++)
+                {
+                    bool bitHigh = bitIndex < 8 && ((value >> bitIndex) & 0x1) != 0;
+                    WriteRepeatedUartBit(outputBytes, ref sampleIndex, bitHigh, samplesPerBit);
+                }
+
+                if (parityMode != UartParityMode.None)
+                {
+                    WriteRepeatedUartBit(outputBytes, ref sampleIndex, CalculateUartParityBit(value, dataBits, parityMode), samplesPerBit);
+                }
+
+                WriteRepeatedUartBit(outputBytes, ref sampleIndex, true, stopSamples);
+            }
+
+            sampleCount = (int)totalSamples;
+            FillRemainingUartIdleBits(outputBytes, ref sampleIndex);
+            return outputBytes;
+        }
+
+        private static byte GetClockValueForProtocol(SerialProtocolType protocolType)
+        {
+            return IsClockedProtocol(protocolType) ? ProtocolClockBitPattern : (byte)0x00;
         }
 
         private void UpdatePayloadPreview()
