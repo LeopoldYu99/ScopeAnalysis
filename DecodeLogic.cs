@@ -350,6 +350,9 @@ namespace ScopeAnalysis
             double startBitEndX = startX + bitDurationUs;
             double dataEndX = startBitEndX + uartDataBits * bitDurationUs;
             double stopStartX = dataEndX;
+
+            AddSegment(segments, startX, startBitEndX, "T", true);
+            AddSegment(segments, startBitEndX, dataEndX, FormatLabel(decodedValue), false, BuildBitLabels(decodedValue, uartDataBits));
             if (uartParityMode != UartParityMode.None)
             {
                 double parityEndX = stopStartX + bitDurationUs;
@@ -358,9 +361,6 @@ namespace ScopeAnalysis
             }
 
             double stopEndX = stopStartX + uartStopBits * bitDurationUs;
-
-            AddSegment(segments, startX, startBitEndX, "T", true);
-            AddSegment(segments, startBitEndX, dataEndX, FormatLabel(decodedValue), false, BuildBitLabels(decodedValue, uartDataBits));
             AddSegment(segments, stopStartX, Math.Min(stopEndX, endX), "S", true);
         }
 
