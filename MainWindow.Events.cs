@@ -25,6 +25,11 @@ namespace ScopeAnalysis
             {
                 UpdateMeasurementVisual();
             }
+
+            if (_isCursorVisualDirty)
+            {
+                UpdateCursorVisual();
+            }
         }
 
         private void Chart_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
@@ -63,6 +68,21 @@ namespace ScopeAnalysis
             ShowSignalImportDialogForSignal(0);
         }
 
+        private void buttonSendUdpCommand_Click(object sender, RoutedEventArgs e)
+        {
+            SendSelectedUdpCommand();
+        }
+
+        private void checkBoxCursor_CheckedChanged(object sender, RoutedEventArgs e)
+        {
+            ApplyCursorControlState();
+        }
+
+        private void checkBoxCursorSnap_CheckedChanged(object sender, RoutedEventArgs e)
+        {
+            ApplyCursorControlState();
+        }
+
         private void comboBoxImportPage_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (_isUpdatingImportPageSelection || _currentProtocolImportSession == null || comboBoxImportPage == null)
@@ -90,11 +110,22 @@ namespace ScopeAnalysis
             if (IsPointInsidePlotArea(position) == false)
             {
                 _isMeasurementHovering = false;
+                _isCursorHovering = false;
                 UpdateMeasurementVisual();
+                UpdateCursorVisual();
                 return;
             }
 
+            UpdateCursorFromControlPosition(position.X, position.Y);
             UpdateMeasurementFromControlPosition(position.X, position.Y);
+        }
+
+        private void Chart_MouseLeave(object sender, MouseEventArgs e)
+        {
+            _isMeasurementHovering = false;
+            _isCursorHovering = false;
+            UpdateMeasurementVisual();
+            UpdateCursorVisual();
         }
 
     

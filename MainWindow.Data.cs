@@ -8,6 +8,8 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Net;
+using System.Net.Sockets;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -20,6 +22,11 @@ namespace ScopeAnalysis
         private const int ProtocolImportChunkSeconds = 5;
         private const double ProtocolImportPartitionDurationSeconds = 0.1;
         private const int ProtocolImportPartitionsPerChunk = (int)(ProtocolImportChunkSeconds / ProtocolImportPartitionDurationSeconds);
+        private const uint UdpFrameHeader = 0x499602D2;
+        private const uint UdpFrameFooter = 0xB669FD2E;
+        private const string UdpCommandTargetIp = "192.168.1.10";
+        private const int UdpCommandTargetPort = 6000;
+        private const ushort UdpCommandInterfaceAddress = 0x0001;
 
         private sealed class SignalImportSelection
         {
@@ -36,6 +43,13 @@ namespace ScopeAnalysis
             public int UartDataBits { get; set; }
             public double UartStopBits { get; set; }
             public int UartSamplesPerBit { get; set; }
+        }
+
+        private sealed class UdpCommandItem
+        {
+            public string DisplayText { get; set; }
+            public byte DataType0 { get; set; }
+            public byte DataType1 { get; set; }
         }
 
         private sealed class ProtocolImportPageItem
@@ -107,6 +121,9 @@ namespace ScopeAnalysis
             _isMeasurementHovering = false;
             _measurementHoverXValue = 0;
             _measurementSignal = null;
+            _isCursorHovering = false;
+            _cursorSignal = null;
+            _cursorDisplaySamples.Clear();
 
             ViewXY view = _chart.ViewXY;
 
@@ -189,6 +206,202 @@ namespace ScopeAnalysis
             };
 
             dialog.ShowDialog();
+        }
+
+        private void InitializeUdpCommandSelector()
+        {
+            if (comboBoxUdpCommand == null)
+            {
+                return;
+            }
+
+            comboBoxUdpCommand.ItemsSource = new List<UdpCommandItem>
+            {
+                new UdpCommandItem { DisplayText = "上位机->同步 RS422 数据 (01 00)", DataType0 = 0x01, DataType1 = 0x00 },
+                new UdpCommandItem { DisplayText = "上位机->同步 RS422 配置 (01 10)", DataType0 = 0x01, DataType1 = 0x10 },
+                new UdpCommandItem { DisplayText = "上位机->异步 RS422 数据 (02 00)", DataType0 = 0x02, DataType1 = 0x00 },
+                new UdpCommandItem { DisplayText = "上位机->异步 RS422 配置 (02 10)", DataType0 = 0x02, DataType1 = 0x10 },
+                new UdpCommandItem { DisplayText = "上位机->LVDS 数据 (03 00)", DataType0 = 0x03, DataType1 = 0x00 },
+                new UdpCommandItem { DisplayText = "上位机->LVDS 配置 (03 10)", DataType0 = 0x03, DataType1 = 0x10 },
+                new UdpCommandItem { DisplayText = "上位机->CAN 数据 (04 00)", DataType0 = 0x04, DataType1 = 0x00 },
+                new UdpCommandItem { DisplayText = "上位机->CAN 配置 (04 10)", DataType0 = 0x04, DataType1 = 0x10 },
+                new UdpCommandItem { DisplayText = "上位机->PPS 预留 (05 00)", DataType0 = 0x05, DataType1 = 0x00 },
+                new UdpCommandItem { DisplayText = "上位机->PPS 配置及控制 (05 10)", DataType0 = 0x05, DataType1 = 0x10 },
+                new UdpCommandItem { DisplayText = "上位机->脉冲信号 (06 10)", DataType0 = 0x06, DataType1 = 0x10 },
+                new UdpCommandItem { DisplayText = "上位机->ZYNQ 命令或数据 (0F 00)", DataType0 = 0x0F, DataType1 = 0x00 },
+                new UdpCommandItem { DisplayText = "同步 RS422->上位机 (11 00)", DataType0 = 0x11, DataType1 = 0x00 },
+                new UdpCommandItem { DisplayText = "异步 RS422->上位机 (12 00)", DataType0 = 0x12, DataType1 = 0x00 },
+                new UdpCommandItem { DisplayText = "LVDS->上位机 (13 00)", DataType0 = 0x13, DataType1 = 0x00 },
+                new UdpCommandItem { DisplayText = "CAN->上位机 (14 00)", DataType0 = 0x14, DataType1 = 0x00 },
+                new UdpCommandItem { DisplayText = "ZYNQ->上位机 (1F 00)", DataType0 = 0x1F, DataType1 = 0x00 }
+            };
+            comboBoxUdpCommand.SelectedIndex = 0;
+        }
+
+        private void SendSelectedUdpCommand()
+        {
+            try
+            {
+                UdpCommandItem command = comboBoxUdpCommand == null ? null : comboBoxUdpCommand.SelectedItem as UdpCommandItem;
+                if (command == null)
+                {
+                    throw new InvalidOperationException("请选择命令。");
+                }
+
+                IPAddress targetAddress;
+                if (IPAddress.TryParse(UdpCommandTargetIp, out targetAddress) == false)
+                {
+                    throw new InvalidOperationException("目标 IP 无效。");
+                }
+
+                int targetPort = UdpCommandTargetPort;
+                ushort interfaceAddress = UdpCommandInterfaceAddress;
+                byte[] payload = new byte[0];
+                byte[] frame = BuildUdpCommandFrame(command, interfaceAddress, payload);
+
+                using (UdpClient udpClient = new UdpClient())
+                {
+                    udpClient.Send(frame, frame.Length, new IPEndPoint(targetAddress, targetPort));
+                }
+
+                MessageBox.Show(
+                    string.Format(
+                        CultureInfo.InvariantCulture,
+                        "命令已发送。{0}{0}目标: {1}:{2}{0}数据类型: {3:X2} {4:X2}{0}接口地址: 0x{5:X4}{0}数据区: {6:N0} 字节",
+                        Environment.NewLine,
+                        targetAddress,
+                        targetPort,
+                        command.DataType0,
+                        command.DataType1,
+                        interfaceAddress,
+                        payload.Length),
+                    "成功",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    "发送失败: " + ex.Message,
+                    "错误",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+        }
+
+        private static byte[] BuildUdpCommandFrame(UdpCommandItem command, ushort interfaceAddress, byte[] payload)
+        {
+            if (command == null)
+            {
+                throw new ArgumentNullException("command");
+            }
+
+            payload = payload ?? new byte[0];
+            int dataLength = checked(2 + 2 + payload.Length);
+            if (dataLength > ushort.MaxValue)
+            {
+                throw new InvalidOperationException("数据区过长。");
+            }
+
+            byte[] frame = new byte[4 + 2 + dataLength + 2 + 4];
+            int offset = 0;
+            WriteUInt32BigEndian(frame, ref offset, UdpFrameHeader);
+            WriteUInt16BigEndian(frame, ref offset, (ushort)dataLength);
+            frame[offset++] = command.DataType0;
+            frame[offset++] = command.DataType1;
+            WriteUInt16BigEndian(frame, ref offset, interfaceAddress);
+            if (payload.Length > 0)
+            {
+                Buffer.BlockCopy(payload, 0, frame, offset, payload.Length);
+                offset += payload.Length;
+            }
+
+            ushort checksum = CalculateUdpChecksum(frame, 4, 2 + dataLength);
+            WriteUInt16BigEndian(frame, ref offset, checksum);
+            WriteUInt32BigEndian(frame, ref offset, UdpFrameFooter);
+            return frame;
+        }
+
+        private static byte[] ParseHexBytes(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return new byte[0];
+            }
+
+            string normalizedText = text
+                .Replace("0x", string.Empty)
+                .Replace("0X", string.Empty)
+                .Replace(",", " ")
+                .Replace(";", " ")
+                .Replace("-", " ")
+                .Trim();
+
+            string compactText = string.Concat(normalizedText.Where(c => char.IsWhiteSpace(c) == false));
+            if (compactText.Length == 0)
+            {
+                return new byte[0];
+            }
+
+            if (compactText.Length % 2 != 0)
+            {
+                throw new InvalidOperationException("数据区十六进制长度必须是偶数。");
+            }
+
+            byte[] bytes = new byte[compactText.Length / 2];
+            for (int i = 0; i < bytes.Length; i++)
+            {
+                bytes[i] = byte.Parse(compactText.Substring(i * 2, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+            }
+
+            return bytes;
+        }
+
+        private static ushort ParseUInt16Hex(string text, string fieldName)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                throw new InvalidOperationException(fieldName + "不能为空。");
+            }
+
+            string normalizedText = text.Trim();
+            if (normalizedText.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+            {
+                normalizedText = normalizedText.Substring(2);
+            }
+
+            ushort value;
+            if (ushort.TryParse(normalizedText, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out value) == false)
+            {
+                throw new InvalidOperationException(fieldName + "必须是 2 字节十六进制。");
+            }
+
+            return value;
+        }
+
+        private static ushort CalculateUdpChecksum(byte[] bytes, int offset, int length)
+        {
+            int checksum = 0;
+            for (int i = 0; i < length; i++)
+            {
+                checksum = (checksum + bytes[offset + i]) & 0xFFFF;
+            }
+
+            return (ushort)checksum;
+        }
+
+        private static void WriteUInt16BigEndian(byte[] bytes, ref int offset, ushort value)
+        {
+            bytes[offset++] = (byte)(value >> 8);
+            bytes[offset++] = (byte)value;
+        }
+
+        private static void WriteUInt32BigEndian(byte[] bytes, ref int offset, uint value)
+        {
+            bytes[offset++] = (byte)(value >> 24);
+            bytes[offset++] = (byte)(value >> 16);
+            bytes[offset++] = (byte)(value >> 8);
+            bytes[offset++] = (byte)value;
         }
 
         private static UIElement BuildDataProducerDialogContent(UIElement producer)

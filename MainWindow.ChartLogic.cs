@@ -96,6 +96,70 @@ namespace ScopeAnalysis
             UpdateMeasurementVisual();
         }
 
+        private void ApplyCursorControlState()
+        {
+            _isCursorEnabled = checkBoxCursor != null && checkBoxCursor.IsChecked == true;
+            _isCursorSnapEnabled = checkBoxCursorSnap == null || checkBoxCursorSnap.IsChecked == true;
+
+            if (checkBoxCursorSnap != null)
+            {
+                checkBoxCursorSnap.IsEnabled = _isCursorEnabled;
+            }
+
+            if (_isCursorEnabled == false)
+            {
+                _isCursorHovering = false;
+                _cursorDisplaySamples.Clear();
+                CollapseCursorVisual();
+            }
+            else
+            {
+                MarkCursorVisualDirty();
+            }
+        }
+
+        private void UpdateCursorFromControlPosition(double controlX, double controlY)
+        {
+            if (_isCursorEnabled == false)
+            {
+                _isCursorHovering = false;
+                CollapseCursorVisual();
+                return;
+            }
+
+            double? xValue = TryGetXAxisValueAt(controlX);
+            if (xValue.HasValue == false)
+            {
+                _isCursorHovering = false;
+                UpdateCursorVisual();
+                return;
+            }
+
+            ChartSignal targetSignal;
+            if (TryGetMeasurementSignalAtPosition(controlX, controlY, xValue.Value, out targetSignal) == false)
+            {
+                _isCursorHovering = false;
+                UpdateCursorVisual();
+                return;
+            }
+
+            CursorSample cursorSample;
+            if (TryBuildCursorSample(targetSignal, xValue.Value, out cursorSample) == false)
+            {
+                _isCursorHovering = false;
+                UpdateCursorVisual();
+                return;
+            }
+
+            _cursorSignal = targetSignal;
+            _cursorXValue = cursorSample.X;
+            _cursorIsSnapped = cursorSample.IsSnapped;
+            _cursorSnapDescription = cursorSample.SnapDescription;
+            BuildCursorDisplaySamples();
+            _isCursorHovering = true;
+            UpdateCursorVisual();
+        }
+
         private bool TryGetMeasurementSignalAtPosition(double controlX, double controlY, double measurementXValue, out ChartSignal signal)
         {
             signal = null;
@@ -171,6 +235,15 @@ namespace ScopeAnalysis
             public double X;
             public double ValueAfter;
             public DigitalEdgeDirection Direction;
+        }
+
+        private struct CursorSample
+        {
+            public ChartSignal Signal;
+            public double X;
+            public double Y;
+            public bool IsSnapped;
+            public string SnapDescription;
         }
 
         private sealed class MeasurementResult
@@ -445,6 +518,221 @@ namespace ScopeAnalysis
             int wordIndex = sampleIndex / 32;
             int bitOffset = sampleIndex % 32;
             return (digitalWords[wordIndex] & (1u << bitOffset)) != 0;
+        }
+
+        private bool TryBuildCursorSample(ChartSignal signal, double requestedXValue, out CursorSample cursorSample)
+        {
+            cursorSample = new CursorSample
+            {
+                Signal = signal,
+                X = requestedXValue,
+                Y = 0,
+                IsSnapped = false,
+                SnapDescription = string.Empty
+            };
+
+            if (signal == null)
+            {
+                return false;
+            }
+
+            DigitalHistorySnapshot history = signal.GetDigitalHistorySnapshot();
+            if (history == null
+                || history.DigitalWords == null
+                || history.SampleCount <= 0
+                || history.SampleInterval <= 0)
+            {
+                return false;
+            }
+
+            double sampleX;
+            double sampleValue;
+            if (TryGetNearestHistorySample(history, requestedXValue, _isCursorSnapEnabled, out sampleX, out sampleValue) == false)
+            {
+                return false;
+            }
+
+            cursorSample.X = _isCursorSnapEnabled ? sampleX : requestedXValue;
+            cursorSample.Y = sampleValue;
+
+            if (_isCursorSnapEnabled)
+            {
+                DigitalEdge nearestEdge;
+                double snapThreshold = GetCursorSnapThresholdInAxisUnits();
+                if (TryGetNearestEdge(signal, requestedXValue, out nearestEdge)
+                    && Math.Abs(nearestEdge.X - requestedXValue) <= snapThreshold)
+                {
+                    cursorSample.X = nearestEdge.X;
+                    cursorSample.Y = nearestEdge.ValueAfter;
+                    cursorSample.IsSnapped = true;
+                    cursorSample.SnapDescription = nearestEdge.Direction == DigitalEdgeDirection.Rising
+                        ? "吸附: 上升沿"
+                        : "吸附: 下降沿";
+                }
+                else
+                {
+                    cursorSample.IsSnapped = true;
+                    cursorSample.SnapDescription = "吸附: 采样点";
+                }
+            }
+
+            return true;
+        }
+
+        private static bool TryGetNearestHistorySample(
+            DigitalHistorySnapshot history,
+            double requestedXValue,
+            bool roundToNearestSample,
+            out double sampleX,
+            out double sampleValue)
+        {
+            sampleX = 0;
+            sampleValue = 0;
+            if (history == null || history.SampleCount <= 0 || history.SampleInterval <= 0)
+            {
+                return false;
+            }
+
+            double samplePosition = requestedXValue / history.SampleInterval;
+            int sampleIndex = roundToNearestSample
+                ? (int)Math.Round(samplePosition, MidpointRounding.AwayFromZero)
+                : (int)Math.Floor(samplePosition);
+
+            if (sampleIndex < 0)
+            {
+                sampleIndex = 0;
+            }
+            else if (sampleIndex >= history.SampleCount)
+            {
+                sampleIndex = history.SampleCount - 1;
+            }
+
+            sampleX = sampleIndex * history.SampleInterval;
+            sampleValue = GetHistorySampleValue(history.DigitalWords, history.SampleCount, sampleIndex) ? 1.0 : 0.0;
+            return true;
+        }
+
+        private void BuildCursorDisplaySamples()
+        {
+            _cursorDisplaySamples.Clear();
+            for (int i = 0; i < _chartSignals.Count; i++)
+            {
+                ChartSignal signal = _chartSignals[i];
+                if (signal == null
+                    || signal.AxisY == null
+                    || signal.AxisY.Visible == false)
+                {
+                    continue;
+                }
+
+                CursorSample sample;
+                if (TryBuildCursorSampleAtFixedX(signal, _cursorXValue, out sample))
+                {
+                    _cursorDisplaySamples.Add(sample);
+                }
+            }
+        }
+
+        private bool TryBuildCursorSampleAtFixedX(ChartSignal signal, double xValue, out CursorSample cursorSample)
+        {
+            cursorSample = new CursorSample
+            {
+                Signal = signal,
+                X = xValue,
+                Y = 0,
+                IsSnapped = false,
+                SnapDescription = string.Empty
+            };
+
+            if (signal == null)
+            {
+                return false;
+            }
+
+            DigitalHistorySnapshot history = signal.GetDigitalHistorySnapshot();
+            if (history == null
+                || history.DigitalWords == null
+                || history.SampleCount <= 0
+                || history.SampleInterval <= 0)
+            {
+                return false;
+            }
+
+            double sampleX;
+            double sampleValue;
+            if (TryGetNearestHistorySample(history, xValue, false, out sampleX, out sampleValue) == false)
+            {
+                return false;
+            }
+
+            cursorSample.Y = sampleValue;
+            return true;
+        }
+
+        private bool TryGetNearestEdge(ChartSignal signal, double requestedXValue, out DigitalEdge nearestEdge)
+        {
+            nearestEdge = new DigitalEdge();
+
+            DigitalEdge[] edges;
+            if (TryGetMeasurementEdges(signal, out edges) == false || edges.Length == 0)
+            {
+                return false;
+            }
+
+            int edgeIndex = FindFirstEdgeIndexAtOrAfter(edges, requestedXValue);
+            bool found = false;
+            double bestDistance = double.MaxValue;
+            TrySelectNearestEdge(edges, edgeIndex - 1, requestedXValue, ref nearestEdge, ref bestDistance, ref found);
+            TrySelectNearestEdge(edges, edgeIndex, requestedXValue, ref nearestEdge, ref bestDistance, ref found);
+            return found;
+        }
+
+        private static void TrySelectNearestEdge(
+            DigitalEdge[] edges,
+            int edgeIndex,
+            double requestedXValue,
+            ref DigitalEdge nearestEdge,
+            ref double bestDistance,
+            ref bool found)
+        {
+            if (edges == null || edgeIndex < 0 || edgeIndex >= edges.Length)
+            {
+                return;
+            }
+
+            double distance = Math.Abs(edges[edgeIndex].X - requestedXValue);
+            if (found == false || distance < bestDistance)
+            {
+                nearestEdge = edges[edgeIndex];
+                bestDistance = distance;
+                found = true;
+            }
+        }
+
+        private double GetCursorSnapThresholdInAxisUnits()
+        {
+            if (_chart == null)
+            {
+                return double.MaxValue;
+            }
+
+            double plotLeft;
+            double plotTop;
+            double plotRight;
+            double plotBottom;
+            if (TryGetPlotAreaBounds(out plotLeft, out plotTop, out plotRight, out plotBottom) == false)
+            {
+                return double.MaxValue;
+            }
+
+            double plotWidth = plotRight - plotLeft;
+            if (plotWidth <= 0)
+            {
+                return double.MaxValue;
+            }
+
+            AxisX xAxis = _chart.ViewXY.XAxes[0];
+            return Math.Abs(xAxis.Maximum - xAxis.Minimum) / plotWidth * CursorSnapPixelThreshold;
         }
 
         private string BuildMeasurementText(MeasurementResult measurement)
@@ -849,6 +1137,277 @@ namespace ScopeAnalysis
             Canvas.SetLeft(_measurementValueBorder, labelLeft);
             Canvas.SetTop(_measurementValueBorder, labelTop);
             _measurementValueBorder.Visibility = Visibility.Visible;
+        }
+
+        private void CollapseCursorVisual()
+        {
+            _isCursorVisualDirty = false;
+
+            if (_cursorOverlay != null)
+            {
+                _cursorOverlay.Visibility = Visibility.Collapsed;
+            }
+
+            if (_cursorVerticalLine != null)
+            {
+                _cursorVerticalLine.Visibility = Visibility.Collapsed;
+            }
+
+            for (int i = 0; i < _cursorHorizontalLines.Count; i++)
+            {
+                _cursorHorizontalLines[i].Visibility = Visibility.Collapsed;
+            }
+
+            for (int i = 0; i < _cursorPoints.Count; i++)
+            {
+                _cursorPoints[i].Visibility = Visibility.Collapsed;
+            }
+
+            if (_cursorValueBorder != null)
+            {
+                _cursorValueBorder.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private void UpdateCursorVisual()
+        {
+            _isCursorVisualDirty = false;
+            if (_cursorOverlay == null
+                || _cursorVerticalLine == null
+                || _cursorValueBorder == null
+                || _cursorValueText == null)
+            {
+                return;
+            }
+
+            if (_isCursorEnabled == false
+                || _isCursorHovering == false
+                || _cursorSignal == null
+                || _cursorSignal.AxisY == null
+                || _chart == null)
+            {
+                CollapseCursorVisual();
+                return;
+            }
+
+            BuildCursorDisplaySamples();
+            if (_cursorDisplaySamples.Count == 0)
+            {
+                CollapseCursorVisual();
+                return;
+            }
+
+            double plotLeft;
+            double plotTop;
+            double plotRight;
+            double plotBottom;
+            if (TryGetPlotAreaBounds(out plotLeft, out plotTop, out plotRight, out plotBottom) == false)
+            {
+                CollapseCursorVisual();
+                return;
+            }
+
+            AxisX xAxis = _chart.ViewXY.XAxes[0];
+            double currentMin = xAxis.Minimum;
+            double currentMax = xAxis.Maximum;
+            if (currentMax <= currentMin)
+            {
+                CollapseCursorVisual();
+                return;
+            }
+
+            double cursorNormalizedX = (_cursorXValue - currentMin) / (currentMax - currentMin);
+            if (cursorNormalizedX < 0 || cursorNormalizedX > 1)
+            {
+                CollapseCursorVisual();
+                return;
+            }
+
+            double cursorXCoord = plotLeft + cursorNormalizedX * (plotRight - plotLeft);
+
+            _cursorOverlay.Width = _chart.ActualWidth;
+            _cursorOverlay.Height = _chart.ActualHeight;
+            _cursorOverlay.Visibility = Visibility.Visible;
+            EnsureCursorVisualCount(_cursorDisplaySamples.Count);
+
+            _cursorVerticalLine.X1 = cursorXCoord;
+            _cursorVerticalLine.X2 = cursorXCoord;
+            _cursorVerticalLine.Y1 = plotTop;
+            _cursorVerticalLine.Y2 = plotBottom;
+            _cursorVerticalLine.Visibility = Visibility.Visible;
+
+            CursorSample activeSample = _cursorDisplaySamples[0];
+            double activeYCoord = (plotTop + plotBottom) / 2.0;
+            for (int i = 0; i < _cursorDisplaySamples.Count; i++)
+            {
+                CursorSample sample = _cursorDisplaySamples[i];
+                double segmentTop;
+                double segmentBottom;
+                if (sample.Signal == null
+                    || sample.Signal.AxisY == null
+                    || TryGetYAxisBounds(sample.Signal.AxisY, out segmentTop, out segmentBottom) == false)
+                {
+                    _cursorHorizontalLines[i].Visibility = Visibility.Collapsed;
+                    _cursorPoints[i].Visibility = Visibility.Collapsed;
+                    continue;
+                }
+
+                double cursorYCoord = sample.Signal.AxisY.ValueToCoord(sample.Y, true);
+                if (double.IsNaN(cursorYCoord) || double.IsInfinity(cursorYCoord))
+                {
+                    cursorYCoord = (segmentTop + segmentBottom) / 2.0;
+                }
+
+                cursorYCoord = Math.Max(segmentTop + 2.0, Math.Min(segmentBottom - 2.0, cursorYCoord));
+                if (ReferenceEquals(sample.Signal, _cursorSignal))
+                {
+                    activeSample = sample;
+                    activeYCoord = cursorYCoord;
+                }
+
+                Color sampleColor = sample.Signal.SeriesColor;
+                _cursorHorizontalLines[i].Stroke = new SolidColorBrush(Color.FromArgb(185, sampleColor.R, sampleColor.G, sampleColor.B));
+                _cursorHorizontalLines[i].X1 = plotLeft;
+                _cursorHorizontalLines[i].X2 = plotRight;
+                _cursorHorizontalLines[i].Y1 = cursorYCoord;
+                _cursorHorizontalLines[i].Y2 = cursorYCoord;
+                _cursorHorizontalLines[i].Visibility = Visibility.Visible;
+
+                _cursorPoints[i].Fill = new SolidColorBrush(Color.FromArgb(245, sampleColor.R, sampleColor.G, sampleColor.B));
+                Canvas.SetLeft(_cursorPoints[i], cursorXCoord - _cursorPoints[i].Width / 2.0);
+                Canvas.SetTop(_cursorPoints[i], cursorYCoord - _cursorPoints[i].Height / 2.0);
+                _cursorPoints[i].Visibility = Visibility.Visible;
+            }
+
+            HideUnusedCursorVisuals(_cursorDisplaySamples.Count);
+
+            _cursorValueText.Text = BuildCursorText();
+            _cursorValueBorder.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+
+            double labelWidth = _cursorValueBorder.DesiredSize.Width;
+            double labelHeight = _cursorValueBorder.DesiredSize.Height;
+            double labelLeft = Math.Min(plotRight - labelWidth, cursorXCoord + 12.0);
+            if (labelLeft < plotLeft)
+            {
+                labelLeft = plotLeft;
+            }
+
+            if (labelLeft + labelWidth > plotRight)
+            {
+                labelLeft = Math.Max(plotLeft, cursorXCoord - labelWidth - 12.0);
+            }
+
+            double activeSegmentTop;
+            double activeSegmentBottom;
+            if (activeSample.Signal == null
+                || activeSample.Signal.AxisY == null
+                || TryGetYAxisBounds(activeSample.Signal.AxisY, out activeSegmentTop, out activeSegmentBottom) == false)
+            {
+                activeSegmentTop = plotTop;
+                activeSegmentBottom = plotBottom;
+            }
+
+            double labelTop = Math.Max(activeSegmentTop, Math.Min(activeSegmentBottom - labelHeight, activeYCoord - labelHeight - 10.0));
+            if (labelTop < activeSegmentTop)
+            {
+                labelTop = Math.Min(activeSegmentBottom - labelHeight, activeYCoord + 10.0);
+            }
+
+            Canvas.SetLeft(_cursorValueBorder, labelLeft);
+            Canvas.SetTop(_cursorValueBorder, labelTop);
+            _cursorValueBorder.Visibility = Visibility.Visible;
+        }
+
+        private void EnsureCursorVisualCount(int visualCount)
+        {
+            if (_cursorOverlay == null)
+            {
+                return;
+            }
+
+            while (_cursorHorizontalLines.Count < visualCount)
+            {
+                Line line = CreateCursorHorizontalLine();
+                _cursorHorizontalLines.Add(line);
+                InsertCursorVisualBeforeLabel(line);
+            }
+
+            while (_cursorPoints.Count < visualCount)
+            {
+                Ellipse point = CreateCursorPoint();
+                _cursorPoints.Add(point);
+                InsertCursorVisualBeforeLabel(point);
+            }
+        }
+
+        private Line CreateCursorHorizontalLine()
+        {
+            return new Line
+            {
+                Stroke = new SolidColorBrush(Color.FromArgb(210, 64, 202, 255)),
+                StrokeThickness = 1,
+                StrokeDashArray = new DoubleCollection(new[] { 4.0, 2.0 }),
+                SnapsToDevicePixels = true,
+                Visibility = Visibility.Collapsed
+            };
+        }
+
+        private Ellipse CreateCursorPoint()
+        {
+            return new Ellipse
+            {
+                Width = 8,
+                Height = 8,
+                Fill = new SolidColorBrush(Color.FromArgb(245, 64, 202, 255)),
+                Stroke = Brushes.Black,
+                StrokeThickness = 1,
+                Visibility = Visibility.Collapsed
+            };
+        }
+
+        private void InsertCursorVisualBeforeLabel(UIElement visual)
+        {
+            int labelIndex = _cursorOverlay.Children.IndexOf(_cursorValueBorder);
+            if (labelIndex >= 0)
+            {
+                _cursorOverlay.Children.Insert(labelIndex, visual);
+            }
+            else
+            {
+                _cursorOverlay.Children.Add(visual);
+            }
+        }
+
+        private void HideUnusedCursorVisuals(int usedCount)
+        {
+            for (int i = usedCount; i < _cursorHorizontalLines.Count; i++)
+            {
+                _cursorHorizontalLines[i].Visibility = Visibility.Collapsed;
+            }
+
+            for (int i = usedCount; i < _cursorPoints.Count; i++)
+            {
+                _cursorPoints[i].Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private string BuildCursorText()
+        {
+            string text = string.Format("时间: {0}", FormatTimeValue(_cursorXValue));
+            if (_cursorIsSnapped && string.IsNullOrWhiteSpace(_cursorSnapDescription) == false)
+            {
+                text += Environment.NewLine + _cursorSnapDescription;
+            }
+
+            for (int i = 0; i < _cursorDisplaySamples.Count; i++)
+            {
+                CursorSample sample = _cursorDisplaySamples[i];
+                string signalName = sample.Signal == null ? "通道" : sample.Signal.Name;
+                string levelText = sample.Y >= 0.5 ? "高" : "低";
+                text += string.Format("{0}{1}: {2}", Environment.NewLine, signalName, levelText);
+            }
+
+            return text;
         }
 
         private sealed class DecodeRowLayout
@@ -1562,6 +2121,11 @@ namespace ScopeAnalysis
             _isMeasurementVisualDirty = true;
         }
 
+        private void MarkCursorVisualDirty()
+        {
+            _isCursorVisualDirty = true;
+        }
+
         private void InvalidateOverlayCaches()
         {
             _lastViewportMin = double.NaN;
@@ -1570,6 +2134,7 @@ namespace ScopeAnalysis
             _lastViewportHeight = double.NaN;
             MarkDecodeOverlayDirty();
             MarkMeasurementVisualDirty();
+            MarkCursorVisualDirty();
         }
 
         private static bool AreClose(double left, double right)
@@ -1610,6 +2175,7 @@ namespace ScopeAnalysis
                 _lastViewportHeight = currentHeight;
                 MarkDecodeOverlayDirty();
                 MarkMeasurementVisualDirty();
+                MarkCursorVisualDirty();
             }
 
             return viewportChanged;
@@ -1619,6 +2185,7 @@ namespace ScopeAnalysis
         {
             MarkDecodeOverlayDirty();
             MarkMeasurementVisualDirty();
+            MarkCursorVisualDirty();
         }
 
         private ChartSignal CreateChartSignal(ViewXY view, int seriesIndex)
@@ -1750,6 +2317,7 @@ namespace ScopeAnalysis
             _chart.EndUpdate();
             MarkDecodeOverlayDirty();
             UpdateMeasurementVisual();
+            UpdateCursorVisual();
         }
 
         private void ZoomY(AxisY yAxis, double factor, double? anchorY = null)
@@ -1778,6 +2346,7 @@ namespace ScopeAnalysis
             yAxis.SetRange(newMin, newMax);
             _chart.EndUpdate();
             UpdateMeasurementVisual();
+            UpdateCursorVisual();
         }
     }
 }

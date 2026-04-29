@@ -16,11 +16,18 @@ namespace ScopeAnalysis
         private LightningChart _chart;
         private Canvas _decodeOverlay;
         private Canvas _measurementOverlay;
+        private Canvas _cursorOverlay;
         private Line _measurementStartLine;
         private Line _measurementEndLine;
         private Line _measurementSpanLine;
         private System.Windows.Controls.Border _measurementValueBorder;
         private TextBlock _measurementValueText;
+        private Line _cursorVerticalLine;
+        private System.Windows.Controls.Border _cursorValueBorder;
+        private TextBlock _cursorValueText;
+        private readonly List<Line> _cursorHorizontalLines = new List<Line>();
+        private readonly List<Ellipse> _cursorPoints = new List<Ellipse>();
+        private readonly List<CursorSample> _cursorDisplaySamples = new List<CursorSample>();
         private readonly Dictionary<ChartSignal, DecodeCacheEntry> _decodeCache = new Dictionary<ChartSignal, DecodeCacheEntry>();
         private readonly Dictionary<ChartSignal, MeasurementCacheEntry> _measurementCache = new Dictionary<ChartSignal, MeasurementCacheEntry>();
 
@@ -41,8 +48,16 @@ namespace ScopeAnalysis
         private bool _isMeasurementHovering;
         private double _measurementHoverXValue;
         private ChartSignal _measurementSignal;
+        private bool _isCursorEnabled;
+        private bool _isCursorSnapEnabled = true;
+        private bool _isCursorHovering;
+        private double _cursorXValue;
+        private ChartSignal _cursorSignal;
+        private bool _cursorIsSnapped;
+        private string _cursorSnapDescription = string.Empty;
         private bool _isDecodeOverlayDirty = true;
         private bool _isMeasurementVisualDirty = true;
+        private bool _isCursorVisualDirty = true;
         private double _lastViewportMin = double.NaN;
         private double _lastViewportMax = double.NaN;
         private double _lastViewportWidth = double.NaN;
@@ -50,10 +65,12 @@ namespace ScopeAnalysis
 
         private const float LineWidth = 1f;
         private const double MicrosecondsPerSecond = 1000000.0;
+        private const double CursorSnapPixelThreshold = 8.0;
 
         public MainWindow()
         {
             InitializeComponent();
+            InitializeUdpCommandSelector();
             CreateChart();
         }
 
@@ -128,8 +145,16 @@ namespace ScopeAnalysis
             _chart.EndUpdate();
             _chart.PreviewMouseWheel += Chart_PreviewMouseWheel;
             _chart.PreviewMouseMove += Chart_PreviewMouseMove;
+            _chart.MouseLeave += Chart_MouseLeave;
 
             _measurementOverlay = new Canvas
+            {
+                Background = Brushes.Transparent,
+                IsHitTestVisible = false,
+                Visibility = Visibility.Collapsed
+            };
+
+            _cursorOverlay = new Canvas
             {
                 Background = Brushes.Transparent,
                 IsHitTestVisible = false,
@@ -194,6 +219,37 @@ namespace ScopeAnalysis
             _measurementOverlay.Children.Add(_measurementSpanLine);
             _measurementOverlay.Children.Add(_measurementValueBorder);
 
+            _cursorVerticalLine = new Line
+            {
+                Stroke = new SolidColorBrush(Color.FromArgb(235, 64, 202, 255)),
+                StrokeThickness = 1,
+                StrokeDashArray = new DoubleCollection(new[] { 4.0, 2.0 }),
+                SnapsToDevicePixels = true,
+                Visibility = Visibility.Collapsed
+            };
+
+            _cursorValueText = new TextBlock
+            {
+                Foreground = Brushes.White,
+                FontSize = 12,
+                FontWeight = FontWeights.Bold,
+                TextAlignment = TextAlignment.Left
+            };
+
+            _cursorValueBorder = new System.Windows.Controls.Border
+            {
+                Background = new SolidColorBrush(Color.FromArgb(220, 16, 32, 38)),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(235, 64, 202, 255)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(8, 4, 8, 4),
+                Child = _cursorValueText,
+                Visibility = Visibility.Collapsed
+            };
+
+            _cursorOverlay.Children.Add(_cursorVerticalLine);
+            _cursorOverlay.Children.Add(_cursorValueBorder);
+
             gridMain.Children.Add(_chart);
             Grid.SetRow(_chart, 0);
             Grid.SetColumn(_chart, 0);
@@ -207,6 +263,13 @@ namespace ScopeAnalysis
             Grid.SetRow(_measurementOverlay, 0);
             Grid.SetColumn(_measurementOverlay, 0);
             Panel.SetZIndex(_measurementOverlay, 2);
+
+            gridMain.Children.Add(_cursorOverlay);
+            Grid.SetRow(_cursorOverlay, 0);
+            Grid.SetColumn(_cursorOverlay, 0);
+            Panel.SetZIndex(_cursorOverlay, 3);
+
+            ApplyCursorControlState();
 
             Start();
         }

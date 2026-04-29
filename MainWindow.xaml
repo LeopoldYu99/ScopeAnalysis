@@ -74,6 +74,50 @@
             </Setter.Value>
         </Setter>
     </Style>
+    <Style x:Key="ToggleButtonStyle1" TargetType="{x:Type ToggleButton}">
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual}"/>
+        <Setter Property="Background" Value="{StaticResource Button.Static.Background}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource Button.Static.Border}"/>
+        <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="Margin" Value="3"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="ToggleButton.Effect">
+            <Setter.Value>
+                <DropShadowEffect Color="Orange" Direction="310" ShadowDepth="5" BlurRadius="5" Opacity="0.7" />
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type ToggleButton}">
+                    <Border x:Name="border" CornerRadius="10" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Background="{TemplateBinding Background}" SnapsToDevicePixels="true">
+                        <ContentPresenter x:Name="contentPresenter" Focusable="False" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" Margin="{TemplateBinding Padding}" RecognizesAccessKey="True" SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="true">
+                            <Setter Property="Background" TargetName="border" Value="{StaticResource Button.MouseOver.Background}"/>
+                            <Setter Property="BorderBrush" TargetName="border" Value="{StaticResource Button.MouseOver.Border}"/>
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="true">
+                            <Setter Property="Background" TargetName="border" Value="{StaticResource Button.Pressed.Background}"/>
+                            <Setter Property="BorderBrush" TargetName="border" Value="{StaticResource Button.Pressed.Border}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="true">
+                            <Setter Property="Background" TargetName="border" Value="{StaticResource Button.Pressed.Background}"/>
+                            <Setter Property="BorderBrush" TargetName="border" Value="{StaticResource Button.Pressed.Border}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="false">
+                            <Setter Property="Background" TargetName="border" Value="{StaticResource Button.Disabled.Background}"/>
+                            <Setter Property="BorderBrush" TargetName="border" Value="{StaticResource Button.Disabled.Border}"/>
+                            <Setter Property="TextElement.Foreground" TargetName="contentPresenter" Value="{StaticResource Button.Disabled.Foreground}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
     </Window.Resources>
     <Grid Background="Black">
         <Grid.RowDefinitions>
@@ -86,6 +130,75 @@
                 <Button x:Name="buttonGenerateBin" Width="110" Height="32" Click="buttonGenerateBin_Click" Content="生成 BIN" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
                 <Button x:Name="buttonCollection" Width="90" Height="32" Click="buttonCollection_Click" Content="采集" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
                 <Button x:Name="buttonImport" Width="90" Height="32" Click="buttonImport_Click" Content="导入" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
+                <ToggleButton x:Name="checkBoxCursor"
+                              Width="70"
+                              Height="32"
+                              Content="&#x6E38;&#x6807;"
+                              FontSize="14"
+                              FontWeight="Bold"
+                              Style="{DynamicResource ToggleButtonStyle1}"
+                              Checked="checkBoxCursor_CheckedChanged"
+                              Unchecked="checkBoxCursor_CheckedChanged"/>
+                <ToggleButton x:Name="checkBoxCursorSnap"
+                              Width="70"
+                              Height="32"
+                              Content="&#x5438;&#x9644;"
+                              FontSize="14"
+                              FontWeight="Bold"
+                              IsChecked="True"
+                              IsEnabled="False"
+                              Visibility="Collapsed"
+                              Style="{DynamicResource ToggleButtonStyle1}"
+                              Checked="checkBoxCursorSnap_CheckedChanged"
+                              Unchecked="checkBoxCursorSnap_CheckedChanged"/>
+                <TextBlock Text="目标"
+                           Foreground="White"
+                           VerticalAlignment="Center"
+                           Margin="18,0,6,0"
+                           Visibility="Collapsed"/>
+                <TextBox x:Name="textBoxUdpTargetIp"
+                         Width="110"
+                         Height="28"
+                         VerticalContentAlignment="Center"
+                         Text="192.168.1.10"
+                         Visibility="Collapsed"/>
+                <TextBox x:Name="textBoxUdpTargetPort"
+                         Width="58"
+                         Height="28"
+                         Margin="6,0,0,0"
+                         VerticalContentAlignment="Center"
+                         Text="6000"
+                         Visibility="Collapsed"/>
+                <ComboBox x:Name="comboBoxUdpCommand"
+                          Width="220"
+                          Height="28"
+                          Margin="10,0,0,0"
+                          VerticalAlignment="Center"
+                          DisplayMemberPath="DisplayText"/>
+                <TextBox x:Name="textBoxUdpInterfaceAddress"
+                         Width="64"
+                         Height="28"
+                         Margin="6,0,0,0"
+                         VerticalContentAlignment="Center"
+                         Text="0001"
+                         ToolTip="接口地址，2 字节十六进制"
+                         Visibility="Collapsed"/>
+                <TextBox x:Name="textBoxUdpPayloadHex"
+                         Width="180"
+                         Height="28"
+                         Margin="6,0,0,0"
+                         VerticalContentAlignment="Center"
+                         Text=""
+                         ToolTip="数据区，十六进制，例如 01 02 0A"
+                         Visibility="Collapsed"/>
+                <Button x:Name="buttonSendUdpCommand"
+                        Width="70"
+                        Height="32"
+                        Click="buttonSendUdpCommand_Click"
+                        Content="发送"
+                        FontSize="14"
+                        FontWeight="Bold"
+                        Style="{DynamicResource ButtonStyle1}"/>
                 <TextBlock x:Name="textBlockImportPage"
                            Text="页:"
                            Foreground="White"
