@@ -28,6 +28,7 @@ namespace ScopeAnalysis
             public string ImportPath { get; set; }
             public uint SampleRate { get; set; }
             public uint DataRate { get; set; }
+            public ProtocolBitOrder BitOrder { get; set; }
             public string TimestampText { get; set; }
             public bool HasUartMetadata { get; set; }
             public int UartBaudRate { get; set; }
@@ -79,6 +80,7 @@ namespace ScopeAnalysis
             public string FolderPath { get; set; }
             public uint SampleRate { get; set; }
             public uint DataRate { get; set; }
+            public ProtocolBitOrder BitOrder { get; set; }
             public string TimestampText { get; set; }
             public bool HasUartMetadata { get; set; }
             public int UartBaudRate { get; set; }
@@ -322,6 +324,13 @@ namespace ScopeAnalysis
                     return false;
                 }
 
+                ProtocolBitOrder bitOrder;
+                if (TryParseProtocolBitOrder(manifest.BitOrder, out bitOrder) == false)
+                {
+                    validationMessage = "manifest.json 中的 bitOrder 无效。";
+                    return false;
+                }
+
                 selection = new SignalImportSelection
                 {
                     ProtocolType = manifestProtocolType,
@@ -329,6 +338,7 @@ namespace ScopeAnalysis
                     ImportPath = importPath,
                     SampleRate = manifest.SampleRate,
                     DataRate = manifest.DataRate,
+                    BitOrder = bitOrder,
                     TimestampText = manifest.TimestampText,
                     HasUartMetadata = false,
                     UartBaudRate = 0,
@@ -384,7 +394,7 @@ namespace ScopeAnalysis
             ProtocolBinFolderMetadata folderMetadata;
             if (ProtocolBinNaming.TryParseFolderMetadata(importPath, out folderMetadata) == false || folderMetadata.DataRate == 0)
             {
-                validationMessage = "文件夹名称必须是 1;采样率;波特率;校验位;数据位;停止位;时间戳，或 线数;采样率;数据速率;时间戳; 这种格式。";
+                validationMessage = "文件夹名称必须是 1;采样率;波特率;校验位;数据位;停止位;时间戳，或 线数;采样率;数据速率;大小端;时间戳; 这种格式。";
                 return false;
             }
 
@@ -410,6 +420,7 @@ namespace ScopeAnalysis
                 ImportPath = importPath,
                 SampleRate = folderMetadata.SampleRate,
                 DataRate = folderMetadata.DataRate,
+                BitOrder = folderMetadata.BitOrder,
                 TimestampText = folderMetadata.TimestampText,
                 HasUartMetadata = false,
                 UartBaudRate = 0,
@@ -507,6 +518,7 @@ namespace ScopeAnalysis
                 FolderPath = selection.ImportPath,
                 SampleRate = selection.SampleRate,
                 DataRate = selection.DataRate,
+                BitOrder = selection.BitOrder,
                 TimestampText = selection.TimestampText,
                 HasUartMetadata = selection.HasUartMetadata,
                 UartBaudRate = selection.UartBaudRate,
@@ -590,7 +602,7 @@ namespace ScopeAnalysis
                     }
                     else
                     {
-                        ApplyImportedProtocolDecodeSettings(_chartSignals[i], samplesPerBit);
+                        ApplyImportedProtocolDecodeSettings(_chartSignals[i], samplesPerBit, _currentProtocolImportSession.BitOrder);
                     }
                 }
 
@@ -1117,7 +1129,7 @@ namespace ScopeAnalysis
             return channels;
         }
 
-        private static void ApplyImportedProtocolDecodeSettings(ChartSignal signal, int samplesPerBit)
+        private static void ApplyImportedProtocolDecodeSettings(ChartSignal signal, int samplesPerBit, ProtocolBitOrder bitOrder)
         {
             if (signal == null || signal.DecodeSettings == null)
             {
@@ -1128,6 +1140,7 @@ namespace ScopeAnalysis
             signal.DecodeSettings.DataBits = 8;
             signal.DecodeSettings.LeadingIdleSamples = 0;
             signal.DecodeSettings.SamplesPerBit = samplesPerBit;
+            signal.DecodeSettings.FixedWidthBitOrder = bitOrder;
         }
 
         private static void ApplyImportedUartDecodeSettings(ChartSignal signal, SignalImportSelection selection)
@@ -1198,6 +1211,33 @@ namespace ScopeAnalysis
                 case "空格校验":
                 case "Space":
                     parityMode = UartParityMode.Space;
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        private static bool TryParseProtocolBitOrder(string text, out ProtocolBitOrder bitOrder)
+        {
+            bitOrder = ProtocolBitOrder.BigEndian;
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return true;
+            }
+
+            switch (text.Trim())
+            {
+                case "BigEndian":
+                case "MSB":
+                case "MSBFirst":
+                case "大端":
+                    bitOrder = ProtocolBitOrder.BigEndian;
+                    return true;
+                case "LittleEndian":
+                case "LSB":
+                case "LSBFirst":
+                case "小端":
+                    bitOrder = ProtocolBitOrder.LittleEndian;
                     return true;
                 default:
                     return false;

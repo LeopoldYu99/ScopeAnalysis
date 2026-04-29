@@ -40,6 +40,9 @@ namespace ScopeAnalysis
         [DataMember(Name = "samplesPerBit")]
         public int SamplesPerBit { get; set; }
 
+        [DataMember(Name = "bitOrder", EmitDefaultValue = false)]
+        public string BitOrder { get; set; }
+
         [DataMember(Name = "pageDurationSeconds")]
         public double PageDurationSeconds { get; set; }
 

@@ -414,6 +414,19 @@
                                     </StackPanel>
                                 </Grid>
                             </StackPanel>
+
+                            <StackPanel x:Name="ProtocolBitOrderPanel"
+                                        Margin="0,12,0,0"
+                                        Visibility="Collapsed">
+                                <TextBlock Style="{StaticResource FieldLabelStyle}"
+                                           Text="大小端"/>
+                                <ComboBox x:Name="ProtocolBitOrderComboBox"
+                                          Style="{StaticResource FieldComboBoxStyle}"
+                                          SelectedIndex="0">
+                                    <ComboBoxItem Content="BigEndian"/>
+                                    <ComboBoxItem Content="LittleEndian"/>
+                                </ComboBox>
+                            </StackPanel>
                         </Grid>
                     </Border>
                 </Grid>

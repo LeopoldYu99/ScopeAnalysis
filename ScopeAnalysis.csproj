@@ -103,6 +103,7 @@
     <Compile Include="ProtocolBinNaming.cs">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="ProtocolBitOrder.cs" />
     <Compile Include="ProtocolPageManifest.cs" />
     <Compile Include="DecodeLogic.cs" />
     <Compile Include="SignalDecodeMode.cs" />

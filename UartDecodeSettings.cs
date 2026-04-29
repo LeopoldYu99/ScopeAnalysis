@@ -13,6 +13,7 @@ namespace ScopeAnalysis
         private int _leadingIdleSamples;
         private int _emptyDataRunSegmentThreshold = 10;
         private int _samplesPerBit = 1;
+        private ProtocolBitOrder _fixedWidthBitOrder = ProtocolBitOrder.BigEndian;
         private SignalDecodeMode _mode = SignalDecodeMode.UartFrame;
 
         public int Version
@@ -169,6 +170,22 @@ namespace ScopeAnalysis
                 if (_samplesPerBit != normalizedValue)
                 {
                     _samplesPerBit = normalizedValue;
+                    _version++;
+                }
+            }
+        }
+
+        public ProtocolBitOrder FixedWidthBitOrder
+        {
+            get
+            {
+                return _fixedWidthBitOrder;
+            }
+            set
+            {
+                if (_fixedWidthBitOrder != value)
+                {
+                    _fixedWidthBitOrder = value;
                     _version++;
                 }
             }

@@ -1373,7 +1373,8 @@ namespace ScopeAnalysis
                             history.SampleInterval,
                             8,
                             decodeSettings.EmptyDataRunSegmentThreshold,
-                            decodeSettings.SamplesPerBit);
+                            decodeSettings.SamplesPerBit,
+                            decodeSettings.FixedWidthBitOrder);
                         break;
                     default:
                         segments = DecodeLogic.BuildProtocolSegments(

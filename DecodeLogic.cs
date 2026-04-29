@@ -161,7 +161,8 @@ namespace ScopeAnalysis
             double sampleInterval,
             int bitsPerSegment,
             int emptyDataRunSegmentThreshold,
-            int samplesPerBit)
+            int samplesPerBit,
+            ProtocolBitOrder bitOrder)
         {
             List<ProtocolSegment> segments = new List<ProtocolSegment>();
             if (digitalWords == null || sampleCount <= 0 || sampleInterval <= 0 || bitsPerSegment <= 0 || bitsPerSegment > 8)
@@ -205,6 +206,7 @@ namespace ScopeAnalysis
                         sampleInterval,
                         bitsPerSegment,
                         normalizedSamplesPerBit,
+                        bitOrder,
                         decodeStartSample,
                         decodeEndSample);
 
@@ -225,6 +227,7 @@ namespace ScopeAnalysis
                 sampleInterval,
                 bitsPerSegment,
                 normalizedSamplesPerBit,
+                bitOrder,
                 decodeStartSample,
                 sampleCount);
             return segments;
@@ -526,6 +529,7 @@ namespace ScopeAnalysis
             double sampleInterval,
             int bitsPerSegment,
             int samplesPerBit,
+            ProtocolBitOrder bitOrder,
             int startSampleInclusive,
             int endSampleExclusive)
         {
@@ -555,7 +559,10 @@ namespace ScopeAnalysis
                     bool bitHigh = GetSampleValue(digitalWords, sampleCount, bitSampleIndex);
                     if (bitHigh)
                     {
-                        decodedValue |= (byte)(1 << (bitsPerSegment - bitIndex - 1));
+                        int decodedBitIndex = bitOrder == ProtocolBitOrder.LittleEndian
+                            ? bitIndex
+                            : bitsPerSegment - bitIndex - 1;
+                        decodedValue |= (byte)(1 << decodedBitIndex);
                     }
 
                     bitLabels[bitIndex] = bitHigh ? "1" : "0";

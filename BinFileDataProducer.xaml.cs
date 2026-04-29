@@ -36,6 +36,7 @@ namespace ScopeAnalysis
             public int DataBits { get; set; }
             public double StopBits { get; set; }
             public int SamplesPerBit { get; set; }
+            public ProtocolBitOrder BitOrder { get; set; }
             public int LineCount { get; set; }
             public double PageDurationSeconds { get; set; }
             public byte EmptyDataValue { get; set; }
@@ -75,6 +76,7 @@ namespace ScopeAnalysis
             SelectComboBoxItemByText(ParityComboBox, "无校验");
             SelectComboBoxItemByText(DataBitsComboBox, "8");
             SelectComboBoxItemByText(StopBitsComboBox, "1");
+            SelectComboBoxItemByText(ProtocolBitOrderComboBox, ProtocolBitOrder.BigEndian.ToString());
 
             ApplyProtocolVisibility(GetSelectedProtocolType());
             UpdatePayloadPreview();
@@ -119,6 +121,7 @@ namespace ScopeAnalysis
                 }
 
                 int samplesPerBit = checked((int)(sampleRate / dataRate));
+                ProtocolBitOrder bitOrder = GetSelectedBitOrder();
                 double durationSeconds = GetDurationSeconds();
                 double pageDurationSeconds = GetPageDurationSeconds();
                 byte emptyDataValue = GetEmptyDataValue();
@@ -140,7 +143,8 @@ namespace ScopeAnalysis
                     protocolType,
                     GetClockValue(protocolType),
                     emptyDataValue,
-                    samplesPerBit);
+                    samplesPerBit,
+                    bitOrder);
 
                 if (protocolBytes.Length == 0)
                 {
@@ -157,7 +161,7 @@ namespace ScopeAnalysis
                 DateTime exportTimestamp = DateTime.Now;
                 string exportDirectory = Path.Combine(
                     exportParentDirectory,
-                    ProtocolBinNaming.BuildExportFolderName(lineCount, sampleRate, dataRate, exportTimestamp));
+                    ProtocolBinNaming.BuildExportFolderName(lineCount, sampleRate, dataRate, bitOrder, exportTimestamp));
                 Directory.CreateDirectory(exportDirectory);
 
                 int pageCount = WriteProtocolPages(
@@ -169,6 +173,7 @@ namespace ScopeAnalysis
                     sampleRate,
                     dataRate,
                     samplesPerBit,
+                    bitOrder,
                     emptyDataValue,
                     pageDurationSeconds,
                     exportTimestamp,
@@ -424,10 +429,11 @@ namespace ScopeAnalysis
             }
 
             session.SamplesPerBit = checked((int)(sampleRate / session.DataRate));
+            session.BitOrder = GetSelectedBitOrder();
             session.LineCount = GetProtocolLineCount(protocolType);
             session.ExportDirectory = Path.Combine(
                 exportParentDirectory,
-                ProtocolBinNaming.BuildExportFolderName(session.LineCount, sampleRate, session.DataRate, exportTimestamp));
+                ProtocolBinNaming.BuildExportFolderName(session.LineCount, sampleRate, session.DataRate, session.BitOrder, exportTimestamp));
             return session;
         }
 
@@ -503,6 +509,7 @@ namespace ScopeAnalysis
                 DataBits = session.ProtocolType == SerialProtocolType.Uart ? session.DataBits : 8,
                 StopBits = session.ProtocolType == SerialProtocolType.Uart ? session.StopBits : 0,
                 SamplesPerBit = session.SamplesPerBit,
+                BitOrder = session.ProtocolType == SerialProtocolType.Uart ? string.Empty : session.BitOrder.ToString(),
                 PageDurationSeconds = session.PageDurationSeconds,
                 TimestampText = BuildManifestTimestampText(session.ExportTimestamp),
                 Pages = new List<ProtocolPageManifestPage>()
@@ -534,7 +541,8 @@ namespace ScopeAnalysis
                 session.ProtocolType,
                 GetClockValueForProtocol(session.ProtocolType),
                 session.EmptyDataValue,
-                session.SamplesPerBit);
+                session.SamplesPerBit,
+                session.BitOrder);
             byte[][] channelBytes = ProtocolPageUtility.SplitInterleavedPackedBytes(protocolBytes, session.LineCount);
             if (channelBytes == null || channelBytes.Length != session.LineCount)
             {
@@ -930,6 +938,21 @@ namespace ScopeAnalysis
                     return UartParityMode.Space;
                 default:
                     return UartParityMode.None;
+            }
+        }
+
+        private ProtocolBitOrder GetSelectedBitOrder()
+        {
+            string text = GetComboBoxText(ProtocolBitOrderComboBox);
+            switch ((text ?? string.Empty).Trim())
+            {
+                case "LittleEndian":
+                case "LSB":
+                case "LSBFirst":
+                case "小端":
+                    return ProtocolBitOrder.LittleEndian;
+                default:
+                    return ProtocolBitOrder.BigEndian;
             }
         }
 
@@ -1441,7 +1464,8 @@ namespace ScopeAnalysis
             SerialProtocolType protocolType,
             byte clockValue,
             byte defaultByteValue,
-            int samplesPerBit)
+            int samplesPerBit,
+            ProtocolBitOrder bitOrder)
         {
             if (payloadBytes == null || payloadBytes.Length == 0)
             {
@@ -1463,19 +1487,20 @@ namespace ScopeAnalysis
             byte[] exportBytes = new byte[(int)outputLength];
             byte[][] expandedByteCache = new byte[256][];
             byte[] expandedClock = GetExpandedClockPattern(clockValue, samplesPerBit, expandedByteCache);
-            byte[] expandedDefault = GetExpandedBytePattern(defaultByteValue, samplesPerBit, expandedByteCache);
+            byte[] expandedDefault = GetExpandedBytePattern(defaultByteValue, samplesPerBit, expandedByteCache, bitOrder);
             int outputIndex = 0;
 
             for (int payloadIndex = 0; payloadIndex < payloadBytes.Length; payloadIndex++)
             {
-                byte[] expandedData = GetExpandedBytePattern(payloadBytes[payloadIndex], samplesPerBit, expandedByteCache);
+                byte[] expandedData = GetExpandedBytePattern(payloadBytes[payloadIndex], samplesPerBit, expandedByteCache, bitOrder);
                 byte[] expandedData2 = payloadBytes2 != null && payloadIndex < payloadBytes2.Length
-                    ? GetExpandedBytePattern(payloadBytes2[payloadIndex], samplesPerBit, expandedByteCache)
+                    ? GetExpandedBytePattern(payloadBytes2[payloadIndex], samplesPerBit, expandedByteCache, bitOrder)
                     : expandedDefault;
                 byte[] expandedEnable = GetExpandedBytePattern(
                     GetProtocolEnableValue(payloadBytes[payloadIndex], payloadBytes2, payloadIndex, protocolType, defaultByteValue),
                     samplesPerBit,
-                    expandedByteCache);
+                    expandedByteCache,
+                    ProtocolBitOrder.BigEndian);
 
                 for (int packedByteIndex = 0; packedByteIndex < samplesPerBit; packedByteIndex++)
                 {
@@ -1526,6 +1551,11 @@ namespace ScopeAnalysis
 
         private static byte[] GetExpandedBytePattern(byte value, int samplesPerBit, byte[][] expandedByteCache)
         {
+            return GetExpandedBytePattern(value, samplesPerBit, expandedByteCache, ProtocolBitOrder.BigEndian);
+        }
+
+        private static byte[] GetExpandedBytePattern(byte value, int samplesPerBit, byte[][] expandedByteCache, ProtocolBitOrder bitOrder)
+        {
             byte[] cachedPattern = expandedByteCache[value];
             if (cachedPattern != null && cachedPattern.Length == samplesPerBit)
             {
@@ -1537,7 +1567,9 @@ namespace ScopeAnalysis
             for (int expandedSampleIndex = 0; expandedSampleIndex < totalExpandedSamples; expandedSampleIndex++)
             {
                 int sourceBitIndex = expandedSampleIndex / samplesPerBit;
-                int sourceBitOffset = 7 - sourceBitIndex;
+                int sourceBitOffset = bitOrder == ProtocolBitOrder.LittleEndian
+                    ? sourceBitIndex
+                    : 7 - sourceBitIndex;
                 if (((value >> sourceBitOffset) & 0x1) == 0)
                 {
                     continue;
@@ -1592,6 +1624,7 @@ namespace ScopeAnalysis
             uint sampleRate,
             uint dataRate,
             int samplesPerBit,
+            ProtocolBitOrder bitOrder,
             byte emptyDataValue,
             double pageDurationSeconds,
             DateTime exportTimestamp,
@@ -1647,6 +1680,7 @@ namespace ScopeAnalysis
                     DataBits = 8,
                     StopBits = 0,
                     SamplesPerBit = samplesPerBit,
+                    BitOrder = bitOrder.ToString(),
                     PageDurationSeconds = pageDurationSeconds,
                     TimestampText = BuildManifestTimestampText(exportTimestamp),
                     Pages = pages
@@ -2335,6 +2369,10 @@ namespace ScopeAnalysis
             TwoWireConfigPanel.Visibility = protocolType == SerialProtocolType.TwoWireSerial ? Visibility.Visible : Visibility.Collapsed;
             ThreeWireConfigPanel.Visibility = protocolType == SerialProtocolType.ThreeWireSerial ? Visibility.Visible : Visibility.Collapsed;
             FourWireConfigPanel.Visibility = protocolType == SerialProtocolType.FourWireSerial ? Visibility.Visible : Visibility.Collapsed;
+            if (ProtocolBitOrderPanel != null)
+            {
+                ProtocolBitOrderPanel.Visibility = protocolType == SerialProtocolType.Uart ? Visibility.Collapsed : Visibility.Visible;
+            }
         }
 
         private static void SelectComboBoxItemByText(ComboBox comboBox, string expectedText)

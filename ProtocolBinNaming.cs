@@ -9,6 +9,7 @@ namespace ScopeAnalysis
         public int LineCount { get; set; }
         public uint SampleRate { get; set; }
         public uint DataRate { get; set; }
+        public ProtocolBitOrder BitOrder { get; set; }
         public string TimestampText { get; set; }
     }
 
@@ -32,14 +33,15 @@ namespace ScopeAnalysis
 
     internal static class ProtocolBinNaming
     {
-        public static string BuildExportFolderName(int lineCount, uint sampleRate, uint dataRate, DateTime exportTimestamp)
+        public static string BuildExportFolderName(int lineCount, uint sampleRate, uint dataRate, ProtocolBitOrder bitOrder, DateTime exportTimestamp)
         {
             return string.Format(
                 CultureInfo.InvariantCulture,
-                "{0};{1};{2};{3};",
+                "{0};{1};{2};{3};{4};",
                 lineCount,
                 sampleRate,
                 dataRate,
+                bitOrder,
                 BuildTimestampText(exportTimestamp));
         }
 
@@ -132,7 +134,8 @@ namespace ScopeAnalysis
             int lineCount;
             uint sampleRate;
             uint dataRate = 0;
-            string timestampText = parts.Length >= 4 ? parts[3] : parts[2];
+            ProtocolBitOrder bitOrder = ProtocolBitOrder.BigEndian;
+            string timestampText = parts.Length >= 5 ? parts[4] : (parts.Length >= 4 ? parts[3] : parts[2]);
             if (int.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out lineCount) == false
                 || lineCount <= 0
                 || uint.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out sampleRate) == false
@@ -148,11 +151,17 @@ namespace ScopeAnalysis
                 return false;
             }
 
+            if (parts.Length >= 5 && TryParseBitOrder(parts[3], out bitOrder) == false)
+            {
+                return false;
+            }
+
             metadata = new ProtocolBinFolderMetadata
             {
                 LineCount = lineCount,
                 SampleRate = sampleRate,
                 DataRate = dataRate,
+                BitOrder = bitOrder,
                 TimestampText = timestampText
             };
             return true;
@@ -364,6 +373,33 @@ namespace ScopeAnalysis
         private static bool TryParseStopBits(string text, out double stopBits)
         {
             return double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out stopBits) && stopBits > 0;
+        }
+
+        private static bool TryParseBitOrder(string text, out ProtocolBitOrder bitOrder)
+        {
+            bitOrder = ProtocolBitOrder.BigEndian;
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return false;
+            }
+
+            switch (text.Trim())
+            {
+                case "BigEndian":
+                case "MSB":
+                case "MSBFirst":
+                case "大端":
+                    bitOrder = ProtocolBitOrder.BigEndian;
+                    return true;
+                case "LittleEndian":
+                case "LSB":
+                case "LSBFirst":
+                case "小端":
+                    bitOrder = ProtocolBitOrder.LittleEndian;
+                    return true;
+                default:
+                    return false;
+            }
         }
 
         private static bool TryParseTimestampAndFileNumber(string text, out string timestampText, out int fileNumber)
