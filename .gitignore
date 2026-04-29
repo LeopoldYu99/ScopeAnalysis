@@ -11,3 +11,4 @@
 .cr/personal/
 /.dotnet-cli/.dotnet
 /_docx_extract
+/.cr/build
