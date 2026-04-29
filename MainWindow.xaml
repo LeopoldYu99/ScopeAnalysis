@@ -84,6 +84,7 @@
         <Border Grid.Row="0" Background="#FF1C1C1C" BorderBrush="#FF3C3C3C" BorderThickness="0,0,0,1" Padding="10,8">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <Button x:Name="buttonGenerateBin" Width="110" Height="32" Click="buttonGenerateBin_Click" Content="生成 BIN" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
+                <Button x:Name="buttonCollection" Width="90" Height="32" Click="buttonCollection_Click" Content="采集" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
                 <Button x:Name="buttonImport" Width="90" Height="32" Click="buttonImport_Click" Content="导入" FontSize="14" FontWeight="Bold" Style="{DynamicResource ButtonStyle1}"/>
                 <TextBlock x:Name="textBlockImportPage"
                            Text="页:"

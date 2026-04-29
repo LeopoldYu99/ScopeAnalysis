@@ -172,6 +172,25 @@ namespace ScopeAnalysis
             dialog.ShowDialog();
         }
 
+        private void ShowCollectionDialog()
+        {
+            CollectionDataProducer producer = new CollectionDataProducer();
+
+            Window dialog = new Window
+            {
+                Title = "采集",
+                Owner = this,
+                Width = 860,
+                Height = 680,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                ResizeMode = ResizeMode.CanResize,
+                Background = Brushes.White,
+                Content = BuildDataProducerDialogContent(producer)
+            };
+
+            dialog.ShowDialog();
+        }
+
         private static UIElement BuildDataProducerDialogContent(UIElement producer)
         {
             Grid layoutRoot = new Grid

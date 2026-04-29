@@ -53,6 +53,11 @@ namespace ScopeAnalysis
             ShowDataProducerDialog();
         }
 
+        private void buttonCollection_Click(object sender, RoutedEventArgs e)
+        {
+            ShowCollectionDialog();
+        }
+
         private void buttonImport_Click(object sender, RoutedEventArgs e)
         {
             ShowSignalImportDialogForSignal(0);

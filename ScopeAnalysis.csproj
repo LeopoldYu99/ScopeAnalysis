@@ -100,6 +100,9 @@
     <Compile Include="BinFileDataProducer.xaml.cs">
       <DependentUpon>BinFileDataProducer.xaml</DependentUpon>
     </Compile>
+    <Compile Include="CollectionDataProducer.xaml.cs">
+      <DependentUpon>CollectionDataProducer.xaml</DependentUpon>
+    </Compile>
     <Compile Include="ProtocolBinNaming.cs">
       <SubType>Code</SubType>
     </Compile>
@@ -130,6 +133,10 @@
       <SubType>Code</SubType>
     </Compile>
     <Page Include="BinFileDataProducer.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="CollectionDataProducer.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
