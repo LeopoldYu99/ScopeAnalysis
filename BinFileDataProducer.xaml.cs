@@ -1462,7 +1462,7 @@ namespace ScopeAnalysis
 
             byte[] exportBytes = new byte[(int)outputLength];
             byte[][] expandedByteCache = new byte[256][];
-            byte[] expandedClock = GetExpandedBytePattern(clockValue, samplesPerBit, expandedByteCache);
+            byte[] expandedClock = GetExpandedClockPattern(clockValue, samplesPerBit, expandedByteCache);
             byte[] expandedDefault = GetExpandedBytePattern(defaultByteValue, samplesPerBit, expandedByteCache);
             int outputIndex = 0;
 
@@ -1549,6 +1549,37 @@ namespace ScopeAnalysis
             }
 
             expandedByteCache[value] = pattern;
+            return pattern;
+        }
+
+        private static byte[] GetExpandedClockPattern(byte clockValue, int samplesPerBit, byte[][] expandedByteCache)
+        {
+            if (clockValue == 0)
+            {
+                return GetExpandedBytePattern(clockValue, samplesPerBit, expandedByteCache);
+            }
+
+            if (samplesPerBit < 2)
+            {
+                throw new InvalidOperationException("每位重复采样点数至少为 2，才能在一个 Bit 内生成 CLK 的上升沿和下降沿。");
+            }
+
+            byte[] pattern = new byte[samplesPerBit];
+            int lowSamples = samplesPerBit / 2;
+            int totalExpandedSamples = samplesPerBit * 8;
+            for (int expandedSampleIndex = 0; expandedSampleIndex < totalExpandedSamples; expandedSampleIndex++)
+            {
+                int sampleIndexInBit = expandedSampleIndex % samplesPerBit;
+                if (sampleIndexInBit < lowSamples)
+                {
+                    continue;
+                }
+
+                int packedByteIndex = expandedSampleIndex / 8;
+                int packedBitOffset = 7 - (expandedSampleIndex % 8);
+                pattern[packedByteIndex] |= (byte)(1 << packedBitOffset);
+            }
+
             return pattern;
         }
 
